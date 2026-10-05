@@ -634,21 +634,86 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
 }
 
 function PlayerNews({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:(id:string)=>void}){
-  const notifications=portal.notifications??[];
-  const org=notifications.filter((n:any)=>['GM','MJ','ORGANIZATION','ORGANISATION','EVENT'].includes(String(n.kind??'').toUpperCase()));
-  const happenings=notifications.filter((n:any)=>!org.includes(n));
+  const notifications=(portal.notifications??[]).filter((n:any)=>{
+    const kind=String(n.kind??'').toUpperCase();
+    return !['INTERACTION','ACTION','LOCATION'].includes(kind);
+  });
   const logs=portal.actionLogs??[];
-  return <div className="playerStack">
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">MESSAGES DE L’ORGANISATION</p><h2>Organisation</h2></div><span>{org.length}</span></div>{org.length===0?<p>Aucun message de l’organisation.</p>:org.map((n:any)=><NewsNotification key={n.id} n={n} busy={busy} onRead={onRead}/>)}</section>
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">CE QU’IL SE PASSE</p><h2>Notifications</h2></div><span>{happenings.length}</span></div>{happenings.length===0?<p>Aucune notification de jeu pour le moment.</p>:happenings.map((n:any)=><NewsNotification key={n.id} n={n} busy={busy} onRead={onRead}/>)}</section>
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">CE QUE J’AI FAIT</p><h2>Actions réalisées</h2></div><span>{logs.length}</span></div>{logs.length===0?<p>Aucune action mécanique enregistrée pour le moment.</p>:logs.map((l:any)=><article className="newsLog" key={l.id??`${l.actionType}-${l.createdAt}-${l.refExternalId}`}><small>{niceTime(l.createdAt)} · {l.actionType}</small><strong>{actionLogTitle(l)}</strong>{l.note&&<p>{l.note}</p>}</article>)}</section>
-    <section className="playerCard rulesCard"><p className="playerSectionKicker">RÈGLES DU JEU</p><h2>Comment jouer</h2>{portal.session?.playerSummary&&<p className="scenarioRuleIntro">{portal.session.playerSummary}</p>}<ul><li>Les discussions, négociations, mensonges et alliances entre joueurs sont libres, sauf indication contraire du scénario.</li><li>Avant une action mécanique payante, Murder Engine vous indique son coût et vous demande confirmation.</li><li>Les QR servent à valider un lieu ou une cible. Respectez le mode DIRECT ou DISCRET indiqué par l’action.</li><li>Après une tentative de fouille, un délai de 10 minutes s’applique avant la suivante.</li><li>Lorsqu’une action nécessite un jugement humain, le MJ reste l’arbitre.</li></ul></section>
+
+  return <div className="playerStack newsShell">
+    <section className="playerCard newsFeedCard">
+      <div className="playerSectionHead">
+        <div>
+          <p className="playerSectionKicker">CE QU’IL SE PASSE</p>
+          <h2>Notifications</h2>
+        </div>
+        <span>{notifications.length}</span>
+      </div>
+      <p className="newsSectionIntro">Messages de l’organisation, événements du scénario et informations qui vous concernent.</p>
+      {notifications.length===0
+        ? <p>Aucune nouvelle pour le moment.</p>
+        : notifications.map((n:any)=><NewsNotification key={n.id} n={n} busy={busy} onRead={onRead}/>)}
+    </section>
+
+    <section className="playerCard">
+      <div className="playerSectionHead">
+        <div>
+          <p className="playerSectionKicker">CE QUE J’AI FAIT</p>
+          <h2>Actions réalisées</h2>
+        </div>
+        <span>{logs.length}</span>
+      </div>
+      {logs.length===0
+        ? <p>Aucune action mécanique enregistrée pour le moment.</p>
+        : logs.map((l:any)=>
+          <article className="newsLog" key={l.id??`${l.actionType}-${l.createdAt}-${l.refExternalId}`}>
+            <small>{niceTime(l.createdAt)}</small>
+            <strong>{actionLogTitle(l)}</strong>
+            {l.note&&<p>{l.note}</p>}
+          </article>
+        )}
+    </section>
+
+    <section className="playerCard rulesCard">
+      <p className="playerSectionKicker">RÈGLES DU JEU</p>
+      <h2>Comment jouer</h2>
+      <ul>
+        <li>Les discussions, négociations, mensonges et alliances entre joueurs sont libres, sauf indication contraire du scénario.</li>
+        <li>Avant une action mécanique payante, Murder Engine vous indique son coût et vous demande confirmation.</li>
+        <li>Les QR servent à valider un lieu ou une cible. L’onglet Jouer vous indique quand agir face à face ou discrètement.</li>
+        <li>Après une tentative de fouille, un délai de 10 minutes s’applique avant la suivante.</li>
+        <li>Lorsqu’une action nécessite un jugement humain, le MJ reste l’arbitre.</li>
+      </ul>
+    </section>
   </div>;
 }
 
 function NewsNotification({n,busy,onRead}:{n:any;busy:boolean;onRead:(id:string)=>void}){
-  return <article className={`playerMessage newsMessage ${n.readAt?'read':'unread'}`}><div><small>{niceTime(n.createdAt)} · {n.kind}</small><strong>{n.title}</strong><p>{n.body}</p></div>{!n.readAt&&<button className="playerSecondary" disabled={busy} onClick={()=>onRead(n.id)}>Lu</button>}</article>;
+  const kind=String(n.kind??'INFO').toUpperCase();
+  const pressLike=['NEWS','EVENT','ACTU','PUBLIC'].includes(kind);
+  const sourceLabel=
+    ['GM','MJ','ORGANIZATION','ORGANISATION'].includes(kind)
+      ? 'Message de l’organisation'
+      : pressLike
+        ? 'Actualité'
+        : kind==='THEFT'
+          ? 'Alerte personnelle'
+          : kind==='OBJECT'
+            ? 'Information reçue'
+            : kind==='INTERACTION_TARGET'
+              ? 'Événement personnel'
+              : 'Information';
+
+  return <article className={`playerMessage newsMessage ${n.readAt?'read':'unread'} ${pressLike?'pressArticle':''}`}>
+    <div>
+      <small>{sourceLabel} · {niceTime(n.createdAt)}</small>
+      <strong>{n.title}</strong>
+      <p>{n.body}</p>
+    </div>
+    {!n.readAt&&<button className="playerSecondary" disabled={busy} onClick={()=>onRead(n.id)}>Marquer comme lu</button>}
+  </article>;
 }
+
 function actionLogTitle(l:any){
   const type=String(l?.actionType??'').toUpperCase();
   if(type==='INTERACTION_EXECUTE')return 'Action exécutée';
