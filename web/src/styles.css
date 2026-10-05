@@ -10951,3 +10951,110 @@ button.skinGalleryCard:disabled{
 .skin-noir-1940-1950 .playSkillsDetails{color:var(--noir-ink)}
 .skin-vintage-1960-1970 .playMainCard,
 .skin-vintage-1960-1970 .playSkillsDetails{color:var(--vintage-ink)}
+
+
+/* ==========================================================
+   V1.12B — PLAYER NOTEBOOK TABS
+   ========================================================== */
+
+.notebookShell{gap:12px}
+
+.notebookTabs{
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  padding:2px 1px 5px;
+  scrollbar-width:none;
+}
+.notebookTabs::-webkit-scrollbar{display:none}
+
+.notebookTabs button{
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:40px;
+  padding:8px 11px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  background:rgba(255,255,255,.05);
+  color:inherit;
+  font-size:.78rem;
+  font-weight:800;
+  white-space:nowrap;
+}
+.notebookTabs button.active{
+  border-color:var(--skin-accent,#c59a4a);
+  background:color-mix(in srgb,var(--skin-accent,#c59a4a) 18%,transparent);
+}
+.notebookTabs button em{
+  display:grid;
+  place-items:center;
+  min-width:21px;
+  height:21px;
+  padding:0 5px;
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 10%,transparent);
+  color:inherit;
+  font-size:.65rem;
+  font-style:normal;
+}
+
+.notebookContextCard{
+  display:grid;
+  gap:8px;
+}
+.notebookIntroText{
+  white-space:pre-wrap;
+  line-height:1.65;
+  color:inherit;
+}
+
+.notebookCategoryFilters{
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  margin:0 0 13px;
+  padding-bottom:3px;
+  scrollbar-width:none;
+}
+.notebookCategoryFilters::-webkit-scrollbar{display:none}
+
+.notebookCategoryFilters button{
+  flex:0 0 auto;
+  padding:6px 10px;
+  border:1px solid color-mix(in srgb,currentColor 20%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+  color:inherit;
+  font-size:.7rem;
+  font-weight:800;
+  white-space:nowrap;
+}
+.notebookCategoryFilters button.active{
+  border-color:var(--skin-accent,#c59a4a);
+  background:color-mix(in srgb,var(--skin-accent,#c59a4a) 15%,transparent);
+}
+
+/* Light-paper skins: explicit ink inheritance for notebook controls. */
+.skin-retro-1900-1930 .notebookShell{color:var(--retro-ink)}
+.skin-western .notebookShell{color:var(--western-ink)}
+.skin-contemporary-1980-2000 .notebookShell{color:var(--contemporary-text)}
+.skin-futuristic .notebookShell{color:var(--future-text)}
+.skin-classic-mystery .notebookShell{color:var(--mystery-ink)}
+.skin-medieval-fantasy .notebookShell{color:var(--medieval-ink)}
+.skin-victorian-gothic .notebookShell{color:var(--gothic-ink)}
+.skin-noir-1940-1950 .notebookShell{color:var(--noir-ink)}
+.skin-vintage-1960-1970 .notebookShell{color:var(--vintage-ink)}
+
+@media(max-width:520px){
+  .notebookTabs{
+    margin-left:-2px;
+    margin-right:-2px;
+  }
+  .notebookTabs button{
+    min-height:38px;
+    padding:7px 10px;
+    font-size:.74rem;
+  }
+}
