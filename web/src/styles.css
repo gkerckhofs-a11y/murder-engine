@@ -11058,3 +11058,136 @@ button.skinGalleryCard:disabled{
     font-size:.74rem;
   }
 }
+
+
+/* ==========================================================
+   V1.12C — NEWS + NOTEBOOK CONTRAST
+   ========================================================== */
+
+.newsShell{gap:12px}
+.newsSectionIntro{
+  margin:-4px 0 10px;
+  color:inherit;
+  opacity:.76;
+}
+.newsMessage.pressArticle{
+  position:relative;
+  padding-top:16px;
+}
+.newsMessage.pressArticle::before{
+  content:"ÉDITION";
+  position:absolute;
+  top:8px;
+  right:10px;
+  padding:2px 6px;
+  border:1px solid color-mix(in srgb,currentColor 22%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 5%,transparent);
+  color:inherit;
+  font-size:.56rem;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.newsMessage>div>small,
+.newsLog>small{
+  color:inherit;
+  opacity:.68;
+}
+.newsMessage>div>strong,
+.newsLog>strong{
+  color:inherit;
+}
+.newsMessage>div>p,
+.newsLog>p{
+  color:inherit;
+  opacity:.86;
+}
+
+/* Notebook tabs get an explicit surface/text pair per skin. */
+.notebookShell{
+  --notebook-tab-bg:#1d252b;
+  --notebook-tab-text:#f1f5f7;
+  --notebook-tab-border:#44535c;
+  --notebook-tab-active-bg:#2d353a;
+  --notebook-tab-active-text:#fff;
+}
+.notebookTabs button,
+.notebookCategoryFilters button{
+  border-color:var(--notebook-tab-border);
+  background:var(--notebook-tab-bg);
+  color:var(--notebook-tab-text);
+}
+.notebookTabs button.active,
+.notebookCategoryFilters button.active{
+  border-color:var(--skin-accent,#c59a4a);
+  background:var(--notebook-tab-active-bg);
+  color:var(--notebook-tab-active-text);
+}
+.notebookTabs button em{
+  background:color-mix(in srgb,var(--notebook-tab-text) 12%,transparent);
+  color:var(--notebook-tab-text);
+}
+
+.skin-retro-1900-1930 .notebookShell{
+  --notebook-tab-bg:#ead8b3;
+  --notebook-tab-text:#382a1a;
+  --notebook-tab-border:#a98c58;
+  --notebook-tab-active-bg:#2a2118;
+  --notebook-tab-active-text:#f4dfb5;
+}
+.skin-western .notebookShell{
+  --notebook-tab-bg:#e7cf9d;
+  --notebook-tab-text:#412b1c;
+  --notebook-tab-border:#9b7448;
+  --notebook-tab-active-bg:#3a2417;
+  --notebook-tab-active-text:#f4ddb4;
+}
+.skin-contemporary-1980-2000 .notebookShell{
+  --notebook-tab-bg:#172027;
+  --notebook-tab-text:#e8f0f4;
+  --notebook-tab-border:#3d4d56;
+  --notebook-tab-active-bg:#0f161b;
+  --notebook-tab-active-text:#fff;
+}
+.skin-futuristic .notebookShell{
+  --notebook-tab-bg:#081317;
+  --notebook-tab-text:#dffaf6;
+  --notebook-tab-border:#24505a;
+  --notebook-tab-active-bg:#10262a;
+  --notebook-tab-active-text:#f0fffd;
+}
+.skin-classic-mystery .notebookShell{
+  --notebook-tab-bg:#e9e0cf;
+  --notebook-tab-text:#332d24;
+  --notebook-tab-border:#948568;
+  --notebook-tab-active-bg:#29382e;
+  --notebook-tab-active-text:#f4ead4;
+}
+.skin-medieval-fantasy .notebookShell{
+  --notebook-tab-bg:#e4cfa5;
+  --notebook-tab-text:#3f2f1f;
+  --notebook-tab-border:#9b7a4d;
+  --notebook-tab-active-bg:#3d2c1e;
+  --notebook-tab-active-text:#f5dfb8;
+}
+.skin-victorian-gothic .notebookShell{
+  --notebook-tab-bg:#e7d8ca;
+  --notebook-tab-text:#422f3b;
+  --notebook-tab-border:#a08678;
+  --notebook-tab-active-bg:#30242c;
+  --notebook-tab-active-text:#f2deca;
+}
+.skin-noir-1940-1950 .notebookShell{
+  --notebook-tab-bg:#e5e4de;
+  --notebook-tab-text:#252728;
+  --notebook-tab-border:#777;
+  --notebook-tab-active-bg:#252728;
+  --notebook-tab-active-text:#fff;
+}
+.skin-vintage-1960-1970 .notebookShell{
+  --notebook-tab-bg:#ead8b7;
+  --notebook-tab-text:#43352a;
+  --notebook-tab-border:#a48e67;
+  --notebook-tab-active-bg:#53573d;
+  --notebook-tab-active-text:#fff2d1;
+}
