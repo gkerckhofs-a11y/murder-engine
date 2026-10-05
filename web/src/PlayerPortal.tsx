@@ -26,7 +26,9 @@ async function fetchJson<T>(url:string, init?:RequestInit):Promise<T>{
 async function postJson<T=any>(url:string,body:any):Promise<T>{return fetchJson<T>(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});}
 function niceDate(v?:string|null){if(!v)return 'Date à confirmer';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString('fr-BE',{dateStyle:'full',timeStyle:'short'});}
 function niceTime(v?:string|null){if(!v)return '';const d=new Date(v);return Number.isNaN(d.getTime())?'':d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});}
-function resourceLabel(id:string){return ({RES_PA:'PA',RES_CASH:'Argent',RES_BANK:'Banque',RES_INFLUENCE:'Influence'} as Record<string,string>)[id]??id.replace(/^RES_/,'');}
+function isEnglish(portal:any){return String(portal?.session?.language??'FR').trim().toUpperCase()==='EN';}
+function tr(portal:any,fr:string,en:string){return isEnglish(portal)?en:fr;}
+function resourceLabel(id:string,portal?:any){return (isEnglish(portal)?{RES_PA:'AP',RES_CASH:'Cash',RES_BANK:'Bank',RES_INFLUENCE:'Influence'}:{RES_PA:'PA',RES_CASH:'Argent',RES_BANK:'Banque',RES_INFLUENCE:'Influence'} as Record<string,string>)[id]??id.replace(/^RES_/,'');}
 function normalizeText(v:any){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
 function isPhysicalClue(clue:any){
   if(clue?.objectExternalId)return true;
@@ -116,8 +118,8 @@ export default function PlayerPortal({token}:{token:string}){
       setBusy(false);
     }
   }
-  if(loading&&!portal)return <main className="playerShell"><section className="playerCard"><h1>Murder Engine</h1><p>Chargement de votre fiche…</p></section></main>;
-  if(error&&!portal)return <main className="playerShell"><section className="playerCard"><p className="eyebrow">MURDER ENGINE</p><h1>Lien indisponible</h1><p>Ce lien joueur n’est plus actif ou n’est pas valide.</p><small>{error}</small></section></main>;
+  if(loading&&!portal)return <main className="playerShell"><section className="playerCard"><h1>Murder Engine</h1><p>Loading your character sheet…</p></section></main>;
+  if(error&&!portal)return <main className="playerShell"><section className="playerCard"><p className="eyebrow">MURDER ENGINE</p><h1>Link unavailable</h1><p>This player link is no longer active or valid.</p><small>{error}</small></section></main>;
   if(!portal)return null;
   const c=portal.character; const s=portal.session; const pa=(portal.resources??[]).find((r:any)=>r.resourceExternalId==='RES_PA');
   const presentation=(portal as any).presentation??{};
@@ -132,7 +134,7 @@ export default function PlayerPortal({token}:{token:string}){
 
   return <main className={`playerShell playerShellV161 ${skinClass}`} style={skinStyle}>
     <header className="playerHero">{presentation.logo?.source&&<img className="playerScenarioLogo" src={presentation.logo.source} alt={presentation.logo.altText||s.scenarioTitle}/>}<p className="eyebrow">{s.scenarioTitle}</p><h1>{c.name}</h1><p className="playerRole">{c.publicRole||'Personnage'}{c.narrativeAge?` · ${c.narrativeAge}`:''}</p><div className="playerSessionMeta"><span>{s.name}</span><span>{niceDate(s.scheduledAt)}</span>{s.venue&&<span>{s.venue}</span>}</div></header>
-    <div className="playerStatusBar"><div><small>Vous jouez</small><strong>{c.name}</strong></div><div className="paPill"><small>PA</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div></div>
+    <div className="playerStatusBar"><div><small>{tr(portal,'Vous jouez','You are playing')}</small><strong>{c.name}</strong></div><div className="paPill"><small>PA</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div></div>
     {portal.states?.length>0&&<section className="playerStates">{portal.states.map((st:any)=><span key={st.stateExternalId}><b>{st.name}</b>{st.description?` · ${st.description}`:''}</span>)}</section>}
     {flash&&<p className="playerFlash">{flash}</p>}{error&&<p className="playerError">{error}</p>}
     {tab==='fiche'&&<PlayerSheet portal={portal} busy={busy} onRead={()=>void act(()=>postJson('/api/player/briefing/read',{token}))}/>} 
@@ -155,8 +157,8 @@ export default function PlayerPortal({token}:{token:string}){
           success:Boolean(r?.success),
           title:Boolean(r?.success)?'Réussite':'Échec',
           body:Boolean(r?.success)
-            ? 'Votre action a réussi. Les effets ont été appliqués à votre personnage.'
-            : 'Votre tentative échoue. Aucun effet positif n’est appliqué.'
+            ? tr(portal,'Votre action a réussi. Les effets ont été appliqués à votre personnage.','Your action succeeded. The effects have been applied to your character.')
+            : tr(portal,'Votre tentative échoue. Aucun effet positif n’est appliqué.','Your attempt failed. No positive effect was applied.')
         });
       }
 
@@ -164,16 +166,16 @@ export default function PlayerPortal({token}:{token:string}){
     }} onVote={(voteExternalId,round,selectedOptionExternalIds)=>act(()=>postJson('/api/player/vote',{token,voteExternalId,round,selectedOptionExternalIds}),'Vote enregistré ✓')}/>} 
     {tab==='sac'&&<PlayerBag portal={portal} busy={busy} onGive={(objectExternalId,targetCharacterExternalId)=>act(()=>postJson('/api/player/object',{token,objectExternalId,targetCharacterExternalId}),'Objet transféré ✓')} onCashTransfer={(targetCharacterExternalId,amount)=>act(()=>postJson('/api/player/cash',{token,targetCharacterExternalId,amount}),'Virement effectué ✓')}/>} 
     {tab==='news'&&<PlayerNews portal={portal} busy={busy} onRead={id=>act(()=>postJson('/api/player/notification/read',{token,notificationId:id}),'Notification lue')}/>} 
-    {introOpen&&<div className="qrScannerOverlay playerStoryOverlay" role="dialog" aria-modal="true" aria-label="Introduction"><div className="qrScannerPanel playerStoryPanel"><p className="eyebrow">L’HISTOIRE COMMENCE</p><h2>{s.scenarioTitle}</h2><div className="playerStoryText">{s.playerSummary}</div><button className="playerPrimary" onClick={closeIntro}>Entrer dans l’histoire</button></div></div>}
+    {introOpen&&<div className="qrScannerOverlay playerStoryOverlay" role="dialog" aria-modal="true" aria-label="Introduction"><div className="qrScannerPanel playerStoryPanel"><p className="eyebrow">{tr(portal,'L’HISTOIRE COMMENCE','THE STORY BEGINS')}</p><h2>{s.scenarioTitle}</h2><div className="playerStoryText">{s.playerSummary}</div><button className="playerPrimary" onClick={closeIntro}>{tr(portal,'Entrer dans l’histoire','Enter the story')}</button></div></div>}
 
-    {resultPopup&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat de l’action"><div className={`qrScannerPanel actionResultPopup ${resultPopup.success?'success':'failure'}`}><p className="eyebrow">RÉSULTAT</p><h2>{resultPopup.success?'✓ Réussite':'✕ Échec'}</h2><p>{resultPopup.body}</p><button className="playerPrimary" onClick={()=>setResultPopup(null)}>Continuer</button></div></div>}
+    {resultPopup&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat de l’action"><div className={`qrScannerPanel actionResultPopup ${resultPopup.success?'success':'failure'}`}><p className="eyebrow">{tr(portal,'RÉSULTAT','RESULT')}</p><h2>{resultPopup.success?tr(portal,'✓ Réussite','✓ Success'):tr(portal,'✕ Échec','✕ Failure')}</h2><p>{resultPopup.body}</p><button className="playerPrimary" onClick={()=>setResultPopup(null)}>{tr(portal,'Continuer','Continue')}</button></div></div>}
 
     <footer className="playerFooter">Murder Engine · Ludificateur</footer>
     <nav className="playerBottomNav" aria-label="Navigation joueur">
-      <button className={tab==='fiche'?'active':''} onClick={()=>setTab('fiche')}><span>🪪</span><b>Fiche</b></button>
-      <button className={tab==='carnet'?'active':''} onClick={()=>setTab('carnet')}><span>📓</span><b>Carnet</b></button>
-      <button className={tab==='actions'?'active':''} onClick={()=>setTab('actions')}><span>⚡</span><b>Jouer</b>{portal.votes?.length>0&&<em>{portal.votes.length}</em>}</button>
-      <button className={tab==='sac'?'active':''} onClick={()=>setTab('sac')}><span>🎒</span><b>Sac</b></button>
+      <button className={tab==='fiche'?'active':''} onClick={()=>setTab('fiche')}><span>🪪</span><b>{tr(portal,'Fiche','Sheet')}</b></button>
+      <button className={tab==='carnet'?'active':''} onClick={()=>setTab('carnet')}><span>📓</span><b>{tr(portal,'Carnet','Notebook')}</b></button>
+      <button className={tab==='actions'?'active':''} onClick={()=>setTab('actions')}><span>⚡</span><b>{tr(portal,'Jouer','Play')}</b>{portal.votes?.length>0&&<em>{portal.votes.length}</em>}</button>
+      <button className={tab==='sac'?'active':''} onClick={()=>setTab('sac')}><span>🎒</span><b>{tr(portal,'Sac','Bag')}</b></button>
       <button className={tab==='news'?'active':''} onClick={()=>setTab('news')}><span>📰</span><b>News</b>{unread>0&&<em>{unread}</em>}</button>
     </nav>
   </main>;
@@ -188,10 +190,10 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
     SheetTab,
     string
   ][]=[
-    ['story','Histoire'],
-    ['missions','Missions'],
-    ...(c.interpretationNotes||c.appearanceNotes?[['roleplay','Interprétation'] as [SheetTab,string]]:[]),
-    ['qr','Mon QR'],
+    ['story',tr(portal,'Histoire','Story')],
+    ['missions',tr(portal,'Missions','Missions')],
+    ...(c.interpretationNotes||c.appearanceNotes?[['roleplay',tr(portal,'Interprétation','Roleplay')] as [SheetTab,string]]:[]),
+    ['qr',tr(portal,'Mon QR','My QR')],
   ];
 
   return <div className="playerStack playerSheetShell">
@@ -210,49 +212,49 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
     {c.motto&&tab==='story'&&<blockquote className="playerQuote">« {c.motto} »</blockquote>}
 
     {tab==='story'&&<section className="playerCard">
-      <p className="playerSectionKicker">CE QUE JE SUIS</p>
-      <h2>Mon histoire</h2>
+      <p className="playerSectionKicker">{tr(portal,'CE QUE JE SUIS','WHO I AM')}</p>
+      <h2>{tr(portal,'Mon histoire','My story')}</h2>
       {c.portrait&&<figure className="characterPortraitHero">
         <img src={c.portrait.source} alt={c.portrait.altText||`Portrait de ${c.name}`}/>
         <figcaption><strong>{c.name}</strong>{c.publicRole&&<span>{c.publicRole}</span>}</figcaption>
       </figure>}
       <p>{c.biography}</p>
-      {c.secretIntro&&<div className="playerSecret"><h3>Ce que vous seul savez</h3><p>{c.secretIntro}</p></div>}
-      {c.apparentMotive&&<><h3>Ma position</h3><p>{c.apparentMotive}</p></>}
+      {c.secretIntro&&<div className="playerSecret"><h3>{tr(portal,'Ce que vous seul savez','What only you know')}</h3><p>{c.secretIntro}</p></div>}
+      {c.apparentMotive&&<><h3>{tr(portal,'Ma position','My position')}</h3><p>{c.apparentMotive}</p></>}
       <div className="sheetSubsection">
-        <p className="playerSectionKicker">MON ALIBI / MA CHRONOLOGIE</p>
-        <h3>Ce que j’ai fait le soir du meurtre</h3>
+        <p className="playerSectionKicker">{tr(portal,'MON ALIBI / MA CHRONOLOGIE','MY ALIBI / TIMELINE')}</p>
+        <h3>{tr(portal,'Ce que j’ai fait le soir du meurtre','What I did on the night of the murder')}</h3>
         {c.personalTimeline
           ? <p>{c.personalTimeline}</p>
-          : <p className="playerMuted">Aucune chronologie particulière n’est renseignée pour ce personnage.</p>}
+          : <p className="playerMuted">{tr(portal,'Aucune chronologie particulière n’est renseignée pour ce personnage.','No specific timeline is provided for this character.')}</p>}
       </div>
     </section>}
 
     {tab==='missions'&&<section className="playerCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">CE QUE JE DOIS ACCOMPLIR</p><h2>Mes missions</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'CE QUE JE DOIS ACCOMPLIR','WHAT I MUST ACHIEVE')}</p><h2>{tr(portal,'Mes missions','My missions')}</h2></div>
         <span>{portal.objectives.length}</span>
       </div>
       {portal.objectives.length===0
-        ? <p>Aucune mission structurée.</p>
+        ? <p>{tr(portal,'Aucune mission structurée.','No structured mission.')}</p>
         : portal.objectives.map((o:any)=><article className="playerObjective" key={o.externalId}><div><strong>{o.title}</strong><span>{o.status}</span></div><p>{o.description}</p></article>)}
     </section>}
 
     {tab==='roleplay'&&(c.interpretationNotes||c.appearanceNotes)&&<section className="playerCard playerRoleplayCard">
-      <p className="playerSectionKicker">INCARNER MON PERSONNAGE</p>
-      <h2>Comment me la jouer</h2>
+      <p className="playerSectionKicker">{tr(portal,'INCARNER MON PERSONNAGE','PLAYING MY CHARACTER')}</p>
+      <h2>{tr(portal,'Comment me la jouer','How to play my character')}</h2>
       {c.interpretationNotes&&<p>{c.interpretationNotes}</p>}
       {c.appearanceNotes&&<div className="sheetSubsection">
-        <p className="playerSectionKicker">STYLE & DÉGUISEMENT</p>
-        <h3>Mon apparence</h3>
+        <p className="playerSectionKicker">{tr(portal,'STYLE & DÉGUISEMENT','STYLE & COSTUME')}</p>
+        <h3>{tr(portal,'Mon apparence','My appearance')}</h3>
         <p>{c.appearanceNotes}</p>
       </div>}
     </section>}
 
     {tab==='qr'&&<section className="playerCard playerUtilityDetails">
-      <p className="playerSectionKicker">MON IDENTIFIANT DE JEU</p>
+      <p className="playerSectionKicker">{tr(portal,'MON IDENTIFIANT DE JEU','MY GAME ID')}</p>
       <h2>Mon QR</h2>
-      <p className="playerHelp">C’est l’unique QR de votre personnage. Pour une interaction DIRECTE, vous le présentez au joueur qui agit sur vous. Le MJ peut conserver une copie du même QR pour les interactions DISCRÈTES.</p>
+      <p className="playerHelp">{tr(portal,'C’est l’unique QR de votre personnage. Pour une interaction DIRECTE, vous le présentez au joueur qui agit sur vous. Le MJ peut conserver une copie du même QR pour les interactions DISCRÈTES.','This is your character’s unique QR code. For a DIRECT interaction, show it to the player acting on you. The GM may keep a copy of the same QR code for DISCREET interactions.')}</p>
       <div className="playerCharacterQr">
         <QRCodeSVG value={`${window.location.origin}/scan/character/${encodeURIComponent(c.externalId)}`} size={180} level="M" includeMargin/>
         <strong>{c.name}</strong>
@@ -260,7 +262,7 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
       </div>
     </section>}
 
-    {!portal.participant.briefingReadAt&&<button className="playerPrimary" disabled={busy} onClick={onRead}>J’ai lu ma fiche</button>}
+    {!portal.participant.briefingReadAt&&<button className="playerPrimary" disabled={busy} onClick={onRead}>{tr(portal,'J’ai lu ma fiche','I have read my sheet')}</button>}
   </div>;
 }
 
