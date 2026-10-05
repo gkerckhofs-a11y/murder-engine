@@ -36,7 +36,8 @@ function characterFromQr(text:string):string|null {
     : null;
 }
 
-function cameraErrorMessage(error:unknown){
+function cameraErrorMessage(error:unknown,language='FR'){
+  const en=String(language).toUpperCase()==='EN';
   const name=
     error &&
     typeof error==='object' &&
@@ -45,17 +46,17 @@ function cameraErrorMessage(error:unknown){
       : '';
 
   if(name==='NotAllowedError')
-    return 'Accès à la caméra refusé. Autorise la caméra dans les réglages du navigateur.';
+    return en?'Camera access denied. Allow camera access in your browser settings.':'Accès à la caméra refusé. Autorise la caméra dans les réglages du navigateur.';
 
   if(name==='NotFoundError')
-    return 'Aucune caméra utilisable n’a été trouvée.';
+    return en?'No usable camera was found.':'Aucune caméra utilisable n’a été trouvée.';
 
   if(name==='NotReadableError')
-    return 'La caméra semble déjà utilisée par une autre application.';
+    return en?'The camera appears to be in use by another application.':'La caméra semble déjà utilisée par une autre application.';
 
   return error instanceof Error
     ? error.message
-    : 'Impossible d’ouvrir la caméra.';
+    : (en?'Unable to open the camera.':'Impossible d’ouvrir la caméra.');
 }
 
 export default function QrCharacterScanner({
@@ -63,14 +64,18 @@ export default function QrCharacterScanner({
   onSelect,
   onClose,
   title='Scanner le personnage',
-  mode='DIRECT'
+  mode='DIRECT',
+  language='FR'
 }:{
   targets:Target[];
   onSelect:(target:Target)=>void;
   onClose:()=>void;
   title?:string;
   mode?:'DIRECT'|'DISCRET';
+  language?:string;
 }){
+  const en=String(language).toUpperCase()==='EN';
+
   const videoRef=
     useRef<HTMLVideoElement|null>(null);
 
@@ -130,7 +135,7 @@ export default function QrCharacterScanner({
     doneRef.current=false;
 
     setError('');
-    setStatus('Activation de la caméra…');
+    setStatus(en?'Starting camera…':'Activation de la caméra…');
 
     const reader=
       new BrowserQRCodeReader(
@@ -190,7 +195,7 @@ export default function QrCharacterScanner({
               if(!characterExternalId){
 
                 setStatus(
-                  'QR détecté, mais ce code ne correspond pas à un personnage Murder Engine.'
+                  en?'QR detected, but this code does not match a Murder Engine character.':'QR détecté, mais ce code ne correspond pas à un personnage Murder Engine.'
                 );
 
                 return;
@@ -216,7 +221,7 @@ export default function QrCharacterScanner({
               if(!target){
 
                 setStatus(
-                  `QR lu : ${characterExternalId} · personnage non disponible comme cible.`
+                  en?`QR read: ${characterExternalId} · character not available as a target.`:`QR lu : ${characterExternalId} · personnage non disponible comme cible.`
                 );
 
                 return;
@@ -235,7 +240,7 @@ export default function QrCharacterScanner({
 
 
               setStatus(
-                `✓ ${target.name} reconnu`
+                en?`✓ ${target.name} recognized`:`✓ ${target.name} reconnu`
               );
 
 
@@ -268,14 +273,14 @@ export default function QrCharacterScanner({
 
 
         setStatus(
-          'Cadre entièrement le QR dans le viseur.'
+          en?'Fit the entire QR code inside the frame.':'Cadre entièrement le QR dans le viseur.'
         );
 
       }catch(e){
 
         if(!cancelled)
           setError(
-            cameraErrorMessage(e)
+            cameraErrorMessage(e,language)
           );
       }
     }
@@ -370,10 +375,8 @@ export default function QrCharacterScanner({
       <p className="playerHelp">
 
         {mode==='DISCRET'
-
-          ? 'Mode DISCRET : scanne le QR unique de la cible depuis la copie disponible chez le MJ.'
-
-          : 'Mode DIRECT : scanne le QR unique présenté ou porté par la cible.'
+          ? (en?'DISCREET mode: scan the target’s unique QR code from the copy held by the GM.':'Mode DISCRET : scanne le QR unique de la cible depuis la copie disponible chez le MJ.')
+          : (en?'DIRECT mode: scan the unique QR code presented or worn by the target.':'Mode DIRECT : scanne le QR unique présenté ou porté par la cible.')
         }
 
       </p>
