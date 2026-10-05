@@ -152,7 +152,7 @@ export default function PlayerPortal({token}:{token:string}){
     <nav className="playerBottomNav" aria-label="Navigation joueur">
       <button className={tab==='fiche'?'active':''} onClick={()=>setTab('fiche')}><span>🪪</span><b>Fiche</b></button>
       <button className={tab==='carnet'?'active':''} onClick={()=>setTab('carnet')}><span>📓</span><b>Carnet</b></button>
-      <button className={tab==='actions'?'active':''} onClick={()=>setTab('actions')}><span>⚡</span><b>Actions</b>{portal.votes?.length>0&&<em>{portal.votes.length}</em>}</button>
+      <button className={tab==='actions'?'active':''} onClick={()=>setTab('actions')}><span>⚡</span><b>Jouer</b>{portal.votes?.length>0&&<em>{portal.votes.length}</em>}</button>
       <button className={tab==='sac'?'active':''} onClick={()=>setTab('sac')}><span>🎒</span><b>Sac</b></button>
       <button className={tab==='news'?'active':''} onClick={()=>setTab('news')}><span>📰</span><b>News</b>{unread>0&&<em>{unread}</em>}</button>
     </nav>
@@ -225,18 +225,117 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
   }
 
   const visibleInteractions=(portal.interactions??[]).filter((i:any)=>!isSearchLocationAction(i));
+  const characterInteractions=visibleInteractions.filter((i:any)=>['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase()));
+  const otherInteractions=visibleInteractions.filter((i:any)=>!['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase()));
   const searchAbility=(portal.abilities??[]).find((a:any)=>/(fouill|search|investig|explor)/.test(normalizeText(`${a.name} ${a.category}`)));
-  return <div className="playerStack">
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">CE QUE JE SAIS FAIRE</p><h2>Mes compétences</h2></div><span>{portal.abilities?.length??0}</span></div>{!portal.abilities?.length?<p>Aucune compétence particulière n’est renseignée.</p>:<div className="abilityGrid">{portal.abilities.map((a:any)=><article className="abilityCard" key={a.externalId}><div><strong>{a.name}</strong><span>Niveau {a.level}</span></div>{a.description&&<p>{a.description}</p>}{a.category&&<small>{a.category}</small>}</article>)}</div>}</section>
-    <section className="playerCard searchScanCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">ACTION D’ENQUÊTE</p><h2>Fouiller un lieu</h2></div><span>QR</span></div>{searchAbility&&<div className="actionSkillIntro"><strong>{searchAbility.name} · niveau {searchAbility.level}</strong>{searchAbility.description&&<p>{searchAbility.description}</p>}</div>}<p>Scannez le QR présent physiquement dans le lieu. Le moteur vérifiera ensuite le coût en PA, votre compétence et le délai entre deux fouilles.</p>{searchCooldown>0&&<div className="portalSearchCooldown"><span>Prochaine fouille</span><strong>{playerCountdown(searchCooldown)}</strong></div>}<button className="playerPrimary scanLaunchButton" disabled={busy||portal.session?.status!=='LIVE'||searchCooldown>0} onClick={()=>setScannerOpen(true)}>{searchCooldown>0?`Fouille dans ${playerCountdown(searchCooldown)}`:'📷 Scanner le QR du lieu'}</button>{portal.session?.status!=='LIVE'&&<small className="playerHelp">Le scan de fouille sera disponible lorsque la partie sera lancée.</small>}</section>
+  const pa=(portal.resources??[]).find((r:any)=>r.resourceExternalId==='RES_PA');
+
+  function renderInteraction(i:any){
+    const specialKind=Boolean(i.clandestineKind);
+    const scanMode=String(i.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT';
+    const requestable=!i.directEnabled&&i.blockedReason==='À demander au MJ';
+    const characterTarget=['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase());
+    const needsTarget=Boolean(i.targets?.length>0);
+    const targetId=targets[i.externalId]||'';
+    const targetInfo=(i.targets??[]).find((t:any)=>t.id===targetId);
+    const disabled=busy||(!i.directEnabled&&!requestable)||(needsTarget&&!targetId)||i.cooldownRemainingSeconds>0;
+    const modeLabel=scanMode==='DISCRET'?'Discrètement':'Face à face';
+
+    return <article className={`playerAction playActionCard ${!i.directEnabled&&!requestable?'isUnavailable':''}`} key={i.externalId}>
+      <div className="playActionHeader">
+        <div>
+          <strong>{i.name}</strong>
+          {characterTarget&&<small className={`playModeBadge ${scanMode.toLowerCase()}`}>{modeLabel}</small>}
+        </div>
+        <div className="playActionBadges">
+          {Number(i.costValue??0)>0&&<span>{i.costValue} {resourceLabel(i.costResourceExternalId)}</span>}
+          {i.ability&&<span>{i.ability.name} niv. {i.ability.level}</span>}
+          {i.cooldownRemainingSeconds>0&&<span>⏱ {Math.ceil(i.cooldownRemainingSeconds/60)} min</span>}
+        </div>
+      </div>
+
+      {i.ability?.description&&<p className="playActionDescription">{i.ability.description}</p>}
+
+      {i.maxUses!=null&&<small className="playActionUsage">{i.usesCount}/{i.maxUses} utilisations</small>}
+
+      {specialKind?<>
+        <p className="playActionHint">{scanMode==='DISCRET'
+          ? 'Scannez la copie du QR de la cible disponible chez le MJ.'
+          : 'Demandez à la cible de vous présenter son QR.'}</p>
+        <button className="playerPrimary playActionCta" disabled={busy||clandestineBusy||!i.directEnabled||i.cooldownRemainingSeconds>0} onClick={()=>setSpecialScanner(i)}>
+          📷 {scanMode==='DISCRET'?'Scanner discrètement':'Scanner la cible'}
+        </button>
+      </>:<>
+        {characterTarget&&needsTarget&&<div className="characterTargetScan playTargetScan">
+          {targetInfo
+            ? <p className="scannedCharacterTarget">Cible : <strong>{targetInfo.label}</strong>{targetInfo.subtitle?` · ${targetInfo.subtitle}`:''}</p>
+            : <p className="playActionHint">{scanMode==='DISCRET'?'Utilisez la copie du QR chez le MJ.':'Demandez à la cible de présenter son QR.'}</p>}
+          <button className="playerSecondary" disabled={busy} onClick={()=>setCharacterScanner({interactionId:i.externalId,requestOnly:requestable,scanMode})}>
+            📷 {targetInfo?'Changer de cible':scanMode==='DISCRET'?'Scanner discrètement':'Scanner la cible'}
+          </button>
+        </div>}
+
+        {needsTarget&&!characterTarget&&<select value={targetId} onChange={e=>setTargets(v=>({...v,[i.externalId]:e.target.value}))}>
+          <option value="">Choisir la cible…</option>
+          {i.targets.map((t:any)=><option key={t.id} value={t.id}>{t.label}{t.subtitle?` — ${t.subtitle}`:''}</option>)}
+        </select>}
+
+        <button className={i.directEnabled?'playerPrimary playActionCta':'playerSecondary playActionCta'} disabled={disabled} onClick={()=>{
+          const run=()=>onExecute(i.externalId,targetId||null,requestable);
+          if(requestable)run(); else withPaConfirmation(i,run);
+        }}>
+          {i.directEnabled?'Lancer l’action':requestable?'Demander au MJ':(i.blockedReason||'Indisponible')}
+        </button>
+
+        {requestable&&Number(i.costValue??0)>0&&<small className="playerHelp">Le coût sera appliqué uniquement si le MJ valide l’action.</small>}
+      </>}
+    </article>;
+  }
+
+  return <div className="playerStack playTab">
+    <section className="playStatusStrip">
+      <div><small>Points d’action</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div>
+      <div><small>Prochaine fouille</small><strong>{searchCooldown>0?playerCountdown(searchCooldown):'Disponible'}</strong></div>
+    </section>
+
+    {portal.votes?.length>0&&<section className="playPriorityBlock">
+      <div className="playPriorityTitle"><span>🗳</span><div><small>DÉCISION EN COURS</small><strong>Votre vote est attendu</strong></div></div>
+      <PlayerVotes portal={portal} busy={busy} onVote={onVote}/>
+    </section>}
+
+    <section className="playerCard playMainCard searchScanCard">
+      <div className="playCardLead">
+        <span className="playCardIcon">🔎</span>
+        <div><p className="playerSectionKicker">ENQUÊTER</p><h2>Fouiller un lieu</h2><p>Scannez le QR présent dans la pièce pour tenter une fouille.</p></div>
+      </div>
+      <div className="playActionBadges">
+        <span>1 PA</span>
+        {searchAbility&&<span>{searchAbility.name} niv. {searchAbility.level}</span>}
+      </div>
+      {searchCooldown>0&&<div className="portalSearchCooldown"><span>Nouvelle fouille dans</span><strong>{playerCountdown(searchCooldown)}</strong></div>}
+      <button className="playerPrimary scanLaunchButton playMainCta" disabled={busy||portal.session?.status!=='LIVE'||searchCooldown>0} onClick={()=>setScannerOpen(true)}>
+        {searchCooldown>0?`Disponible dans ${playerCountdown(searchCooldown)}`:'📷 Scanner un lieu'}
+      </button>
+      {portal.session?.status!=='LIVE'&&<small className="playerHelp">Disponible lorsque la partie est lancée.</small>}
+    </section>
+
     {localError&&<p className="playerError">{localError}</p>}
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">MES AUTRES ACTIONS</p><h2>Actions disponibles</h2></div><span>{visibleInteractions.length}</span></div>{visibleInteractions.length===0?<p>Aucune autre action n’est disponible pour le moment.</p>:visibleInteractions.map((i:any)=>{
-      const specialKind=Boolean(i.clandestineKind); const scanMode=String(i.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT';
-      return <article className="playerAction" key={i.externalId}><div className="playerActionTop"><div><strong>{i.name}</strong><small>{i.category} · {i.resolution}{['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase())?` · ${scanMode}`:''}</small></div>{i.costValue>0&&<span className="costBadge">{i.costValue} {resourceLabel(i.costResourceExternalId)}</span>}</div>{i.ability&&<div className="actionAbilityDescription"><strong>{i.ability.name} · niveau {i.ability.level}</strong>{i.ability.description&&<p>{i.ability.description}</p>}</div>}<div className="playerActionMeta">{i.maxUses!=null&&<span>{i.usesCount}/{i.maxUses} usages</span>}{i.cooldownRemainingSeconds>0&&<span>Cooldown {Math.ceil(i.cooldownRemainingSeconds/60)} min</span>}{i.currentCostResourceValue!=null&&<span>Disponible : {i.currentCostResourceValue} {resourceLabel(i.costResourceExternalId)}</span>}</div>{specialKind?<><p className="scanRequiredNote">{scanMode==='DISCRET'?'Mode DISCRET : scannez le QR unique de la cible depuis la copie chez le MJ.':'Mode DIRECT : demandez à la cible de vous présenter son QR.'} La cible reçoit une notification de l’action sans identité de l’auteur.</p><button className="playerSecondary" disabled={busy||clandestineBusy||!i.directEnabled||i.cooldownRemainingSeconds>0} onClick={()=>setSpecialScanner(i)}>📷 {scanMode==='DISCRET'?'Scanner le QR chez le MJ':'Scanner le QR de la cible'}</button></>:<>{(()=>{
-        const requestable=!i.directEnabled&&i.blockedReason==='À demander au MJ'; const characterTarget=['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase()); const needsTarget=Boolean(i.targets?.length>0); const targetId=targets[i.externalId]||''; const targetInfo=(i.targets??[]).find((t:any)=>t.id===targetId); const disabled=busy||(!i.directEnabled&&!requestable)||(needsTarget&&!targetId)||i.cooldownRemainingSeconds>0;
-        return <>{characterTarget&&needsTarget?<div className="characterTargetScan">{targetInfo?<p className="scannedCharacterTarget">Cible scannée : <strong>{targetInfo.label}</strong>{targetInfo.subtitle?` · ${targetInfo.subtitle}`:''} <span className={`scanModeBadge ${scanMode.toLowerCase()}`}>{scanMode}</span></p>:<p className="scanRequiredNote">{scanMode==='DISCRET'?'Scannez le QR unique de la cible depuis la copie chez le MJ.':'Demandez à la cible de présenter son QR et scannez-le directement.'}</p>}<button className="playerSecondary" disabled={busy} onClick={()=>setCharacterScanner({interactionId:i.externalId,requestOnly:requestable,scanMode})}>📷 {targetInfo?'Scanner une autre cible':scanMode==='DISCRET'?'Scanner le QR chez le MJ':'Scanner le QR de la cible'}</button></div>:needsTarget&&<select value={targetId} onChange={e=>setTargets(v=>({...v,[i.externalId]:e.target.value}))}><option value="">Choisir la cible…</option>{i.targets.map((t:any)=><option key={t.id} value={t.id}>{t.label}{t.subtitle?` — ${t.subtitle}`:''}</option>)}</select>}<button className={i.directEnabled?'playerPrimary':'playerSecondary'} disabled={disabled} onClick={()=>{const run=()=>onExecute(i.externalId,targetId||null,requestable);if(requestable)run();else withPaConfirmation(i,run);}}>{i.directEnabled?'Exécuter':requestable?'Demander au MJ':(i.blockedReason||'Indisponible')}</button>{requestable&&Number(i.costValue??0)>0&&<small className="playerHelp">Le coût de {i.costValue} {resourceLabel(i.costResourceExternalId)} sera appliqué si le MJ valide l’action.</small>}</>;
-      })()}</>}</article>;})}</section>
-    <PlayerVotes portal={portal} busy={busy} onVote={onVote}/>
+
+    <section className="playerCard playMainCard">
+      <div className="playerSectionHead"><div><p className="playerSectionKicker">INTERAGIR</p><h2>Agir sur quelqu’un</h2><p className="playSectionIntro">Choisissez votre action, puis scannez la personne concernée.</p></div><span>{characterInteractions.length}</span></div>
+      {characterInteractions.length===0?<p>Aucune action sur un personnage n’est disponible pour le moment.</p>:<div className="playActionList">{characterInteractions.map(renderInteraction)}</div>}
+    </section>
+
+    {otherInteractions.length>0&&<section className="playerCard playMainCard">
+      <div className="playerSectionHead"><div><p className="playerSectionKicker">AUTRES POSSIBILITÉS</p><h2>Autres actions</h2></div><span>{otherInteractions.length}</span></div>
+      <div className="playActionList">{otherInteractions.map(renderInteraction)}</div>
+    </section>}
+
+    <details className="playerCard playSkillsDetails">
+      <summary><span>🎯 Mes compétences</span><small>{portal.abilities?.length??0}</small></summary>
+      {!portal.abilities?.length?<p>Aucune compétence particulière n’est renseignée.</p>:<div className="abilityGrid playAbilityGrid">{portal.abilities.map((a:any)=><article className="abilityCard" key={a.externalId}><div><strong>{a.name}</strong><span>Niveau {a.level}</span></div>{a.description&&<p>{a.description}</p>}</article>)}</div>}
+    </details>
+
     {scannerOpen&&<QrLocationScanner token={token} onClose={()=>setScannerOpen(false)}/>} 
     {characterScanner&&<QrCharacterScanner title={characterScanner.scanMode==='DISCRET'?'Scanner la cible discrètement':'Scanner la cible'} mode={characterScanner.scanMode} targets={portal.otherCharacters} onClose={()=>setCharacterScanner(null)} onSelect={(target:any)=>{setTargets(v=>({...v,[characterScanner.interactionId]:target.characterExternalId}));setCharacterScanner(null);}}/>}
     {specialScanner&&<QrCharacterScanner title={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'Scanner la cible discrètement':'Scanner la cible'} mode={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT'} targets={portal.otherCharacters} onClose={()=>setSpecialScanner(null)} onSelect={(target:any)=>{const interaction=specialScanner;setSpecialScanner(null);withPaConfirmation(interaction,()=>void attemptClandestine(interaction,target));}}/>}
