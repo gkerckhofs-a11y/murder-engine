@@ -1,0 +1,408 @@
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs22"
+  },
+  "hosting": {
+    "public": "web/dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/sessions/gm-pack",
+        "function": {
+          "functionId": "getSessionGmPackView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/incarnations",
+        "function": {
+          "functionId": "getSessionIncarnationsView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/incarnation",
+        "function": {
+          "functionId": "updateSessionIncarnationView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/incarnations/freeze",
+        "function": {
+          "functionId": "freezeSessionIncarnationsView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/library/gm-pack",
+        "function": {
+          "functionId": "getGmPackView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/import/validate",
+        "function": {
+          "functionId": "validateImport",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/import/commit",
+        "function": {
+          "functionId": "commitImport",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/library/scenarios",
+        "function": {
+          "functionId": "listScenarios",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/library/version",
+        "function": {
+          "functionId": "getScenarioVersion",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/library/character",
+        "function": {
+          "functionId": "getCharacter",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/list",
+        "function": {
+          "functionId": "listSessions",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/detail",
+        "function": {
+          "functionId": "getSession",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/create",
+        "function": {
+          "functionId": "createSession",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/participants/add",
+        "function": {
+          "functionId": "addSessionParticipant",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/participants/cast",
+        "function": {
+          "functionId": "castSessionParticipant",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/setup",
+        "function": {
+          "functionId": "getSessionSetup",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/casting/apply",
+        "function": {
+          "functionId": "applySessionCasting",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/update",
+        "function": {
+          "functionId": "updateSessionDetails",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/status",
+        "function": {
+          "functionId": "updateSessionStatus",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/archive",
+        "function": {
+          "functionId": "archiveSession",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/delete",
+        "function": {
+          "functionId": "deleteSession",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/precast/configure",
+        "function": {
+          "functionId": "configureSessionPrecast",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/public/precast/session",
+        "function": {
+          "functionId": "getPublicPrecast",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/public/precast/submit",
+        "function": {
+          "functionId": "submitPublicPrecastForm",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/runtime",
+        "function": {
+          "functionId": "getRuntimeState",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/runtime/initialize",
+        "function": {
+          "functionId": "initializeRuntime",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/live",
+        "function": {
+          "functionId": "getLiveState",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/live/control",
+        "function": {
+          "functionId": "controlLive",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/live/resource",
+        "function": {
+          "functionId": "updateLiveResource",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/live/state",
+        "function": {
+          "functionId": "updateLiveState",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/live/event",
+        "function": {
+          "functionId": "updateLiveEvent",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/interactions",
+        "function": {
+          "functionId": "getInteractionState",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/interactions/execute",
+        "function": {
+          "functionId": "executeLiveInteraction",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/interactions/clue",
+        "function": {
+          "functionId": "revealLiveClue",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/interactions/object",
+        "function": {
+          "functionId": "transferLiveObject",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/votes",
+        "function": {
+          "functionId": "getVoteState",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/votes/open",
+        "function": {
+          "functionId": "openLiveVote",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/votes/cast",
+        "function": {
+          "functionId": "castLiveBallot",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/votes/close",
+        "function": {
+          "functionId": "closeLiveVote",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/player-access/configure",
+        "function": {
+          "functionId": "configurePlayerAccess",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/player-notification",
+        "function": {
+          "functionId": "sendLivePlayerNotification",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/portal",
+        "function": {
+          "functionId": "getPublicPlayerPortal",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/briefing/read",
+        "function": {
+          "functionId": "markPlayerBriefing",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/notification/read",
+        "function": {
+          "functionId": "readPlayerNotification",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/interaction",
+        "function": {
+          "functionId": "executePublicPlayerInteraction",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/location",
+        "function": {
+          "functionId": "getPublicPlayerLocation",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/location/action",
+        "function": {
+          "functionId": "executePublicPlayerLocationAction",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/clandestine/attempt",
+        "function": {
+          "functionId": "attemptPublicPlayerClandestineAction",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/clandestine/claim",
+        "function": {
+          "functionId": "claimPublicPlayerStolenObject",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/object",
+        "function": {
+          "functionId": "transferPublicPlayerObject",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/vote",
+        "function": {
+          "functionId": "castPublicPlayerVote",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/library/version/archive",
+        "function": {
+          "functionId": "setScenarioVersionArchivedView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/library/appearance",
+        "function": {
+          "functionId": "updateScenarioAppearanceView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "dataconnect": {
+    "source": "dataconnect"
+  },
+  "emulators": {
+    "functions": {
+      "port": 5001
+    },
+    "hosting": {
+      "port": 5000
+    },
+    "dataconnect": {
+      "port": 9399
+    },
+    "ui": {
+      "enabled": true
+    }
+  }
+}

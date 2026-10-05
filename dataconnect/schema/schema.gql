@@ -1,0 +1,647 @@
+# Murder Engine — V1.4 · scenario families & immutable variants
+# Firebase SQL Connect / PostgreSQL
+
+# ------------------------------------------------------------
+# Tenant + scenario versioning
+# ------------------------------------------------------------
+
+type Organization @table {
+  name: String!
+  slug: String! @unique
+  active: Boolean! @default(value: true)
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type Scenario @table {
+  organization: Organization!
+  title: String!
+  slug: String!
+
+  # Skin Engine V1.10 — apparence commune à la famille de scénario
+  skinId: String
+  accentColor: String
+
+  archived: Boolean! @default(value: false)
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+type ScenarioVersion @table {
+  scenario: Scenario!
+  sourceScenarioId: String!
+  versionLabel: String!
+  variantName: String
+  genderProfile: String
+  variantNotes: String
+  templateVersion: String!
+  language: String!
+  status: String!
+  subtitle: String
+  universe: String
+  era: String
+  gmSummary: String!
+  playerSummary: String!
+  durationMinutes: Int
+  minPlayers: Int
+  maxPlayers: Int
+  sourceFilename: String
+  sourceHash: String
+  importReportJson: String
+  runtimeDataVersion: String
+
+  # Skin Engine V1.7
+  skinId: String
+  accentColor: String
+  logoMediaExternalId: String
+  backgroundMediaExternalId: String
+
+  locked: Boolean! @default(value: false)
+  importedAt: Timestamp! @default(expr: "request.time")
+}
+
+# ------------------------------------------------------------
+# Core narrative model
+# Imported entities use a stable externalId inside one version.
+# ------------------------------------------------------------
+
+type Character @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  name: String!
+  publicRole: String
+  dramaticFunction: String
+  narrativeAge: String
+  gender: String
+  importance: String!
+  intensity: String!
+  biography: String!
+  secretIntro: String
+  interpretationNotes: String
+  appearanceNotes: String
+  apparentMotive: String
+  personalTimeline: String
+  motto: String
+  portraitMediaId: String
+  playable: Boolean! @default(value: true)
+  active: Boolean! @default(value: true)
+}
+
+type Plot @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  title: String!
+  plotType: String!
+  importance: String!
+  gmSummary: String!
+  active: Boolean! @default(value: true)
+}
+
+# Character-facing gameplay data persisted from the MASTER workbook.
+type Objective @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  ownerType: String!
+  ownerExternalId: String!
+  title: String!
+  description: String!
+  objectiveType: String!
+  secret: Boolean! @default(value: true)
+  initialStatus: String!
+  triggerExternalId: String
+  importance: String
+  active: Boolean! @default(value: true)
+}
+
+type Relationship @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  characterAExternalId: String!
+  characterBExternalId: String!
+  relationType: String
+  textA: String!
+  textB: String
+  visibility: String!
+  plotExternalId: String
+  active: Boolean! @default(value: true)
+}
+
+type Fact @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  title: String!
+  text: String!
+  nature: String!
+  importance: String!
+  plotExternalId: String
+  notebookCategory: String
+  isPublic: Boolean! @default(value: false)
+  active: Boolean! @default(value: true)
+}
+
+type InitialKnowledge @table(key: ["scenarioVersion", "characterExternalId", "factExternalId"]) {
+  scenarioVersion: ScenarioVersion!
+  characterExternalId: String!
+  factExternalId: String!
+  sourceType: String! @default(value: "INITIAL")
+}
+
+type Clue @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  internalName: String!
+  playerName: String!
+  clueType: String!
+  playerText: String!
+  gmInterpretation: String!
+  discoveryHook: String
+  plotExternalId: String
+  locationExternalId: String
+  objectExternalId: String
+  documentExternalId: String
+  support: String!
+  presentationMode: String!
+  shareable: Boolean! @default(value: true)
+  transferable: Boolean! @default(value: true)
+  consumable: Boolean! @default(value: false)
+  major: Boolean! @default(value: false)
+  logisticsCode: String
+  mediaExternalId: String
+  addToNotebook: Boolean! @default(value: true)
+  active: Boolean! @default(value: true)
+}
+
+type ClueFact @table(key: ["scenarioVersion", "clueExternalId", "factExternalId"]) {
+  scenarioVersion: ScenarioVersion!
+  clueExternalId: String!
+  factExternalId: String!
+}
+
+type MediaAsset @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  mediaType: String!
+  source: String!
+  altText: String
+  notes: String
+  active: Boolean! @default(value: true)
+}
+
+type DocumentDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  title: String!
+  textContent: String
+  support: String!
+  mediaExternalIds: String
+  reusable: Boolean! @default(value: true)
+  consumable: Boolean! @default(value: false)
+  ownerInitialType: String
+  ownerInitialExternalId: String
+  clueExternalIds: String
+  logisticsCode: String
+  propRequirementExternalId: String
+  transferable: Boolean! @default(value: true)
+  stealable: Boolean! @default(value: true)
+  active: Boolean! @default(value: true)
+}
+
+type GameObject @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  name: String!
+  description: String!
+  support: String!
+  propRequirementExternalId: String
+  ownerInitialType: String
+  ownerInitialExternalId: String
+  logisticsCode: String
+  transferable: Boolean! @default(value: true)
+  stealable: Boolean! @default(value: false)
+  consumable: Boolean! @default(value: false)
+  initialCharges: Int
+  critical: Boolean! @default(value: false)
+  identification0: String
+  identification1: String
+  identification2: String
+  identification3: String
+  active: Boolean! @default(value: true)
+}
+
+type Resource @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  name: String!
+  scopeType: String!
+  unit: String
+  defaultValue: Int
+  maxValue: Int
+  physicalMode: String!
+  isPublic: Boolean! @default(value: false)
+  active: Boolean! @default(value: true)
+}
+
+type ResourceAssignment @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  ownerType: String!
+  ownerExternalId: String
+  resourceExternalId: String!
+  initialValue: Int!
+  maxOverride: Int
+  notes: String
+  active: Boolean! @default(value: true)
+}
+
+type GameStateDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  name: String!
+  description: String!
+  defaultDurationSeconds: Int
+  visibleToHolder: Boolean! @default(value: true)
+  visiblePublic: Boolean! @default(value: false)
+  blockedActionIds: String
+  active: Boolean! @default(value: true)
+}
+
+type GamePhaseDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  name: String!
+  orderIndex: Int!
+  gmDescription: String!
+  triggerType: String!
+  triggerRef: String
+  manualConfirm: Boolean! @default(value: false)
+  active: Boolean! @default(value: true)
+}
+
+type GameEventDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  title: String!
+  gmDescription: String!
+  triggerType: String!
+  triggerRef: String
+  delayMinutes: Int
+  absoluteTime: String
+  phaseExternalId: String
+  validation: String!
+  notificationExternalId: String
+  priority: String!
+  mandatory: Boolean! @default(value: false)
+  repeatable: Boolean! @default(value: false)
+  fallbackGm: String
+  manualFallbackAllowed: Boolean! @default(value: true)
+  active: Boolean! @default(value: true)
+}
+
+type Ability @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  name: String!
+  description: String!
+  category: String!
+  defaultLevel: Int! @default(value: 0)
+  defaultMaxUses: Int
+  defaultCooldownMinutes: Int
+  secret: Boolean! @default(value: false)
+  active: Boolean! @default(value: true)
+}
+
+type AbilityAssignment @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  ownerType: String!
+  ownerExternalId: String!
+  abilityExternalId: String!
+  level: Int! @default(value: 0)
+  flatBonus: Int! @default(value: 0)
+  usesOverride: Int
+  cooldownOverrideMinutes: Int
+  active: Boolean! @default(value: true)
+}
+
+type GameLocation @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  name: String!
+  description: String!
+  qrCode: String
+  permanent: Boolean! @default(value: true)
+  themeExternalId: String
+  lockExternalId: String
+  active: Boolean! @default(value: true)
+}
+
+type Interaction @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  name: String!
+  category: String!
+  targetType: String!
+  scanMode: String
+  abilityExternalId: String
+  actorScope: String
+  targetScope: String
+  costResourceExternalId: String
+  costValue: Int
+  costTiming: String
+  resolution: String!
+  diceCount: Int
+  diceSides: Int
+  abilityLevelMultiplier: Int
+  flatBonus: Int
+  difficulty: Int
+  opposedAbilityExternalId: String
+  tieRule: String
+  validation: String!
+  maxUses: Int
+  limitPerTarget: Int
+  cooldownMinutes: Int
+  targetSecret: Boolean! @default(value: false)
+  notificationSuccessActorExternalId: String
+  notificationFailureActorExternalId: String
+  notificationSuccessTargetExternalId: String
+  notificationFailureTargetExternalId: String
+  active: Boolean! @default(value: true)
+}
+
+
+# ------------------------------------------------------------
+# Votes V0.9 — reusable definitions and session ballots
+# ------------------------------------------------------------
+
+type VoteDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  title: String!
+  question: String!
+  scopeType: String!
+  scopeRef: String
+  choicesMode: String!
+  secret: Boolean! @default(value: true)
+  votesPerElector: Int! @default(value: 1)
+  weighted: Boolean! @default(value: false)
+  weightResourceExternalId: String
+  abstention: Boolean! @default(value: false)
+  modifiable: Boolean! @default(value: false)
+  closeMode: String!
+  durationMinutes: Int
+  resultVisibility: String!
+  tieRule: String
+  notificationOpenExternalId: String
+  notificationResultExternalId: String
+  active: Boolean! @default(value: true)
+}
+
+type VoteOptionDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  voteExternalId: String!
+  orderIndex: Int!
+  label: String!
+  description: String
+  characterExternalId: String
+  enabledConditionExternalId: String
+  active: Boolean! @default(value: true)
+}
+
+# ------------------------------------------------------------
+# Runtime anchor. Runtime tables will be expanded after importer.
+# ------------------------------------------------------------
+
+type GameSession @table {
+  organization: Organization!
+  scenarioVersion: ScenarioVersion!
+  name: String
+  scheduledAt: Timestamp
+  venue: String
+  language: String!
+  status: String! @default(value: "DRAFT")
+  notes: String
+  precastEnabled: Boolean! @default(value: false)
+  precastToken: String
+  precastOpenCount: Int! @default(value: 0)
+  precastLastOpenedAt: Timestamp
+  precastSubmissionCount: Int! @default(value: 0)
+  runtimeInitializedAt: Timestamp
+  runtimeVersion: String
+  startedAt: Timestamp
+  pausedAt: Timestamp
+  finishedAt: Timestamp
+  liveClockStartedAt: Timestamp
+  liveElapsedSeconds: Int! @default(value: 0)
+  currentPhaseExternalId: String
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type SessionParticipant @table {
+  gameSession: GameSession!
+  displayName: String!
+  email: String
+  ageBracket: String
+  genderPreference: String
+  desiredInvolvement: String
+  characterExternalId: String
+  # Incarnation propre à une session
+  characterDisplayName: String
+  characterGenderVariant: String
+  characterSnapshotJson: String
+  characterSnapshotAt: Timestamp
+  castingLocked: Boolean! @default(value: false)
+  briefingStatus: String! @default(value: "NOT_SENT")
+  playerAccessToken: String
+  playerAccessEnabled: Boolean! @default(value: false)
+  playerFirstOpenedAt: Timestamp
+  playerLastOpenedAt: Timestamp
+  playerOpenCount: Int! @default(value: 0)
+  briefingReadAt: Timestamp
+  source: String! @default(value: "MANUAL")
+  precastSubmittedAt: Timestamp
+  notes: String
+  active: Boolean! @default(value: true)
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+# ------------------------------------------------------------
+# Runtime snapshot V0.6 — session-specific live state
+# ------------------------------------------------------------
+
+type SessionCharacter @table(key: ["gameSession", "characterExternalId"]) {
+  gameSession: GameSession!
+  participant: SessionParticipant!
+  characterExternalId: String!
+  status: String! @default(value: "READY")
+  active: Boolean! @default(value: true)
+  initializedAt: Timestamp! @default(expr: "request.time")
+}
+
+type SessionResource @table(key: ["gameSession", "characterExternalId", "resourceExternalId"]) {
+  gameSession: GameSession!
+  characterExternalId: String!
+  resourceExternalId: String!
+  initialValue: Int!
+  currentValue: Int!
+  maxValue: Int
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+type SessionKnowledge @table(key: ["gameSession", "characterExternalId", "factExternalId"]) {
+  gameSession: GameSession!
+  characterExternalId: String!
+  factExternalId: String!
+  sourceType: String! @default(value: "INITIAL")
+  learnedAt: Timestamp! @default(expr: "request.time")
+}
+
+type SessionObjective @table(key: ["gameSession", "characterExternalId", "objectiveExternalId"]) {
+  gameSession: GameSession!
+  characterExternalId: String!
+  objectiveExternalId: String!
+  status: String!
+  progress: Int
+  notes: String
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+type SessionObject @table(key: ["gameSession", "objectExternalId"]) {
+  gameSession: GameSession!
+  objectExternalId: String!
+  holderType: String!
+  holderExternalId: String
+  charges: Int
+  identificationLevel: Int! @default(value: 0)
+  inPlay: Boolean! @default(value: true)
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+type SessionCharacterState @table(key: ["gameSession", "characterExternalId", "stateExternalId"]) {
+  gameSession: GameSession!
+  characterExternalId: String!
+  stateExternalId: String!
+  active: Boolean! @default(value: true)
+  appliedAt: Timestamp! @default(expr: "request.time")
+  expiresAt: Timestamp
+  sourceRef: String
+}
+
+# ------------------------------------------------------------
+# Interactions V0.8 — actions, discoveries and object movement
+# ------------------------------------------------------------
+
+type SessionInteractionUse @table {
+  gameSession: GameSession!
+  interactionExternalId: String!
+  actorCharacterExternalId: String!
+  targetType: String!
+  targetExternalId: String
+  resolution: String!
+  success: Boolean
+  abilityLevel: Int! @default(value: 0)
+  actorRollJson: String
+  targetRollJson: String
+  costResourceExternalId: String
+  costValue: Int
+  note: String
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+# ------------------------------------------------------------
+# Clandestine interactions V1.3 — one-shot theft grants
+# ------------------------------------------------------------
+
+type SessionStealGrant @table(key: ["gameSession", "grantToken"]) {
+  gameSession: GameSession!
+  grantToken: String!
+  interactionExternalId: String!
+  actorCharacterExternalId: String!
+  targetCharacterExternalId: String!
+  kind: String! @default(value: "STEAL")
+  status: String! @default(value: "OPEN")
+  createdAt: Timestamp! @default(expr: "request.time")
+  expiresAt: Timestamp!
+  usedAt: Timestamp
+  chosenObjectExternalId: String
+}
+
+type SessionClueDiscovery @table(key: ["gameSession", "characterExternalId", "clueExternalId"]) {
+  gameSession: GameSession!
+  characterExternalId: String!
+  clueExternalId: String!
+  sourceInteractionExternalId: String
+  sourceRef: String
+  discoveredAt: Timestamp! @default(expr: "request.time")
+}
+
+# ------------------------------------------------------------
+# Live MJ V0.9 — timeline and audit
+# ------------------------------------------------------------
+
+type SessionEvent @table(key: ["gameSession", "eventExternalId"]) {
+  gameSession: GameSession!
+  eventExternalId: String!
+  status: String! @default(value: "PENDING")
+  firedAt: Timestamp
+  acknowledgedAt: Timestamp
+  skippedAt: Timestamp
+  notes: String
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+type SessionActionLog @table {
+  gameSession: GameSession!
+  actionType: String!
+  characterExternalId: String
+  refExternalId: String
+  beforeValue: String
+  afterValue: String
+  deltaValue: Int
+  note: String
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+
+
+# ------------------------------------------------------------
+# Vote runtime V0.9
+# ------------------------------------------------------------
+
+type SessionVote @table(key: ["gameSession", "voteExternalId", "round"]) {
+  gameSession: GameSession!
+  voteExternalId: String!
+  round: Int!
+  status: String! @default(value: "OPEN")
+  eligibleOptionExternalIds: String
+  openedAt: Timestamp! @default(expr: "request.time")
+  closedAt: Timestamp
+  resultJson: String
+  note: String
+}
+
+type SessionBallot @table(key: ["gameSession", "voteExternalId", "round", "electorCharacterExternalId"]) {
+  gameSession: GameSession!
+  voteExternalId: String!
+  round: Int!
+  electorCharacterExternalId: String!
+  selectedOptionExternalIds: String
+  weight: Int! @default(value: 1)
+  castAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+# ------------------------------------------------------------
+# Player portal V1.0 — player-safe notifications
+# ------------------------------------------------------------
+
+type SessionPlayerNotification @table {
+  gameSession: GameSession!
+  characterExternalId: String!
+  kind: String!
+  title: String!
+  body: String!
+  priority: String! @default(value: "NORMAL")
+  refExternalId: String
+  createdAt: Timestamp! @default(expr: "request.time")
+  readAt: Timestamp
+}

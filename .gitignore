@@ -1,0 +1,96 @@
+
+# Dépendances et fichiers générés
+node_modules/
+dist/
+build/
+coverage/
+.firebase/
+.cache/
+*.tsbuildinfo
+*.log
+
+# Configuration privée et clés
+.env*
+.secret*
+.runtimeconfig.json
+.npmrc
+.config/
+.ssh/
+*serviceAccount*.json
+*service-account*.json
+*service_account*.json
+*firebase-adminsdk*.json
+*credentials*.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Sauvegardes et exports locaux
+*.before-*
+*.bak*
+*.backup*
+*.old
+backup*/
+/murder-engine-prototype/
+*.zip
+*.tar
+*.gz
+*.tgz
+*.7z
+*.rar
+*.dump
+*.sqlite*
+exports/
+dumps/
+
+# À examiner avant une éventuelle automatisation
+.github/workflows/
+
+# Dépendances et fichiers générés
+node_modules/
+dist/
+build/
+coverage/
+.firebase/
+.cache/
+*.tsbuildinfo
+*.log
+
+# Configuration privée et clés
+.env*
+.secret*
+.runtimeconfig.json
+.npmrc
+.config/
+.ssh/
+*serviceAccount*.json
+*service-account*.json
+*service_account*.json
+*firebase-adminsdk*.json
+*credentials*.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Sauvegardes et exports locaux
+*.before-*
+*.bak*
+*.backup*
+*.old
+backup*/
+/murder-engine-prototype/
+*.zip
+*.tar
+*.gz
+*.tgz
+*.7z
+*.rar
+*.dump
+*.sqlite*
+exports/
+dumps/
+
+# À examiner avant une éventuelle automatisation
+.github/workflows/

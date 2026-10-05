@@ -1,0 +1,119 @@
+# Admin connector — Murder Engine V1.4.
+# All operations are intentionally NO_ACCESS: only trusted server/Admin SDK code may execute them.
+
+query ListScenarios @auth(level: NO_ACCESS) {
+  scenarios(orderBy: {createdAt: DESC}) {
+    id
+    title
+    slug
+    archived
+    createdAt
+    updatedAt
+    organization { id name slug }
+    scenarioVersions_on_scenario(orderBy: {importedAt: DESC}) {
+      id
+      sourceScenarioId
+      versionLabel
+      variantName
+      genderProfile
+      variantNotes
+      templateVersion
+      language
+      status
+      subtitle
+      universe
+      era
+      durationMinutes
+      minPlayers
+      maxPlayers
+      sourceFilename
+      sourceHash
+      locked
+      importedAt
+      characters_on_scenarioVersion { externalId gender playable active }
+      facts_on_scenarioVersion { externalId active }
+      clues_on_scenarioVersion { externalId major active }
+    }
+  }
+}
+
+query ListScenarioVersions($scenarioId: UUID!) @auth(level: NO_ACCESS) {
+  scenarioVersions(where: {scenarioId: {eq: $scenarioId}}, orderBy: {importedAt: DESC}) {
+    id
+    sourceScenarioId
+    versionLabel
+    variantName
+    genderProfile
+    variantNotes
+    templateVersion
+    language
+    status
+    subtitle
+    universe
+    era
+    durationMinutes
+    minPlayers
+    maxPlayers
+    sourceFilename
+    sourceHash
+    locked
+    importedAt
+  }
+}
+
+query GetScenarioVersionOverview($versionId: UUID!) @auth(level: NO_ACCESS) {
+  scenarioVersion(id: $versionId) {
+    id
+    sourceScenarioId
+    versionLabel
+    variantName
+    genderProfile
+    variantNotes
+    templateVersion
+    language
+    status
+    subtitle
+    universe
+    era
+    gmSummary
+    playerSummary
+    durationMinutes
+    minPlayers
+    maxPlayers
+    sourceFilename
+    sourceHash
+    importedAt
+    scenario { id title slug organization { id name slug } }
+    characters_on_scenarioVersion(orderBy: {externalId: ASC}) {
+      externalId name publicRole gender importance intensity playable active
+    }
+    facts_on_scenarioVersion(orderBy: {externalId: ASC}) {
+      externalId title nature importance isPublic active
+    }
+    clues_on_scenarioVersion(orderBy: {externalId: ASC}) {
+      externalId playerName clueType support major active
+    }
+  }
+}
+
+query GetCharacterDetail($versionId: UUID!, $externalId: String!) @auth(level: NO_ACCESS) {
+  characters(where: {scenarioVersionId: {eq: $versionId}, externalId: {eq: $externalId}}, limit: 1) {
+    externalId name publicRole dramaticFunction narrativeAge gender importance intensity
+    biography secretIntro interpretationNotes appearanceNotes apparentMotive personalTimeline motto portraitMediaId playable active
+  }
+  allCharacters: characters(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}) {
+    externalId name publicRole
+  }
+  objectives(where: {scenarioVersionId: {eq: $versionId}, ownerType: {eq: "CHARACTER"}, ownerExternalId: {eq: $externalId}}, orderBy: {externalId: ASC}) {
+    externalId title description objectiveType secret initialStatus triggerExternalId importance active
+  }
+  relationships(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}) {
+    externalId characterAExternalId characterBExternalId relationType textA textB visibility plotExternalId active
+  }
+  initialKnowledges(where: {scenarioVersionId: {eq: $versionId}, characterExternalId: {eq: $externalId}}) {
+    factExternalId sourceType
+  }
+  facts(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}) {
+    externalId title text nature importance notebookCategory isPublic active
+  }
+}

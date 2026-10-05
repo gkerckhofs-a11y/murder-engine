@@ -1,0 +1,19 @@
+{
+  "name": "murder-engine-functions",
+  "private": true,
+  "version": "1.6.2",
+  "type": "module",
+  "main": "src/index.mjs",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "validate:fixture": "node tools/validate-file.mjs ../fixtures/COSA_NOSTRA_V1_1_READY.xlsx"
+  },
+  "dependencies": {
+    "firebase-functions": "^6.4.0",
+    "xlsx": "^0.18.5",
+    "firebase-admin": "^13.4.0"
+  }
+}

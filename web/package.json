@@ -1,0 +1,26 @@
+{
+  "name": "murder-engine-web",
+  "private": true,
+  "version": "1.6.2",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "@zxing/browser": "latest",
+    "jszip": "^3.10.2",
+    "qrcode": "^1.5.4",
+    "qrcode.react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
+}

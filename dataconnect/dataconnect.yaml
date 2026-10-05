@@ -1,0 +1,13 @@
+specVersion: v1beta
+serviceId: murder-engine
+location: europe-west1
+schema:
+  source: ./schema
+  datasource:
+    postgresql:
+      database: murder_engine
+      cloudSql:
+        instanceId: murder-engine-db
+        schemaValidation: COMPATIBLE
+connectorDirs:
+  - ./admin

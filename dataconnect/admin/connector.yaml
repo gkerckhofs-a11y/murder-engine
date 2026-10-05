@@ -1,0 +1,7 @@
+connectorId: admin
+
+generate:
+  javascriptSdk:
+    outputDir: ../../web/src/dataconnect-generated
+    package: "@murder-engine/dataconnect"
+    packageJsonDir: ../../web
