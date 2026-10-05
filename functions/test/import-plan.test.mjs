@@ -224,6 +224,27 @@ test('immersive documents import media and synthesize a transferable object', ()
   assert.equal(object.stealable,true);
 });
 
+test('Visual V2 imports skin archetypes', () => {
+  const wb=workbook();
+  wb.sheets.THEME=[{theme_id:'THEME_1',skin_id:'RETRO_1900_1930'}];
+  wb.sheets.PERSONNAGES[0].portrait_archetype_code='HENCHMAN';
+  wb.sheets.OBJETS[0].media_id='MEDIA_KEY';
+  wb.sheets.OBJETS[0].visual_archetype_code='KEY';
+  wb.sheets.MEDIA=[
+    {media_id:'MEDIA_HENCHMAN',type_media:'IMAGE',fichier_ou_url:'/visual/henchman.webp',actif:'TRUE'},
+    {media_id:'MEDIA_KEY',type_media:'IMAGE',fichier_ou_url:'/visual/key.webp',actif:'TRUE'}
+  ];
+  wb.sheets.VISUELS_SKIN=[{
+    visual_id:'VIS_HENCHMAN',skin_id:'RETRO_1900_1930',visual_type:'CHARACTER',
+    archetype_code:'HENCHMAN',media_id:'MEDIA_HENCHMAN',variant:'DEFAULT',actif:'TRUE'
+  }];
+  const plan=buildImportPlan(wb,{sourceBuffer:Buffer.from('visual-v2')});
+  assert.equal(plan.characters[0].portraitArchetypeCode,'HENCHMAN');
+  assert.equal(plan.gameObjects[0].mediaExternalId,'MEDIA_KEY');
+  assert.equal(plan.gameObjects[0].visualArchetypeCode,'KEY');
+  assert.equal(plan.skinVisualDefinitions[0].mediaExternalId,'MEDIA_HENCHMAN');
+});
+
 test('scenario version metadata comes from Excel and gender profile can be inferred', () => {
   const wb = workbook();
   wb.sheets.SCENARIO[0].nom_version = '15 joueurs — mixte';
