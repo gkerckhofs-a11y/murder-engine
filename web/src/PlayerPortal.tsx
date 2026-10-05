@@ -159,7 +159,7 @@ export default function PlayerPortal({token}:{token:string}){
 }
 
 function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=>void}){
-  type SheetTab='story'|'missions'|'timeline'|'roleplay'|'appearance'|'qr';
+  type SheetTab='story'|'missions'|'roleplay'|'qr';
   const c=portal.character;
   const [tab,setTab]=useState<SheetTab>('story');
 
@@ -169,10 +169,8 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
   ][]=[
     ['story','Histoire'],
     ['missions','Missions'],
-    ['timeline','Chronologie'],
-    ...(c.interpretationNotes?[['roleplay','Interprétation'] as [SheetTab,string]]:[]),
-    ...(c.appearanceNotes?[['appearance','Apparence'] as [SheetTab,string]]:[]),
-    ['qr','QR'],
+    ...(c.interpretationNotes||c.appearanceNotes?[['roleplay','Interprétation'] as [SheetTab,string]]:[]),
+    ['qr','Mon QR'],
   ];
 
   return <div className="playerStack playerSheetShell">
@@ -196,6 +194,13 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
       <p>{c.biography}</p>
       {c.secretIntro&&<div className="playerSecret"><h3>Ce que vous seul savez</h3><p>{c.secretIntro}</p></div>}
       {c.apparentMotive&&<><h3>Ma position</h3><p>{c.apparentMotive}</p></>}
+      <div className="sheetSubsection">
+        <p className="playerSectionKicker">MON ALIBI / MA CHRONOLOGIE</p>
+        <h3>Ce que j’ai fait le soir du meurtre</h3>
+        {c.personalTimeline
+          ? <p>{c.personalTimeline}</p>
+          : <p className="playerMuted">Aucune chronologie particulière n’est renseignée pour ce personnage.</p>}
+      </div>
     </section>}
 
     {tab==='missions'&&<section className="playerCard">
@@ -208,27 +213,20 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
         : portal.objectives.map((o:any)=><article className="playerObjective" key={o.externalId}><div><strong>{o.title}</strong><span>{o.status}</span></div><p>{o.description}</p></article>)}
     </section>}
 
-    {tab==='timeline'&&<section className="playerCard">
-      <p className="playerSectionKicker">MON ALIBI / MA CHRONOLOGIE</p>
-      <h2>Ce que j’ai fait le soir du meurtre</h2>
-      {c.personalTimeline?<p>{c.personalTimeline}</p>:<p className="playerMuted">Aucune chronologie particulière n’est renseignée pour ce personnage.</p>}
-    </section>}
-
-    {tab==='roleplay'&&c.interpretationNotes&&<section className="playerCard playerRoleplayCard">
+    {tab==='roleplay'&&(c.interpretationNotes||c.appearanceNotes)&&<section className="playerCard playerRoleplayCard">
       <p className="playerSectionKicker">INCARNER MON PERSONNAGE</p>
       <h2>Comment me la jouer</h2>
-      <p>{c.interpretationNotes}</p>
-    </section>}
-
-    {tab==='appearance'&&c.appearanceNotes&&<section className="playerCard playerAppearanceCard">
-      <p className="playerSectionKicker">STYLE & DÉGUISEMENT</p>
-      <h2>Mon apparence</h2>
-      <p>{c.appearanceNotes}</p>
+      {c.interpretationNotes&&<p>{c.interpretationNotes}</p>}
+      {c.appearanceNotes&&<div className="sheetSubsection">
+        <p className="playerSectionKicker">STYLE & DÉGUISEMENT</p>
+        <h3>Mon apparence</h3>
+        <p>{c.appearanceNotes}</p>
+      </div>}
     </section>}
 
     {tab==='qr'&&<section className="playerCard playerUtilityDetails">
       <p className="playerSectionKicker">MON IDENTIFIANT DE JEU</p>
-      <h2>Mon QR personnage</h2>
+      <h2>Mon QR</h2>
       <p className="playerHelp">C’est l’unique QR de votre personnage. Pour une interaction DIRECTE, vous le présentez au joueur qui agit sur vous. Le MJ peut conserver une copie du même QR pour les interactions DISCRÈTES.</p>
       <div className="playerCharacterQr">
         <QRCodeSVG value={`${window.location.origin}/scan/character/${encodeURIComponent(c.externalId)}`} size={180} level="M" includeMargin/>
