@@ -112,7 +112,6 @@ export default function PlayerPortal({token}:{token:string}){
   return <main className={`playerShell playerShellV161 ${skinClass}`} style={skinStyle}>
     <header className="playerHero">{presentation.logo?.source&&<img className="playerScenarioLogo" src={presentation.logo.source} alt={presentation.logo.altText||s.scenarioTitle}/>}<p className="eyebrow">{s.scenarioTitle}</p><h1>{c.name}</h1><p className="playerRole">{c.publicRole||'Personnage'}{c.narrativeAge?` · ${c.narrativeAge}`:''}</p><div className="playerSessionMeta"><span>{s.name}</span><span>{niceDate(s.scheduledAt)}</span>{s.venue&&<span>{s.venue}</span>}</div></header>
     <div className="playerStatusBar"><div><small>Vous jouez</small><strong>{c.name}</strong></div><div className="paPill"><small>PA</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div></div>
-    {s.playerSummary&&<button className="playerIntroButton" onClick={()=>setIntroOpen(true)}>🎬 Relire l’introduction</button>}
     {portal.states?.length>0&&<section className="playerStates">{portal.states.map((st:any)=><span key={st.stateExternalId}><b>{st.name}</b>{st.description?` · ${st.description}`:''}</span>)}</section>}
     {flash&&<p className="playerFlash">{flash}</p>}{error&&<p className="playerError">{error}</p>}
     {tab==='fiche'&&<PlayerSheet portal={portal} busy={busy} onRead={()=>void act(()=>postJson('/api/player/briefing/read',{token}))}/>} 
@@ -174,17 +173,130 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
 }
 
 function PlayerNotebook({portal}:{portal:Portal}){
-  const rows=useMemo(()=>[...(portal.knowledge??[])].sort((a:any,b:any)=>String(a.fact?.notebookCategory||'').localeCompare(String(b.fact?.notebookCategory||''))),[portal.knowledge]);
+  type NotebookTab='context'|'relations'|'info'|'clues';
+  const [tab,setTab]=useState<NotebookTab>('context');
+  const [category,setCategory]=useState('ALL');
+
+  const rows=useMemo(
+    ()=>[...(portal.knowledge??[])].sort(
+      (a:any,b:any)=>String(a.fact?.notebookCategory||'').localeCompare(String(b.fact?.notebookCategory||''))
+    ),
+    [portal.knowledge]
+  );
+
+  const categories=useMemo(
+    ()=>[...new Set(rows.map((k:any)=>String(k.fact?.notebookCategory||k.sourceType||'Autres')).filter(Boolean))],
+    [rows]
+  );
+
+  const visibleRows=category==='ALL'
+    ? rows
+    : rows.filter((k:any)=>String(k.fact?.notebookCategory||k.sourceType||'Autres')===category);
+
   const clueRows=useMemo(()=>{
     const map=new Map<string,any>();
-    for(const d of portal.discoveries??[]) map.set(d.clueExternalId,{...d.clue,externalId:d.clueExternalId,discoveredAt:d.discoveredAt,owned:false});
-    for(const d of portal.documentEntries??[]){const previous=map.get(d.clueExternalId);map.set(d.clueExternalId,{...(previous??{}),...d,externalId:d.clueExternalId,owned:true});}
+    for(const d of portal.discoveries??[])
+      map.set(d.clueExternalId,{...d.clue,externalId:d.clueExternalId,discoveredAt:d.discoveredAt,owned:false});
+    for(const d of portal.documentEntries??[]){
+      const previous=map.get(d.clueExternalId);
+      map.set(d.clueExternalId,{...(previous??{}),...d,externalId:d.clueExternalId,owned:true});
+    }
     return [...map.values()];
   },[portal.discoveries,portal.documentEntries]);
-  return <div className="playerStack">
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">CE QUE JE SAIS SUR LES AUTRES</p><h2>Personnes & relations</h2></div><span>{portal.relationships?.length??0}</span></div>{!portal.relationships?.length?<p>Vous n’avez encore aucune relation structurée dans votre carnet.</p>:portal.relationships.map((r:any)=><article className="playerRelation" key={r.externalId}><small>{r.relationType||'Relation'}</small><strong>{r.otherName}</strong>{r.otherPublicRole&&<em>{r.otherPublicRole}</em>}<p>{r.text}</p></article>)}</section>
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">MES INFORMATIONS</p><h2>Ce que je sais</h2></div><span>{rows.length}</span></div>{rows.length===0?<p>Aucune information structurée pour le moment.</p>:rows.map((k:any)=><article className="playerKnowledge" key={`${k.factExternalId}-${k.learnedAt}`}><small>{k.fact.notebookCategory||k.sourceType}</small><strong>{k.fact.title}</strong><p>{k.fact.text}</p></article>)}</section>
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">CE QUE J’AI DÉCOUVERT</p><h2>Indices & documents</h2></div><span>{clueRows.length}</span></div>{clueRows.length===0?<p>Vous n’avez encore découvert aucun indice.</p>:clueRows.map((d:any)=><article className={`playerClue ${d.immersiveDocument?'immersiveClue':''}`} key={d.externalId}><div className="clueBadges"><small>{d.clueType||'INDICE'}</small>{d.owned&&<small className="ownedBadge">dans votre sac</small>}</div><strong>{d.playerName}</strong><p>{d.playerText}</p>{d.immersiveDocument&&<ImmersiveDocument entry={d} buttonLabel="Revoir le document original" compact/>}</article>)}</section>
+
+  const tabs:[
+    NotebookTab,
+    string,
+    number|null
+  ][]=[
+    ['context','Contexte',null],
+    ['relations','Relations',portal.relationships?.length??0],
+    ['info','Infos',rows.length],
+    ['clues','Indices',clueRows.length],
+  ];
+
+  return <div className="playerStack notebookShell">
+    <nav className="notebookTabs" aria-label="Rubriques du carnet">
+      {tabs.map(([id,label,count])=>
+        <button
+          key={id}
+          className={tab===id?'active':''}
+          onClick={()=>setTab(id)}
+        >
+          <span>{label}</span>
+          {count!=null&&<em>{count}</em>}
+        </button>
+      )}
+    </nav>
+
+    {tab==='context'&&<section className="playerCard notebookContextCard">
+      <p className="playerSectionKicker">L’HISTOIRE</p>
+      <h2>{portal.session?.scenarioTitle||'Contexte'}</h2>
+      {portal.session?.playerSummary
+        ? <div className="notebookIntroText">{portal.session.playerSummary}</div>
+        : <p>Aucun texte d’introduction n’est renseigné pour ce scénario.</p>}
+    </section>}
+
+    {tab==='relations'&&<section className="playerCard">
+      <div className="playerSectionHead">
+        <div><p className="playerSectionKicker">CE QUE JE SAIS SUR LES AUTRES</p><h2>Personnes & relations</h2></div>
+        <span>{portal.relationships?.length??0}</span>
+      </div>
+      {!portal.relationships?.length
+        ? <p>Vous n’avez encore aucune relation structurée dans votre carnet.</p>
+        : portal.relationships.map((r:any)=>
+          <article className="playerRelation" key={r.externalId}>
+            <small>{r.relationType||'Relation'}</small>
+            <strong>{r.otherName}</strong>
+            {r.otherPublicRole&&<em>{r.otherPublicRole}</em>}
+            <p>{r.text}</p>
+          </article>
+        )}
+    </section>}
+
+    {tab==='info'&&<section className="playerCard">
+      <div className="playerSectionHead">
+        <div><p className="playerSectionKicker">MES INFORMATIONS</p><h2>Ce que je sais</h2></div>
+        <span>{rows.length}</span>
+      </div>
+
+      {categories.length>1&&<div className="notebookCategoryFilters" role="group" aria-label="Filtrer les informations">
+        <button className={category==='ALL'?'active':''} onClick={()=>setCategory('ALL')}>Tout</button>
+        {categories.map(c=>
+          <button key={c} className={category===c?'active':''} onClick={()=>setCategory(c)}>{c}</button>
+        )}
+      </div>}
+
+      {visibleRows.length===0
+        ? <p>Aucune information structurée pour le moment.</p>
+        : visibleRows.map((k:any)=>
+          <article className="playerKnowledge" key={`${k.factExternalId}-${k.learnedAt}`}>
+            <small>{k.fact.notebookCategory||k.sourceType}</small>
+            <strong>{k.fact.title}</strong>
+            <p>{k.fact.text}</p>
+          </article>
+        )}
+    </section>}
+
+    {tab==='clues'&&<section className="playerCard">
+      <div className="playerSectionHead">
+        <div><p className="playerSectionKicker">CE QUE J’AI DÉCOUVERT</p><h2>Indices & documents</h2></div>
+        <span>{clueRows.length}</span>
+      </div>
+      {clueRows.length===0
+        ? <p>Vous n’avez encore découvert aucun indice.</p>
+        : clueRows.map((d:any)=>
+          <article className={`playerClue ${d.immersiveDocument?'immersiveClue':''}`} key={d.externalId}>
+            <div className="clueBadges">
+              <small>{d.clueType||'INDICE'}</small>
+              {d.owned&&<small className="ownedBadge">dans votre sac</small>}
+            </div>
+            <strong>{d.playerName}</strong>
+            <p>{d.playerText}</p>
+            {d.immersiveDocument&&<ImmersiveDocument entry={d} buttonLabel="Revoir le document original" compact/>}
+          </article>
+        )}
+    </section>}
   </div>;
 }
 
