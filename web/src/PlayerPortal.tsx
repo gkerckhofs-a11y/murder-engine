@@ -141,7 +141,7 @@ export default function PlayerPortal({token}:{token:string}){
 
       return response;
     }} onVote={(voteExternalId,round,selectedOptionExternalIds)=>act(()=>postJson('/api/player/vote',{token,voteExternalId,round,selectedOptionExternalIds}),'Vote enregistré ✓')}/>} 
-    {tab==='sac'&&<PlayerBag portal={portal} busy={busy} onGive={(objectExternalId,targetCharacterExternalId)=>act(()=>postJson('/api/player/object',{token,objectExternalId,targetCharacterExternalId}),'Objet transféré ✓')}/>} 
+    {tab==='sac'&&<PlayerBag portal={portal} busy={busy} onGive={(objectExternalId,targetCharacterExternalId)=>act(()=>postJson('/api/player/object',{token,objectExternalId,targetCharacterExternalId}),'Objet transféré ✓')} onCashTransfer={(targetCharacterExternalId,amount)=>act(()=>postJson('/api/player/cash',{token,targetCharacterExternalId,amount}),'Virement effectué ✓')}/>} 
     {tab==='news'&&<PlayerNews portal={portal} busy={busy} onRead={id=>act(()=>postJson('/api/player/notification/read',{token,notificationId:id}),'Notification lue')}/>} 
     {introOpen&&<div className="qrScannerOverlay playerStoryOverlay" role="dialog" aria-modal="true" aria-label="Introduction"><div className="qrScannerPanel playerStoryPanel"><p className="eyebrow">L’HISTOIRE COMMENCE</p><h2>{s.scenarioTitle}</h2><div className="playerStoryText">{s.playerSummary}</div><button className="playerPrimary" onClick={closeIntro}>Entrer dans l’histoire</button></div></div>}
 
@@ -456,24 +456,173 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
   </div>;
 }
 
-function PlayerBag({portal,busy,onGive}:{portal:Portal;busy:boolean;onGive:(objectId:string,targetId:string)=>void}){
-  const [scanObject,setScanObject]=useState<any|null>(null); const [pending,setPending]=useState<{object:any;target:any}|null>(null);
+function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boolean;onGive:(objectId:string,targetId:string)=>void;onCashTransfer:(targetId:string,amount:number)=>Promise<any>|void}){
+  const [scanObject,setScanObject]=useState<any|null>(null);
+  const [pending,setPending]=useState<{object:any;target:any}|null>(null);
+  const [cashScannerOpen,setCashScannerOpen]=useState(false);
+  const [cashTarget,setCashTarget]=useState<any|null>(null);
+  const [cashAmount,setCashAmount]=useState('');
+  const [cashConfirmation,setCashConfirmation]=useState<string>('');
+
   const inventoryMap=new Map((portal.inventory??[]).map((o:any)=>[o.objectExternalId,o]));
   const docObjectIds=new Set((portal.documentEntries??[]).map((d:any)=>d.objectExternalId).filter(Boolean));
+
   const documentRows=useMemo(()=>{
     const map=new Map<string,any>();
-    for(const d of portal.documentEntries??[])map.set(d.clueExternalId,{...d,owned:true,object:inventoryMap.get(d.objectExternalId)??null});
-    for(const discovery of portal.discoveries??[]){if(!map.has(discovery.clueExternalId)&&isPhysicalClue(discovery.clue)&&!discovery.clue?.objectExternalId)map.set(discovery.clueExternalId,{...discovery.clue,clueExternalId:discovery.clueExternalId,owned:true,object:null});}
+    for(const d of portal.documentEntries??[])
+      map.set(d.clueExternalId,{...d,owned:true,object:inventoryMap.get(d.objectExternalId)??null});
+    for(const discovery of portal.discoveries??[]){
+      if(!map.has(discovery.clueExternalId)&&isPhysicalClue(discovery.clue)&&!discovery.clue?.objectExternalId)
+        map.set(discovery.clueExternalId,{...discovery.clue,clueExternalId:discovery.clueExternalId,owned:true,object:null});
+    }
     return [...map.values()];
   },[portal.documentEntries,portal.discoveries,portal.inventory]);
+
   const objects=(portal.inventory??[]).filter((o:any)=>!docObjectIds.has(o.objectExternalId));
-  const money=(portal.resources??[]).filter((r:any)=>r.resourceExternalId!=='RES_PA');
-  return <div className="playerStack">
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">MES RESSOURCES</p><h2>Argent</h2></div><span>{money.length}</span></div>{money.length===0?<p>Aucune ressource monétaire ou spéciale n’est suivie numériquement.</p>:<div className="bagResourceGrid">{money.map((r:any)=><article key={r.resourceExternalId}><small>{resourceLabel(r.resourceExternalId)}</small><strong>{r.currentValue}{r.maxValue!=null?`/${r.maxValue}`:''}</strong>{r.unit&&<span>{r.unit}</span>}</article>)}</div>}{money.some((r:any)=>r.resourceExternalId==='RES_CASH')&&<p className="playerHelp">Si la partie utilise des billets ou jetons physiques, la monnaie réellement détenue pendant le jeu fait foi.</p>}</section>
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">CE QUE JE POSSÈDE ET QUI INFORME</p><h2>Documents & indices physiques</h2></div><span>{documentRows.length}</span></div>{documentRows.length===0?<p>Vous ne possédez actuellement aucun document ou indice physique enregistré.</p>:documentRows.map((d:any)=><article className={`bagDocument ${d.immersiveDocument?'immersiveBagDocument':''}`} key={d.clueExternalId}>{d.immersiveDocument&&<ImmersiveDocument entry={d}/>}<div className="bagDocumentMeta"><small>{d.clueType||'DOCUMENT'}</small><strong>{d.playerName}</strong><p>{d.playerText}</p><em>Également mémorisé dans Carnet</em></div>{d.object?.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow"><p className="scanRequiredNote">Ce document est tangible : vous pouvez le donner en scannant le QR du destinataire.</p><button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(d.object)}>📷 Donner ce document</button></div>}</article>)}</section>
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">CE QUE JE TRANSPORTE</p><h2>Objets & accessoires</h2></div><span>{objects.length}</span></div>{objects.length===0?<p>Vous ne transportez aucun autre objet enregistré.</p>:objects.map((o:any)=><article className="playerObject" key={o.objectExternalId}><strong>{o.name}</strong><p>{o.identification}</p>{o.charges!=null&&<small>Charges : {o.charges}</small>}{o.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow"><p className="scanRequiredNote">Pour donner cet objet, scannez le QR du personnage qui le reçoit.</p><button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(o)}>📷 Scanner le destinataire</button></div>}</article>)}</section>
-    {scanObject&&<QrCharacterScanner title={`Donner ${scanObject.name}`} mode="DIRECT" targets={portal.otherCharacters} onClose={()=>setScanObject(null)} onSelect={(target:any)=>{setPending({object:scanObject,target});setScanObject(null);}}/>}
-    {pending&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer le don"><div className="qrScannerPanel giveConfirmPanel"><p className="eyebrow">DON · QR VALIDÉ</p><h2>Donner {pending.object.name} ?</h2><p>Destinataire : <strong>{pending.target.name}</strong>{pending.target.publicRole?` · ${pending.target.publicRole}`:''}</p><div className="giveConfirmActions"><button className="playerSecondary" disabled={busy} onClick={()=>setPending(null)}>Annuler</button><button className="playerPrimary" disabled={busy} onClick={()=>{onGive(pending.object.objectExternalId,pending.target.characterExternalId);setPending(null);}}>Confirmer le don</button></div></div></div>}
+  const resources=portal.resources??[];
+  const cash=resources.find((r:any)=>r.resourceExternalId==='RES_CASH');
+  const cashValue=Number(cash?.currentValue??0);
+  const possessionCount=documentRows.length+objects.length;
+
+  async function confirmCashTransfer(){
+    if(!cashTarget)return;
+    const amount=Number(cashAmount);
+    if(!Number.isInteger(amount)||amount<=0||amount>cashValue)return;
+
+    const response=await Promise.resolve(onCashTransfer(cashTarget.characterExternalId,amount));
+    if(!response)return;
+
+    setCashConfirmation(`${amount} envoyé à ${cashTarget.name}.`);
+    setCashTarget(null);
+    setCashAmount('');
+  }
+
+  return <div className="playerStack bagShell">
+    <section className="playerCard bagResourcesCard">
+      <div className="playerSectionHead">
+        <div><p className="playerSectionKicker">MES RESSOURCES</p><h2>Points d’action & argent</h2></div>
+        <span>{resources.length}</span>
+      </div>
+
+      {resources.length===0
+        ? <p>Aucune ressource n’est suivie pour votre personnage.</p>
+        : <div className="bagResourceGrid bagResourceGridV12">
+          {resources.map((r:any)=>
+            <article className={`bagResourceCard ${r.resourceExternalId==='RES_CASH'?'cash':''}`} key={r.resourceExternalId}>
+              <small>{resourceLabel(r.resourceExternalId)}</small>
+              <strong>{r.currentValue}{r.maxValue!=null?`/${r.maxValue}`:''}</strong>
+              {r.unit&&<span>{r.unit}</span>}
+              {r.resourceExternalId==='RES_CASH'&&portal.otherCharacters.length>0&&
+                <button className="playerSecondary bagCashTransferButton" disabled={busy||cashValue<=0||portal.session?.status!=='LIVE'} onClick={()=>setCashScannerOpen(true)}>
+                  💸 Virer de l’argent
+                </button>}
+            </article>
+          )}
+        </div>}
+
+      {cash&&<p className="playerHelp bagCashHelp">Les virements reçus apparaissent automatiquement dans votre solde et dans vos notifications.</p>}
+    </section>
+
+    <section className="playerCard bagPossessionsCard">
+      <div className="playerSectionHead">
+        <div><p className="playerSectionKicker">MES POSSESSIONS</p><h2>Ce que je possède</h2></div>
+        <span>{possessionCount}</span>
+      </div>
+
+      {possessionCount===0
+        ? <p>Vous ne possédez actuellement aucun objet ou document enregistré.</p>
+        : <div className="bagPossessionList">
+          {documentRows.map((d:any)=>
+            <article className={`bagDocument bagPossessionItem ${d.immersiveDocument?'immersiveBagDocument':''}`} key={d.clueExternalId}>
+              <div className="bagPossessionType">📄 Document / indice</div>
+              {d.immersiveDocument&&<ImmersiveDocument entry={d}/>}
+              <div className="bagDocumentMeta">
+                <strong>{d.playerName}</strong>
+                <p>{d.playerText}</p>
+                <em>Cette information reste mémorisée dans votre Carnet.</em>
+              </div>
+              {d.object?.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow">
+                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(d.object)}>📷 Donner</button>
+              </div>}
+            </article>
+          )}
+
+          {objects.map((o:any)=>
+            <article className="playerObject bagPossessionItem" key={o.objectExternalId}>
+              <div className="bagPossessionType">🎒 Objet</div>
+              <strong>{o.name}</strong>
+              <p>{o.identification}</p>
+              {o.charges!=null&&<small>Charges : {o.charges}</small>}
+              {o.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow">
+                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(o)}>📷 Donner</button>
+              </div>}
+            </article>
+          )}
+        </div>}
+    </section>
+
+    {scanObject&&<QrCharacterScanner
+      title={`Donner ${scanObject.name}`}
+      mode="DIRECT"
+      targets={portal.otherCharacters}
+      onClose={()=>setScanObject(null)}
+      onSelect={(target:any)=>{setPending({object:scanObject,target});setScanObject(null);}}
+    />}
+
+    {pending&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer le don">
+      <div className="qrScannerPanel giveConfirmPanel">
+        <p className="eyebrow">DON · QR VALIDÉ</p>
+        <h2>Donner {pending.object.name} ?</h2>
+        <p>Destinataire : <strong>{pending.target.name}</strong>{pending.target.publicRole?` · ${pending.target.publicRole}`:''}</p>
+        <div className="giveConfirmActions">
+          <button className="playerSecondary" disabled={busy} onClick={()=>setPending(null)}>Annuler</button>
+          <button className="playerPrimary" disabled={busy} onClick={()=>{onGive(pending.object.objectExternalId,pending.target.characterExternalId);setPending(null);}}>Confirmer le don</button>
+        </div>
+      </div>
+    </div>}
+
+    {cashScannerOpen&&<QrCharacterScanner
+      title="Virer de l’argent"
+      mode="DIRECT"
+      targets={portal.otherCharacters}
+      onClose={()=>setCashScannerOpen(false)}
+      onSelect={(target:any)=>{setCashTarget(target);setCashScannerOpen(false);setCashAmount('');}}
+    />}
+
+    {cashTarget&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer le virement">
+      <div className="qrScannerPanel cashTransferPanel">
+        <p className="eyebrow">VIREMENT</p>
+        <h2>Envoyer de l’argent</h2>
+        <p>À <strong>{cashTarget.name}</strong>{cashTarget.publicRole?` · ${cashTarget.publicRole}`:''}</p>
+        <div className="cashBalancePreview"><span>Disponible</span><strong>{cashValue}</strong></div>
+        <label className="cashAmountField">
+          <span>Montant</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min="1"
+            max={cashValue}
+            step="1"
+            value={cashAmount}
+            onChange={e=>setCashAmount(e.target.value)}
+            placeholder="0"
+          />
+        </label>
+        <div className="giveConfirmActions">
+          <button className="playerSecondary" disabled={busy} onClick={()=>{setCashTarget(null);setCashAmount('');}}>Annuler</button>
+          <button className="playerPrimary" disabled={busy||!Number.isInteger(Number(cashAmount))||Number(cashAmount)<=0||Number(cashAmount)>cashValue} onClick={()=>void confirmCashTransfer()}>Confirmer le virement</button>
+        </div>
+      </div>
+    </div>}
+
+    {cashConfirmation&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Virement effectué">
+      <div className="qrScannerPanel cashTransferPanel">
+        <p className="eyebrow">VIREMENT</p>
+        <h2>✓ Argent envoyé</h2>
+        <p>{cashConfirmation}</p>
+        <button className="playerPrimary" onClick={()=>setCashConfirmation('')}>Continuer</button>
+      </div>
+    </div>}
   </div>;
 }
 
@@ -700,7 +849,9 @@ function NewsNotification({n,busy,onRead}:{n:any;busy:boolean;onRead:(id:string)
           ? 'Alerte personnelle'
           : kind==='OBJECT'
             ? 'Information reçue'
-            : kind==='INTERACTION_TARGET'
+            : kind==='CASH'
+              ? 'Argent reçu'
+              : kind==='INTERACTION_TARGET'
               ? 'Événement personnel'
               : 'Information';
 
@@ -721,6 +872,8 @@ function actionLogTitle(l:any){
   if(type==='OBJECT_TRANSFER')return 'Objet transféré';
   if(type==='OBJECT_STOLEN')return 'Objet subtilisé';
   if(type==='CLUE_REVEAL')return 'Indice découvert';
+  if(type==='CASH_TRANSFER')return 'Argent envoyé';
+  if(type==='CASH_RECEIVED')return 'Argent reçu';
   if(type.includes('VOTE'))return 'Vote enregistré';
   return 'Action de jeu';
 }
