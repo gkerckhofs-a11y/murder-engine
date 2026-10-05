@@ -34,6 +34,27 @@ function isPhysicalClue(clue:any){
   return /(document|photo|lettre|letter|telegram|telegr|rapport|journal|plan|carte|papier|contrat|acte)/.test(hay);
 }
 
+function objectVisualGlyph(code?:string|null){
+  return ({
+    KEY:'🔑',
+    LETTER:'✉️',
+    PHOTO:'🖼️',
+    RING:'💍',
+    JEWEL:'💎',
+    WATCH:'⌚',
+    VIAL:'🧪',
+    BOTTLE:'🍾',
+    KNIFE:'🗡️',
+    GUN:'🔫',
+    MAP:'🗺️',
+    NOTEBOOK:'📓',
+    MONEY:'💰',
+    BADGE:'🎖️',
+    BOX:'🧰',
+    OBJECT:'🎒',
+  } as Record<string,string>)[String(code??'OBJECT')]??'🎒';
+}
+
 export default function PlayerPortal({token}:{token:string}){
   useEffect(()=>{if(token)localStorage.setItem('murderEnginePlayerToken',token);},[token]);
   const [portal,setPortal]=useState<Portal|null>(null); const [error,setError]=useState(''); const [loading,setLoading]=useState(true); const [tab,setTab]=useState<Tab>('fiche'); const [busy,setBusy]=useState(false); const [flash,setFlash]=useState('');
@@ -191,6 +212,10 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
     {tab==='story'&&<section className="playerCard">
       <p className="playerSectionKicker">CE QUE JE SUIS</p>
       <h2>Mon histoire</h2>
+      {c.portrait&&<figure className="characterPortraitHero">
+        <img src={c.portrait.source} alt={c.portrait.altText||`Portrait de ${c.name}`}/>
+        <figcaption><strong>{c.name}</strong>{c.publicRole&&<span>{c.publicRole}</span>}</figcaption>
+      </figure>}
       <p>{c.biography}</p>
       {c.secretIntro&&<div className="playerSecret"><h3>Ce que vous seul savez</h3><p>{c.secretIntro}</p></div>}
       {c.apparentMotive&&<><h3>Ma position</h3><p>{c.apparentMotive}</p></>}
@@ -312,11 +337,14 @@ function PlayerNotebook({portal}:{portal:Portal}){
       {!portal.relationships?.length
         ? <p>Vous n’avez encore aucune relation structurée dans votre carnet.</p>
         : portal.relationships.map((r:any)=>
-          <article className="playerRelation" key={r.externalId}>
-            <small>{r.relationType||'Relation'}</small>
-            <strong>{r.otherName}</strong>
-            {r.otherPublicRole&&<em>{r.otherPublicRole}</em>}
-            <p>{r.text}</p>
+          <article className={`playerRelation ${r.portrait?'hasPortrait':''}`} key={r.externalId}>
+            {r.portrait&&<img className="relationPortrait" src={r.portrait.source} alt={r.portrait.altText||`Portrait de ${r.otherName}`}/>}
+            <div className="relationContent">
+              <small>{r.relationType||'Relation'}</small>
+              <strong>{r.otherName}</strong>
+              {r.otherPublicRole&&<em>{r.otherPublicRole}</em>}
+              <p>{r.text}</p>
+            </div>
           </article>
         )}
     </section>}
@@ -635,12 +663,19 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
           )}
 
           {objects.map((o:any)=>
-            <article className="playerObject bagPossessionItem" key={o.objectExternalId}>
-              <div className="bagPossessionType">🎒 Objet</div>
-              <strong>{o.name}</strong>
-              <p>{o.identification}</p>
-              {o.charges!=null&&<small>Charges : {o.charges}</small>}
-              {o.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow">
+            <article className="playerObject bagPossessionItem visualPossessionItem" key={o.objectExternalId}>
+              <div className="objectVisualThumb">
+                {o.visualMedia
+                  ? <img src={o.visualMedia.source} alt={o.visualMedia.altText||o.name}/>
+                  : <span aria-hidden="true">{objectVisualGlyph(o.visualCode)}</span>}
+              </div>
+              <div className="objectVisualBody">
+                <div className="bagPossessionType">Objet</div>
+                <strong>{o.name}</strong>
+                <p>{o.identification}</p>
+                {o.charges!=null&&<small>Charges : {o.charges}</small>}
+              </div>
+              {o.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow objectVisualAction">
                 <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(o)}>📷 Donner</button>
               </div>}
             </article>
