@@ -17,7 +17,7 @@ import { initializeSessionRuntime, getSessionRuntime } from './runtime.mjs';
 import { getLiveDashboard, controlLiveSession, changeLiveResource, setLiveCharacterState, setLiveEventStatus } from './live.mjs';
 import { getInteractionDashboard, executeInteraction, revealClueToCharacter, transferSessionObject } from './interactions.mjs';
 import { getVoteDashboard, openSessionVote, castSessionBallot, closeSessionVote } from './votes.mjs';
-import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, transferPlayerObject, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
+import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
 import { updateScenarioAppearanceFamily } from './scenario-appearance.mjs';
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
@@ -641,6 +641,12 @@ export const transferPublicPlayerObject = onRequest({ region:'europe-west1', cor
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await transferPlayerObject(String(body.token??'').trim(),body)}); }
   catch(error){ logger.error('Player object transfer failed',error); return res.status(400).json({error:'PLAYER_OBJECT_TRANSFER_FAILED',message:error instanceof Error?error.message:String(error)}); }
+});
+
+export const transferPublicPlayerCash = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+  const body=requirePostJson(req,res); if(!body)return;
+  try { return res.status(200).json({ok:true,result:await transferPlayerCash(String(body.token??'').trim(),body)}); }
+  catch(error){ logger.error('Player cash transfer failed',error); return res.status(400).json({error:'PLAYER_CASH_TRANSFER_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
 
 export const castPublicPlayerVote = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
