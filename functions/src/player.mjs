@@ -160,6 +160,32 @@ mutation ClaimSteal(
 }
 `;
 
+const TRANSFER_PLAYER_CASH_MUTATION = `
+mutation TransferPlayerCash(
+  $sessionId: UUID!,
+  $senderCharacterExternalId: String!,
+  $targetCharacterExternalId: String!,
+  $senderValue: Int!,
+  $targetValue: Int!,
+  $updatedAt: Timestamp!,
+  $notification: SessionPlayerNotification_Data!,
+  $senderLog: SessionActionLog_Data!,
+  $targetLog: SessionActionLog_Data!
+) @transaction {
+  sessionResource_update(
+    key: {gameSessionId: $sessionId, characterExternalId: $senderCharacterExternalId, resourceExternalId: "RES_CASH"}
+    data: {currentValue: $senderValue, updatedAt: $updatedAt}
+  )
+  sessionResource_update(
+    key: {gameSessionId: $sessionId, characterExternalId: $targetCharacterExternalId, resourceExternalId: "RES_CASH"}
+    data: {currentValue: $targetValue, updatedAt: $updatedAt}
+  )
+  sessionPlayerNotification_insert(data: $notification)
+  sessionActionLog_insert(data: $senderLog)
+  sessionActionLog_insert(data: $targetLog)
+}
+`;
+
 const SYSTEM_LOCATION_SEARCH_MUTATION = `
 mutation SystemLocationSearch(
   $sessionId: UUID!, $characterExternalId: String!, $currentValue: Int!, $updatedAt: Timestamp!,
@@ -782,6 +808,110 @@ export async function transferPlayerObject(token,input,{reader=defaultReader,exe
   return result;
 }
 
+
+export async function transferPlayerCash(token,input,{reader=defaultReader,executor=defaultExecutor,now=new Date()}={}) {
+  const loaded=await loadPlayerData(token,reader);
+  if(loaded.session.status!=='LIVE') throw new Error('PLAYER_ACTIONS_NOT_LIVE');
+
+  const actor=loaded.participant.characterExternalId;
+  const targetCharacterExternalId=String(input?.targetCharacterExternalId??'').trim();
+  const amount=Number(input?.amount);
+
+  if(!targetCharacterExternalId||targetCharacterExternalId===actor)
+    throw new Error('INVALID_CASH_TARGET');
+
+  if(!Number.isInteger(amount)||amount<=0)
+    throw new Error('INVALID_CASH_AMOUNT');
+
+  if(!(loaded.session.sessionParticipants_on_gameSession??[]).some(
+    p=>p.active!==false&&p.characterExternalId===targetCharacterExternalId
+  )) throw new Error('CASH_TARGET_CHARACTER_NOT_FOUND');
+
+  const resources=loaded.runtime.sessionResources??[];
+  const sender=resources.find(
+    r=>r.characterExternalId===actor&&r.resourceExternalId==='RES_CASH'
+  );
+  const target=resources.find(
+    r=>r.characterExternalId===targetCharacterExternalId&&r.resourceExternalId==='RES_CASH'
+  );
+
+  if(!sender) throw new Error('CASH_RESOURCE_NOT_AVAILABLE');
+  if(!target) throw new Error('CASH_TARGET_RESOURCE_NOT_AVAILABLE');
+
+  const senderBefore=Number(sender.currentValue??0);
+  const targetBefore=Number(target.currentValue??0);
+
+  if(senderBefore<amount) throw new Error('INSUFFICIENT_CASH');
+
+  const targetMax=target.maxValue==null?null:Number(target.maxValue);
+  if(targetMax!=null&&targetBefore+amount>targetMax)
+    throw new Error('CASH_TARGET_MAX_EXCEEDED');
+
+  const senderAfter=senderBefore-amount;
+  const targetAfter=targetBefore+amount;
+  const createdAt=nowIso(now);
+
+  const targetName=
+    (loaded.source.characters??[]).find(c=>c.externalId===targetCharacterExternalId)?.name
+    ??targetCharacterExternalId;
+
+  const notification={
+    gameSessionId:loaded.session.id,
+    characterExternalId:targetCharacterExternalId,
+    kind:'OBJECT',
+    title:'Argent reçu',
+    body:`Vous recevez ${amount} d’argent.`,
+    priority:'NORMAL',
+    refExternalId:'RES_CASH',
+    createdAt,
+    readAt:null
+  };
+
+  const senderLog={
+    gameSessionId:loaded.session.id,
+    actionType:'CASH_TRANSFER',
+    characterExternalId:actor,
+    refExternalId:'RES_CASH',
+    beforeValue:String(senderBefore),
+    afterValue:String(senderAfter),
+    deltaValue:-amount,
+    note:`Virement de ${amount} à ${targetName}`,
+    createdAt
+  };
+
+  const targetLog={
+    gameSessionId:loaded.session.id,
+    actionType:'CASH_RECEIVED',
+    characterExternalId:targetCharacterExternalId,
+    refExternalId:'RES_CASH',
+    beforeValue:String(targetBefore),
+    afterValue:String(targetAfter),
+    deltaValue:amount,
+    note:`Virement reçu : ${amount}`,
+    createdAt
+  };
+
+  await executor(TRANSFER_PLAYER_CASH_MUTATION,{
+    sessionId:loaded.session.id,
+    senderCharacterExternalId:actor,
+    targetCharacterExternalId,
+    senderValue:senderAfter,
+    targetValue:targetAfter,
+    updatedAt:createdAt,
+    notification,
+    senderLog,
+    targetLog
+  });
+
+  return {
+    transferred:true,
+    amount,
+    targetCharacterExternalId,
+    targetName,
+    remaining:senderAfter
+  };
+}
+
 async function executeSystemLocationSearch(loaded, locationExternalId, {executor=defaultExecutor,now=new Date()}={}) {
   const actor=loaded.participant.characterExternalId;
   const pa=(loaded.runtime.sessionResources??[]).find(r=>r.characterExternalId===actor&&r.resourceExternalId==='RES_PA');
@@ -998,4 +1128,4 @@ export async function castPlayerVote(token,input,{reader=defaultReader,voteCaste
   const loaded=await loadPlayerData(token,reader);return voteCaster(loaded.session.id,{voteExternalId:String(input?.voteExternalId??'').trim(),electorCharacterExternalId:loaded.participant.characterExternalId,selectedOptionExternalIds:Array.isArray(input?.selectedOptionExternalIds)?input.selectedOptionExternalIds:[],round:input?.round});
 }
 
-export const __playerOps={PLAYER_ACCESS_QUERY,PLAYER_SOURCE_QUERY,PLAYER_RUNTIME_QUERY,UPDATE_PLAYER_ACCESS_MUTATION,TRACK_PLAYER_OPEN_MUTATION,MARK_BRIEFING_READ_MUTATION,INSERT_NOTIFICATION_MUTATION,MARK_NOTIFICATION_READ_MUTATION,INSERT_PLAYER_ACTION_LOG_MUTATION,SYSTEM_LOCATION_SEARCH_MUTATION,INSERT_STEAL_GRANT_MUTATION,CLAIM_STEAL_MUTATION};
+export const __playerOps={PLAYER_ACCESS_QUERY,PLAYER_SOURCE_QUERY,PLAYER_RUNTIME_QUERY,UPDATE_PLAYER_ACCESS_MUTATION,TRACK_PLAYER_OPEN_MUTATION,MARK_BRIEFING_READ_MUTATION,INSERT_NOTIFICATION_MUTATION,MARK_NOTIFICATION_READ_MUTATION,INSERT_PLAYER_ACTION_LOG_MUTATION,SYSTEM_LOCATION_SEARCH_MUTATION,INSERT_STEAL_GRANT_MUTATION,CLAIM_STEAL_MUTATION,TRANSFER_PLAYER_CASH_MUTATION};
