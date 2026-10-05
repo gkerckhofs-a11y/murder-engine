@@ -11358,3 +11358,125 @@ button.skinGalleryCard:disabled{
     font-size:1.25rem;
   }
 }
+
+
+/* ==========================================================
+   V1.12E — PLAYER SHEET NAV + COMPACT TITLES
+   ========================================================== */
+
+.playerSheetShell{gap:12px}
+
+.sheetQuickNav{
+  position:sticky;
+  top:58px;
+  z-index:15;
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  padding:4px 1px 6px;
+  background:linear-gradient(180deg,rgba(10,12,15,.96),rgba(10,12,15,.82),transparent);
+  backdrop-filter:blur(8px);
+  scrollbar-width:none;
+}
+.sheetQuickNav::-webkit-scrollbar{display:none}
+
+.sheetQuickNav button{
+  flex:0 0 auto;
+  min-height:36px;
+  padding:6px 10px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  background:rgba(255,255,255,.05);
+  color:inherit;
+  font-size:.72rem;
+  font-weight:800;
+  white-space:nowrap;
+}
+
+.sheetQuickNav button:active{
+  transform:translateY(1px);
+}
+
+.sheetAnchor{
+  scroll-margin-top:108px;
+}
+
+/* Global player density: slightly smaller section titles. */
+.playerCard h2{
+  font-size:clamp(1.18rem,4.5vw,1.42rem);
+  line-height:1.16;
+}
+
+.playerCard h3{
+  font-size:1rem;
+  line-height:1.2;
+}
+
+/* Sheet nav contrast per skin. */
+.skin-retro-1900-1930 .sheetQuickNav button{
+  background:#ead8b3;
+  color:#382a1a;
+  border-color:#a98c58;
+}
+.skin-western .sheetQuickNav button{
+  background:#e7cf9d;
+  color:#412b1c;
+  border-color:#9b7448;
+}
+.skin-contemporary-1980-2000 .sheetQuickNav button{
+  background:#172027;
+  color:#e8f0f4;
+  border-color:#3d4d56;
+}
+.skin-futuristic .sheetQuickNav button{
+  background:#081317;
+  color:#dffaf6;
+  border-color:#24505a;
+}
+.skin-classic-mystery .sheetQuickNav button{
+  background:#e9e0cf;
+  color:#332d24;
+  border-color:#948568;
+}
+.skin-medieval-fantasy .sheetQuickNav button{
+  background:#e4cfa5;
+  color:#3f2f1f;
+  border-color:#9b7a4d;
+}
+.skin-victorian-gothic .sheetQuickNav button{
+  background:#e7d8ca;
+  color:#422f3b;
+  border-color:#a08678;
+}
+.skin-noir-1940-1950 .sheetQuickNav button{
+  background:#e5e4de;
+  color:#252728;
+  border-color:#777;
+}
+.skin-vintage-1960-1970 .sheetQuickNav button{
+  background:#ead8b7;
+  color:#43352a;
+  border-color:#a48e67;
+}
+
+@media(max-width:520px){
+  .sheetQuickNav{
+    top:54px;
+    margin-left:-2px;
+    margin-right:-2px;
+  }
+
+  .sheetQuickNav button{
+    min-height:34px;
+    padding:6px 9px;
+    font-size:.69rem;
+  }
+
+  .sheetAnchor{
+    scroll-margin-top:102px;
+  }
+
+  .playerCard h2{
+    font-size:1.18rem;
+  }
+}
