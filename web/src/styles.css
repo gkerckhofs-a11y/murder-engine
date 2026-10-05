@@ -10794,7 +10794,8 @@ button.skinGalleryCard:disabled{
 .playCardLead p:last-child,
 .playSectionIntro{
   margin:.25rem 0 0;
-  color:rgba(255,255,255,.74);
+  color:inherit;
+  opacity:.78;
 }
 .playCardIcon{
   display:grid;
@@ -10811,9 +10812,10 @@ button.skinGalleryCard:disabled{
   display:grid;
   gap:11px;
   padding:14px;
-  border:1px solid rgba(255,255,255,.12);
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
   border-radius:14px;
-  background:rgba(255,255,255,.035);
+  background:color-mix(in srgb,currentColor 4%,transparent);
+  color:inherit;
 }
 .playActionCard.isUnavailable{opacity:.72}
 .playActionHeader{
@@ -10827,7 +10829,7 @@ button.skinGalleryCard:disabled{
   gap:5px;
 }
 .playActionHeader strong{
-  color:#fff;
+  color:inherit;
   font-size:1.05rem;
 }
 .playModeBadge{
@@ -10838,12 +10840,14 @@ button.skinGalleryCard:disabled{
   font-weight:800;
 }
 .playModeBadge.direct{
-  background:rgba(83,160,116,.18);
-  color:#c8efd5;
+  border:1px solid color-mix(in srgb,#3f8b5d 52%,transparent);
+  background:color-mix(in srgb,#3f8b5d 13%,transparent);
+  color:inherit;
 }
 .playModeBadge.discret{
-  background:rgba(132,104,170,.22);
-  color:#e2d4f3;
+  border:1px solid color-mix(in srgb,#76549c 52%,transparent);
+  background:color-mix(in srgb,#76549c 13%,transparent);
+  color:inherit;
 }
 .playActionBadges{
   display:flex;
@@ -10855,25 +10859,28 @@ button.skinGalleryCard:disabled{
   align-items:center;
   min-height:25px;
   padding:3px 8px;
-  border:1px solid rgba(255,255,255,.14);
+  border:1px solid color-mix(in srgb,currentColor 22%,transparent);
   border-radius:999px;
-  background:rgba(255,255,255,.05);
-  color:#eef2f4;
+  background:color-mix(in srgb,currentColor 5%,transparent);
+  color:inherit;
   font-size:.68rem;
   font-weight:750;
 }
 .playActionHeader .playActionBadges{justify-content:flex-end}
 .playActionDescription{
   margin:0;
-  color:rgba(255,255,255,.8);
+  color:inherit;
+  opacity:.86;
   line-height:1.45;
 }
 .playActionUsage{
-  color:rgba(255,255,255,.65);
+  color:inherit;
+  opacity:.68;
 }
 .playActionHint{
   margin:0;
-  color:rgba(255,255,255,.74);
+  color:inherit;
+  opacity:.78;
   font-size:.86rem;
 }
 .playActionCta,
@@ -10900,8 +10907,9 @@ button.skinGalleryCard:disabled{
   height:28px;
   padding:0 8px;
   border-radius:999px;
-  background:rgba(255,255,255,.07);
-  color:rgba(255,255,255,.8);
+  background:color-mix(in srgb,currentColor 7%,transparent);
+  color:inherit;
+  opacity:.82;
 }
 .playSkillsDetails[open] summary{margin-bottom:14px}
 .playAbilityGrid{margin-top:4px}
@@ -10915,3 +10923,31 @@ button.skinGalleryCard:disabled{
   .playCardLead{grid-template-columns:40px 1fr}
   .playCardIcon{width:40px;height:40px;font-size:1.2rem}
 }
+
+
+/* V1.12 contrast guard: new Jouer cards always follow each skin's card ink. */
+.playMainCard,
+.playSkillsDetails,
+.playMainCard .playActionCard,
+.playSkillsDetails .abilityCard{
+  color:inherit;
+}
+
+.skin-retro-1900-1930 .playMainCard,
+.skin-retro-1900-1930 .playSkillsDetails{color:var(--retro-ink)}
+.skin-western .playMainCard,
+.skin-western .playSkillsDetails{color:var(--western-ink)}
+.skin-contemporary-1980-2000 .playMainCard,
+.skin-contemporary-1980-2000 .playSkillsDetails{color:var(--contemporary-text)}
+.skin-futuristic .playMainCard,
+.skin-futuristic .playSkillsDetails{color:var(--future-text)}
+.skin-classic-mystery .playMainCard,
+.skin-classic-mystery .playSkillsDetails{color:var(--mystery-ink)}
+.skin-medieval-fantasy .playMainCard,
+.skin-medieval-fantasy .playSkillsDetails{color:var(--medieval-ink)}
+.skin-victorian-gothic .playMainCard,
+.skin-victorian-gothic .playSkillsDetails{color:var(--gothic-ink)}
+.skin-noir-1940-1950 .playMainCard,
+.skin-noir-1940-1950 .playSkillsDetails{color:var(--noir-ink)}
+.skin-vintage-1960-1970 .playMainCard,
+.skin-vintage-1960-1970 .playSkillsDetails{color:var(--vintage-ink)}
