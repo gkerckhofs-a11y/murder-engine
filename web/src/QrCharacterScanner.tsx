@@ -95,7 +95,7 @@ export default function QrCharacterScanner({
     useState('');
 
   const [status,setStatus]=
-    useState('Activation de la caméra…');
+    useState(en?'Starting camera…':'Activation de la caméra…');
 
   const [attempt,setAttempt]=
     useState(0);
@@ -366,7 +366,7 @@ export default function QrCharacterScanner({
           className="playerSecondary scannerClose"
           onClick={onClose}
         >
-          Fermer
+          {en?'Close':'Fermer'}
         </button>
 
       </div>
@@ -415,7 +415,7 @@ export default function QrCharacterScanner({
               className="playerPrimary"
               onClick={retry}
             >
-              Réessayer la caméra
+              {en?'Retry camera':'Réessayer la caméra'}
             </button>
 
           </div>
