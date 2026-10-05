@@ -362,6 +362,13 @@
         }
       },
       {
+        "source": "/api/player/cash",
+        "function": {
+          "functionId": "transferPublicPlayerCash",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/player/vote",
         "function": {
           "functionId": "castPublicPlayerVote",
