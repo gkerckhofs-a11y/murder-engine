@@ -827,6 +827,8 @@ export async function getPlayerLocation(token,locationExternalId,{reader=default
   const loaded=await loadPlayerData(token,reader); const actor=loaded.participant.characterExternalId;
   const resources=(loaded.runtime.sessionResources??[]).filter(r=>r.characterExternalId===actor);
   const shaped=locationActionShape(loaded.source,loaded.runtime,loaded.session,actor,String(locationExternalId??'').trim(),resources,now instanceof Date?now:new Date(now));
+  const forbidden=locationOwnerCharacter(shaped.location)===actor;
+  const empty=locationIsGloballyEmpty(loaded.source,loaded.runtime,shaped.location.externalId);
   return {
     presentation:scenarioPresentation(loaded.session,loaded.source),
     session:{
@@ -844,9 +846,11 @@ export async function getPlayerLocation(token,locationExternalId,{reader=default
       name:shaped.location.name,
       description:shaped.location.description
     },
-    actions:shaped.actions,
+    actions:forbidden||empty?[]:shaped.actions,
     rewardsRemaining:shaped.rewardsRemaining,
-    searchCooldownRemainingSeconds:shaped.searchCooldownRemainingSeconds
+    searchCooldownRemainingSeconds:shaped.searchCooldownRemainingSeconds,
+    forbidden,
+    empty
   };
 }
 
