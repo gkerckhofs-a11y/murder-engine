@@ -858,7 +858,7 @@ export async function transferPlayerCash(token,input,{reader=defaultReader,execu
   const notification={
     gameSessionId:loaded.session.id,
     characterExternalId:targetCharacterExternalId,
-    kind:'OBJECT',
+    kind:'CASH',
     title:'Argent reçu',
     body:`Vous recevez ${amount} d’argent.`,
     priority:'NORMAL',
