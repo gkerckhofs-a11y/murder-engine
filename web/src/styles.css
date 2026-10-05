@@ -11480,3 +11480,146 @@ button.skinGalleryCard:disabled{
     font-size:1.18rem;
   }
 }
+
+
+/* ==========================================================
+   V1.12F — TABBED SHEET + COMPACT RESOURCES
+   ========================================================== */
+
+.sheetTabs{
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  padding:2px 1px 5px;
+  scrollbar-width:none;
+}
+.sheetTabs::-webkit-scrollbar{display:none}
+
+.sheetTabs button{
+  flex:0 0 auto;
+  min-height:40px;
+  padding:8px 11px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  background:rgba(255,255,255,.05);
+  color:inherit;
+  font-size:.78rem;
+  font-weight:800;
+  white-space:nowrap;
+}
+.sheetTabs button.active{
+  border-color:var(--skin-accent,#c59a4a);
+  background:color-mix(in srgb,var(--skin-accent,#c59a4a) 18%,transparent);
+}
+
+.skin-retro-1900-1930 .sheetTabs button{
+  background:#ead8b3;color:#382a1a;border-color:#a98c58;
+}
+.skin-retro-1900-1930 .sheetTabs button.active{
+  background:#2a2118;color:#f4dfb5;
+}
+.skin-western .sheetTabs button{
+  background:#e7cf9d;color:#412b1c;border-color:#9b7448;
+}
+.skin-western .sheetTabs button.active{
+  background:#3a2417;color:#f4ddb4;
+}
+.skin-contemporary-1980-2000 .sheetTabs button{
+  background:#172027;color:#e8f0f4;border-color:#3d4d56;
+}
+.skin-contemporary-1980-2000 .sheetTabs button.active{
+  background:#0f161b;color:#fff;
+}
+.skin-futuristic .sheetTabs button{
+  background:#081317;color:#dffaf6;border-color:#24505a;
+}
+.skin-futuristic .sheetTabs button.active{
+  background:#10262a;color:#f0fffd;
+}
+.skin-classic-mystery .sheetTabs button{
+  background:#e9e0cf;color:#332d24;border-color:#948568;
+}
+.skin-classic-mystery .sheetTabs button.active{
+  background:#29382e;color:#f4ead4;
+}
+.skin-medieval-fantasy .sheetTabs button{
+  background:#e4cfa5;color:#3f2f1f;border-color:#9b7a4d;
+}
+.skin-medieval-fantasy .sheetTabs button.active{
+  background:#3d2c1e;color:#f5dfb8;
+}
+.skin-victorian-gothic .sheetTabs button{
+  background:#e7d8ca;color:#422f3b;border-color:#a08678;
+}
+.skin-victorian-gothic .sheetTabs button.active{
+  background:#30242c;color:#f2deca;
+}
+.skin-noir-1940-1950 .sheetTabs button{
+  background:#e5e4de;color:#252728;border-color:#777;
+}
+.skin-noir-1940-1950 .sheetTabs button.active{
+  background:#252728;color:#fff;
+}
+.skin-vintage-1960-1970 .sheetTabs button{
+  background:#ead8b7;color:#43352a;border-color:#a48e67;
+}
+.skin-vintage-1960-1970 .sheetTabs button.active{
+  background:#53573d;color:#fff2d1;
+}
+
+.bagResourceCompact{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  flex-wrap:wrap;
+}
+
+.bagResourceCompactItem{
+  display:flex;
+  align-items:baseline;
+  gap:5px;
+  min-width:0;
+  padding:8px 10px;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+  color:inherit;
+}
+
+.bagResourceCompactItem span{
+  font-size:.72rem;
+  font-weight:800;
+  opacity:.72;
+}
+
+.bagResourceCompactItem strong{
+  font-size:1rem;
+  color:inherit;
+}
+
+.bagResourceCompact .bagCashTransferButton{
+  width:auto;
+  margin:0;
+  padding:8px 11px;
+  white-space:nowrap;
+}
+
+@media(max-width:520px){
+  .sheetTabs button{
+    min-height:38px;
+    padding:7px 10px;
+    font-size:.74rem;
+  }
+
+  .bagResourceCompact{
+    gap:7px;
+  }
+
+  .bagResourceCompactItem{
+    padding:7px 9px;
+  }
+
+  .bagResourceCompact .bagCashTransferButton{
+    padding:7px 10px;
+  }
+}
