@@ -19,6 +19,7 @@ query ExistingEnrichment($scenarioVersionId: UUID!) {
   relationships(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   documentDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   mediaAssets(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
+  skinVisualDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   gameObjects(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   resources(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   resourceAssignments(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
@@ -87,6 +88,12 @@ mutation InsertDocumentDefinition($data: DocumentDefinition_Data!) {
 export const INSERT_MEDIA_ASSET_MUTATION = `
 mutation InsertMediaAsset($data: MediaAsset_Data!) {
   mediaAsset_insert(data: $data)
+}
+`;
+
+export const INSERT_SKIN_VISUAL_DEFINITION_MUTATION = `
+mutation InsertSkinVisualDefinition($data: SkinVisualDefinition_Data!) {
+  skinVisualDefinition_insert(data: $data)
 }
 `;
 
@@ -284,6 +291,7 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
   const existingRelationships = new Set((enrichment.relationships ?? []).map(row => row.externalId));
   const existingDocumentDefinitions = new Set((enrichment.documentDefinitions ?? []).map(row => row.externalId));
   const existingMediaAssets = new Set((enrichment.mediaAssets ?? []).map(row => row.externalId));
+  const existingSkinVisualDefinitions = new Set((enrichment.skinVisualDefinitions ?? []).map(row => row.externalId));
   const existingGameObjects = new Set((enrichment.gameObjects ?? []).map(row => row.externalId));
   const existingResources = new Set((enrichment.resources ?? []).map(row => row.externalId));
   const existingResourceAssignments = new Set((enrichment.resourceAssignments ?? []).map(row => row.externalId));
@@ -301,6 +309,7 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
   const missingRelationships = plan.relationships.filter(row => !existingRelationships.has(row.externalId));
   const missingDocumentDefinitions = (plan.documents ?? []).filter(row => !existingDocumentDefinitions.has(row.externalId));
   const missingMediaAssets = (plan.mediaAssets ?? []).filter(row => !existingMediaAssets.has(row.externalId));
+  const missingSkinVisualDefinitions = (plan.skinVisualDefinitions ?? []).filter(row => !existingSkinVisualDefinitions.has(row.externalId));
   const missingGameObjects = plan.gameObjects.filter(row => !existingGameObjects.has(row.externalId));
   const missingResources = plan.resources.filter(row => !existingResources.has(row.externalId));
   const missingResourceAssignments = plan.resourceAssignments.filter(row => !existingResourceAssignments.has(row.externalId));
@@ -342,6 +351,12 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
     { concurrency: 8, entityName: 'media_asset' },
   );
 
+  const skinVisualDefinitionResult = await insertRows(
+    missingSkinVisualDefinitions,
+    INSERT_SKIN_VISUAL_DEFINITION_MUTATION,
+    run,
+    { concurrency: 8, entityName: 'skin_visual_definition' },
+  );
 
   const gameObjectResult = await insertRows(
     missingGameObjects,
@@ -459,6 +474,7 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
       relationships: relationshipResult.count,
       documents: documentDefinitionResult.count,
       mediaAssets: mediaAssetResult.count,
+      skinVisualDefinitions: skinVisualDefinitionResult.count,
       gameObjects: gameObjectResult.count,
       resources: resourceResult.count,
       resourceAssignments: resourceAssignmentResult.count,

@@ -88,6 +88,7 @@ export function buildImportPlan(workbook, {
     personalTimeline: textOrNull(r.chronologie_personnelle),
     motto: textOrNull(r.devise),
     portraitMediaId: textOrNull(r.portrait_media_id),
+    portraitArchetypeCode: textOrNull(r.portrait_archetype_code),
     playable: truthy(r.jouable, true),
     active: truthy(r.actif, true),
   }));
@@ -162,6 +163,19 @@ export function buildImportPlan(workbook, {
     source: String(r.fichier_ou_url ?? ''),
     altText: textOrNull(r.alt_text),
     notes: textOrNull(r.notes),
+    active: truthy(r.actif, true),
+  }));
+
+  const skinVisualDefinitions = (workbook.sheets.VISUELS_SKIN ?? []).map(r => ({
+    scenarioVersionId,
+    externalId: String(r.visual_id),
+    skinId: String(r.skin_id),
+    visualType: String(r.visual_type ?? '').toUpperCase(),
+    archetypeCode: String(r.archetype_code ?? '').toUpperCase(),
+    mediaExternalId: String(r.media_id),
+    displayName: textOrNull(r.nom_affiche),
+    description: textOrNull(r.description),
+    variant: textOrNull(r.variant),
     active: truthy(r.actif, true),
   }));
 
@@ -240,6 +254,8 @@ export function buildImportPlan(workbook, {
     identification1: textOrNull(r.identification_1),
     identification2: textOrNull(r.identification_2),
     identification3: textOrNull(r.identification_3),
+    mediaExternalId: textOrNull(r.media_id),
+    visualArchetypeCode: textOrNull(r.visual_archetype_code),
     active: truthy(r.actif, true),
   }));
   const explicitObjectIds = new Set(gameObjects.map(o=>o.externalId));
@@ -250,7 +266,8 @@ export function buildImportPlan(workbook, {
       scenarioVersionId, externalId, name:d.title, description:d.textContent || d.title, support:'DOCUMENT',
       propRequirementExternalId:d.propRequirementExternalId, ownerInitialType:d.ownerInitialType, ownerInitialExternalId:d.ownerInitialExternalId,
       transferable:d.transferable, stealable:d.stealable, consumable:d.consumable, initialCharges:1, critical:false,
-      identification0:d.title, identification1:null, identification2:null, identification3:null, active:true,
+      identification0:d.title, identification1:null, identification2:null, identification3:null,
+      mediaExternalId:null, visualArchetypeCode:'LETTER', active:true,
     });
   }
 
@@ -501,6 +518,7 @@ export function buildImportPlan(workbook, {
     clueFacts,
     documents,
     mediaAssets,
+    skinVisualDefinitions,
     gameObjects,
     resources,
     resourceAssignments,
@@ -528,6 +546,7 @@ export function importPlanCounts(plan) {
     clueFacts: plan.clueFacts.length,
     documents: plan.documents.length,
     mediaAssets: plan.mediaAssets.length,
+    skinVisualDefinitions: plan.skinVisualDefinitions.length,
     gameObjects: plan.gameObjects.length,
     resources: plan.resources.length,
     resourceAssignments: plan.resourceAssignments.length,

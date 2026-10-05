@@ -33,7 +33,7 @@ query PlayerAccessByToken($token: String!) {
 const PLAYER_SOURCE_QUERY = `
 query PlayerSource($versionId: UUID!) {
   characters(where: {scenarioVersionId: {eq: $versionId}}) {
-    externalId name publicRole dramaticFunction narrativeAge gender biography secretIntro interpretationNotes appearanceNotes apparentMotive personalTimeline motto playable active
+    externalId name publicRole dramaticFunction narrativeAge gender biography secretIntro interpretationNotes appearanceNotes apparentMotive personalTimeline motto portraitMediaId portraitArchetypeCode playable active
   }
   objectives(where: {scenarioVersionId: {eq: $versionId}}) {
     externalId ownerType ownerExternalId title description objectiveType secret initialStatus importance active
@@ -52,9 +52,12 @@ query PlayerSource($versionId: UUID!) {
     externalId title textContent support mediaExternalIds reusable consumable ownerInitialType ownerInitialExternalId transferable stealable active
   }
   mediaAssets(where: {scenarioVersionId: {eq: $versionId}}) { externalId mediaType source altText notes active }
+  skinVisualDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+    externalId skinId visualType archetypeCode mediaExternalId displayName description variant active
+  }
   resources(where: {scenarioVersionId: {eq: $versionId}}) { externalId name unit isPublic active }
   gameObjects(where: {scenarioVersionId: {eq: $versionId}}) {
-    externalId name description logisticsCode transferable stealable consumable critical identification0 identification1 identification2 identification3 active
+    externalId name description logisticsCode transferable stealable consumable critical identification0 identification1 identification2 identification3 mediaExternalId visualArchetypeCode active
   }
   gameStateDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
     externalId name description visibleToHolder visiblePublic active
@@ -625,6 +628,72 @@ function immersiveMediaSource(source){
   if(/^https?:\/\//i.test(value)||value.startsWith('/')||value.startsWith('data:'))return value;
   return `/${value.replace(/^\/+/, '')}`;
 }
+
+function visualMedia(mediaMap, externalId) {
+  if(!externalId)return null;
+  const media=mediaMap.get(externalId);
+  if(!media||media.active===false)return null;
+  const source=immersiveMediaSource(media.source);
+  if(!source)return null;
+  return {
+    externalId:media.externalId,
+    mediaType:media.mediaType??'IMAGE',
+    source,
+    altText:media.altText??null,
+    notes:media.notes??null,
+  };
+}
+
+function effectiveVisualSkinId(session) {
+  const version=session?.scenarioVersion??{};
+  const scenario=version.scenario??{};
+  return scenario.skinId??version.skinId??'CONTEMPORARY_1980_2000';
+}
+
+function skinVisualMedia(source, mediaMap, session, visualType, archetypeCode) {
+  const code=String(archetypeCode??'').trim().toUpperCase();
+  if(!code)return null;
+  const skinId=String(effectiveVisualSkinId(session)).trim().toUpperCase();
+  const matches=(source.skinVisualDefinitions??[])
+    .filter(v=>
+      v.active!==false
+      &&String(v.skinId??'').trim().toUpperCase()===skinId
+      &&String(v.visualType??'').trim().toUpperCase()===String(visualType??'').trim().toUpperCase()
+      &&String(v.archetypeCode??'').trim().toUpperCase()===code
+    )
+    .sort((a,b)=>{
+      const av=String(a.variant??'').trim().toUpperCase()==='DEFAULT'?0:1;
+      const bv=String(b.variant??'').trim().toUpperCase()==='DEFAULT'?0:1;
+      return av-bv||String(a.externalId).localeCompare(String(b.externalId));
+    });
+  const definition=matches[0];
+  if(!definition)return null;
+  const media=visualMedia(mediaMap,definition.mediaExternalId);
+  return media?{...media,archetypeCode:code,skinId,visualDefinitionExternalId:definition.externalId}:null;
+}
+
+function objectVisualCode(def) {
+  const hay=normalizeSearchText(`${def?.name??''} ${def?.description??''} ${def?.support??''}`);
+  const rules=[
+    ['KEY',/(cle|clef|key)/],
+    ['LETTER',/(lettre|courrier|enveloppe|telegram|document|papier)/],
+    ['PHOTO',/(photo|photographie|portrait)/],
+    ['RING',/(bague|anneau|ring)/],
+    ['JEWEL',/(bijou|collier|broche|bracelet|pendentif|jewel)/],
+    ['WATCH',/(montre|watch)/],
+    ['VIAL',/(fiole|flacon|poison|serum|potion)/],
+    ['BOTTLE',/(bouteille|whisky|whiskey|vin|alcool|bottle)/],
+    ['KNIFE',/(couteau|dagger|dague|knife)/],
+    ['GUN',/(revolver|pistolet|fusil|arme|gun|rifle)/],
+    ['MAP',/(carte|plan|map)/],
+    ['NOTEBOOK',/(carnet|journal|registre|notebook)/],
+    ['MONEY',/(argent|billet|piece|bourse|dollar|money)/],
+    ['BADGE',/(badge|insigne|medaille)/],
+    ['BOX',/(coffre|boite|caisse|box|chest)/],
+  ];
+  for(const [code,re] of rules) if(re.test(hay)) return code;
+  return 'OBJECT';
+}
 function immersiveDocumentForClue(clue, documentMap, mediaMap){
   if(!clue)return null;
   const doc=clue.documentExternalId?documentMap.get(clue.documentExternalId):null;
@@ -704,12 +773,12 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
   const objectives=(source.objectives??[]).filter(o=>o.active!==false&&o.ownerType==='CHARACTER'&&o.ownerExternalId===characterExternalId).map(o=>({...o,status:objectiveRuntime.get(o.externalId)?.status??o.initialStatus,progress:objectiveRuntime.get(o.externalId)?.progress??0,notes:objectiveRuntime.get(o.externalId)?.notes??null}));
   const knowledge=(runtime.sessionKnowledges??[]).filter(k=>k.characterExternalId===characterExternalId).map(k=>({factExternalId:k.factExternalId,sourceType:k.sourceType,learnedAt:k.learnedAt,fact:factMap.get(k.factExternalId)})).filter(k=>k.fact).sort((a,b)=>new Date(a.learnedAt).getTime()-new Date(b.learnedAt).getTime());
   const discoveries=(runtime.sessionClueDiscoveries??[]).filter(d=>d.characterExternalId===characterExternalId).map(d=>{const clue=clueMap.get(d.clueExternalId);return {...d,clue:clue?{...clue,immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap)}:null};}).filter(d=>d.clue).sort((a,b)=>new Date(a.discoveredAt).getTime()-new Date(b.discoveredAt).getTime());
-  const inventory=(runtime.sessionObjects??[]).filter(o=>o.inPlay!==false&&o.holderType==='CHARACTER'&&o.holderExternalId===characterExternalId).map(o=>{const def=objectMap.get(o.objectExternalId);const level=Math.max(0,Math.min(3,Number(o.identificationLevel??0)));const identification=def?.[`identification${level}`]||def?.description||def?.name||o.objectExternalId;return {...o,name:def?.name??o.objectExternalId,description:def?.description??'',identification,transferable:Boolean(def?.transferable),consumable:Boolean(def?.consumable),critical:Boolean(def?.critical)};});
+  const inventory=(runtime.sessionObjects??[]).filter(o=>o.inPlay!==false&&o.holderType==='CHARACTER'&&o.holderExternalId===characterExternalId).map(o=>{const def=objectMap.get(o.objectExternalId);const level=Math.max(0,Math.min(3,Number(o.identificationLevel??0)));const identification=def?.[`identification${level}`]||def?.description||def?.name||o.objectExternalId;const visualCode=String(def?.visualArchetypeCode??objectVisualCode(def)).trim().toUpperCase();const dedicatedMedia=visualMedia(mediaMap,def?.mediaExternalId)??visualMedia(mediaMap,`OBJ_${o.objectExternalId}`)??visualMedia(mediaMap,`OBJECT_${o.objectExternalId}`);const archetypeMedia=skinVisualMedia(source,mediaMap,session,'OBJECT',visualCode);return {...o,name:def?.name??o.objectExternalId,description:def?.description??'',identification,transferable:Boolean(def?.transferable),consumable:Boolean(def?.consumable),critical:Boolean(def?.critical),visualCode,visualMedia:dedicatedMedia??archetypeMedia};});
   const states=(runtime.sessionCharacterStates??[]).filter(s=>s.characterExternalId===characterExternalId&&s.active!==false).map(s=>({...s,definition:stateMap.get(s.stateExternalId)})).filter(s=>s.definition?.visibleToHolder!==false).map(s=>({...s,name:s.definition?.name??s.stateExternalId,description:s.definition?.description??''}));
   const ownedObjectIds=new Set(inventory.map(o=>o.objectExternalId));
   const documentEntries=(source.clues??[]).filter(c=>c.active!==false&&c.objectExternalId&&ownedObjectIds.has(c.objectExternalId)&&c.addToNotebook!==false).map(c=>({clueExternalId:c.externalId,objectExternalId:c.objectExternalId,documentExternalId:c.documentExternalId??null,playerName:c.playerName,playerText:c.playerText,clueType:c.clueType,support:c.support,presentationMode:c.presentationMode,immersiveDocument:immersiveDocumentForClue(c,documentMap,mediaMap),owned:true}));
   const actionLogs=(runtime.sessionActionLogs??[]).filter(l=>l.characterExternalId===characterExternalId).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()).slice(0,50);
-  const relationships=(source.relationships??[]).filter(r=>r.active!==false&&visibilityAllowed(r.visibility)&&(r.characterAExternalId===characterExternalId||r.characterBExternalId===characterExternalId)).map(r=>{const isA=r.characterAExternalId===characterExternalId;const otherExternalId=isA?r.characterBExternalId:r.characterAExternalId;const other=charMap.get(otherExternalId);return{externalId:r.externalId,otherExternalId,otherName:other?.name??otherExternalId,otherPublicRole:other?.publicRole??null,relationType:r.relationType,text:isA?r.textA:(r.textB||r.textA),visibility:r.visibility};});
+  const relationships=(source.relationships??[]).filter(r=>r.active!==false&&visibilityAllowed(r.visibility)&&(r.characterAExternalId===characterExternalId||r.characterBExternalId===characterExternalId)).map(r=>{const isA=r.characterAExternalId===characterExternalId;const otherExternalId=isA?r.characterBExternalId:r.characterAExternalId;const other=charMap.get(otherExternalId);return{externalId:r.externalId,otherExternalId,otherName:other?.name??otherExternalId,otherPublicRole:other?.publicRole??null,relationType:r.relationType,text:isA?r.textA:(r.textB||r.textA),visibility:r.visibility,portrait:visualMedia(mediaMap,other?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',other?.portraitArchetypeCode)};});
   const notifications=(runtime.sessionPlayerNotifications??[]).filter(n=>n.characterExternalId===characterExternalId).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
   const interactions=playerInteractions(source,runtime,session,characterExternalId,resources,now);
   const votes=playerVotes(source,runtime,session,characterExternalId);
@@ -717,8 +786,8 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
     presentation:scenarioPresentation(session,source),
     participant:{id:participant.id,displayName:participant.displayName,briefingStatus:participant.briefingStatus,briefingReadAt:participant.briefingReadAt??null,playerOpenCount:Number(participant.playerOpenCount??0)},
     session:{id:session.id,name:session.name,scheduledAt:session.scheduledAt,venue:session.venue,status:session.status,startedAt:session.startedAt,pausedAt:session.pausedAt,finishedAt:session.finishedAt,scenarioTitle:session.scenarioVersion?.scenario?.title??'Murder Party',playerSummary:session.scenarioVersion?.playerSummary??''},
-    character:{externalId:character.externalId,name:character.name,publicRole:character.publicRole,biography:character.biography,secretIntro:character.secretIntro,interpretationNotes:character.interpretationNotes,appearanceNotes:character.appearanceNotes,apparentMotive:character.apparentMotive,personalTimeline:character.personalTimeline,motto:character.motto,narrativeAge:character.narrativeAge},
-    otherCharacters:(session.sessionParticipants_on_gameSession??[]).filter(p=>p.active!==false&&p.characterExternalId&&p.characterExternalId!==characterExternalId).map(p=>{const c=charMap.get(p.characterExternalId);return{characterExternalId:p.characterExternalId,name:c?.name??p.characterExternalId,publicRole:c?.publicRole??null,participantName:p.displayName};}),
+    character:{externalId:character.externalId,name:character.name,publicRole:character.publicRole,biography:character.biography,secretIntro:character.secretIntro,interpretationNotes:character.interpretationNotes,appearanceNotes:character.appearanceNotes,apparentMotive:character.apparentMotive,personalTimeline:character.personalTimeline,motto:character.motto,narrativeAge:character.narrativeAge,portrait:visualMedia(mediaMap,character.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',character.portraitArchetypeCode)},
+    otherCharacters:(session.sessionParticipants_on_gameSession??[]).filter(p=>p.active!==false&&p.characterExternalId&&p.characterExternalId!==characterExternalId).map(p=>{const c=charMap.get(p.characterExternalId);return{characterExternalId:p.characterExternalId,name:c?.name??p.characterExternalId,publicRole:c?.publicRole??null,participantName:p.displayName,portrait:visualMedia(mediaMap,c?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',c?.portraitArchetypeCode)};}),
     objectives,relationships,resources,knowledge,discoveries,documentEntries,inventory,states,abilities:effectiveAbilities(source,characterExternalId).filter(a=>!a.secret),interactions,votes,notifications,actionLogs,unreadNotificationCount:notifications.filter(n=>!n.readAt).length,searchCooldownRemainingSeconds:globalLocationSearchCooldownRemaining(source,runtime,characterExternalId,now),
   };
 }

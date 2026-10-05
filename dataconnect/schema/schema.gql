@@ -82,6 +82,7 @@ type Character @table(key: ["scenarioVersion", "externalId"]) {
   personalTimeline: String
   motto: String
   portraitMediaId: String
+  portraitArchetypeCode: String
   playable: Boolean! @default(value: true)
   active: Boolean! @default(value: true)
 }
@@ -224,6 +225,21 @@ type GameObject @table(key: ["scenarioVersion", "externalId"]) {
   identification1: String
   identification2: String
   identification3: String
+  mediaExternalId: String
+  visualArchetypeCode: String
+  active: Boolean! @default(value: true)
+}
+
+type SkinVisualDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  skinId: String!
+  visualType: String!
+  archetypeCode: String!
+  mediaExternalId: String!
+  displayName: String
+  description: String
+  variant: String
   active: Boolean! @default(value: true)
 }
 

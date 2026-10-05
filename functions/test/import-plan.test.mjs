@@ -88,7 +88,7 @@ test('buildImportPlan maps narrative entities and relationships', () => {
   assert.equal(plan.eventDefinitions[0].delayMinutes,40);
   assert.equal(plan.voteDefinitions[0].externalId,'VOTE_1');
   assert.equal(plan.voteOptionDefinitions[0].voteExternalId,'VOTE_1');
-  assert.deepEqual(importPlanCounts(plan), { characters:1, plots:1, objectives:1, relationships:1, facts:2, initialKnowledge:2, clues:1, clueFacts:1, documents:0, mediaAssets:0, gameObjects:1, resources:1, resourceAssignments:1, abilities:1, abilityAssignments:1, interactions:1, locations:1, stateDefinitions:1, phaseDefinitions:1, eventDefinitions:1, voteDefinitions:1, voteOptionDefinitions:1 });
+  assert.deepEqual(importPlanCounts(plan), { characters:1, plots:1, objectives:1, relationships:1, facts:2, initialKnowledge:2, clues:1, clueFacts:1, documents:0, mediaAssets:0, skinVisualDefinitions:0, gameObjects:1, resources:1, resourceAssignments:1, abilities:1, abilityAssignments:1, interactions:1, locations:1, stateDefinitions:1, phaseDefinitions:1, eventDefinitions:1, voteDefinitions:1, voteOptionDefinitions:1 });
 });
 
 test('same workbook bytes create same ScenarioVersion id', () => {
@@ -165,7 +165,7 @@ test('first import inserts parents, snapshot and enrichment', async () => {
   assert.equal(writes[16].operation, INSERT_VOTE_OPTION_DEFINITION_MUTATION);
   assert.equal(writes[17].operation, MARK_RUNTIME_SOURCE_MUTATION);
   assert.equal(result.baseInserted,true);
-  assert.deepEqual(result.imported,{ objectives:1, relationships:1, documents:0, mediaAssets:0, gameObjects:1, resources:1, resourceAssignments:1, stateDefinitions:1, abilities:1, abilityAssignments:1, interactions:1, locations:1, phaseDefinitions:1, eventDefinitions:1, voteDefinitions:1, voteOptionDefinitions:1 });
+  assert.deepEqual(result.imported,{ objectives:1, relationships:1, documents:0, mediaAssets:0, skinVisualDefinitions:0, gameObjects:1, resources:1, resourceAssignments:1, stateDefinitions:1, abilities:1, abilityAssignments:1, interactions:1, locations:1, phaseDefinitions:1, eventDefinitions:1, voteDefinitions:1, voteOptionDefinitions:1 });
 });
 
 test('re-import of same immutable version skips base and only inserts missing enrichment', async () => {
@@ -202,7 +202,7 @@ test('fully imported immutable version becomes a safe no-op', async () => {
   });
   assert.equal(writes,0);
   assert.equal(result.baseInserted,false);
-  assert.deepEqual(result.imported,{ objectives:0, relationships:0, documents:0, mediaAssets:0, gameObjects:0, resources:0, resourceAssignments:0, stateDefinitions:0, abilities:0, abilityAssignments:0, interactions:0, locations:0, phaseDefinitions:0, eventDefinitions:0, voteDefinitions:0, voteOptionDefinitions:0 });
+  assert.deepEqual(result.imported,{ objectives:0, relationships:0, documents:0, mediaAssets:0, skinVisualDefinitions:0, gameObjects:0, resources:0, resourceAssignments:0, stateDefinitions:0, abilities:0, abilityAssignments:0, interactions:0, locations:0, phaseDefinitions:0, eventDefinitions:0, voteDefinitions:0, voteOptionDefinitions:0 });
 });
 
 test('immersive documents import media and synthesize a transferable object', () => {
@@ -222,6 +222,27 @@ test('immersive documents import media and synthesize a transferable object', ()
   assert.equal(object.ownerInitialExternalId,'CHAR_A');
   assert.equal(object.transferable,true);
   assert.equal(object.stealable,true);
+});
+
+test('Visual V2 imports skin archetypes', () => {
+  const wb=workbook();
+  wb.sheets.THEME=[{theme_id:'THEME_1',skin_id:'RETRO_1900_1930'}];
+  wb.sheets.PERSONNAGES[0].portrait_archetype_code='HENCHMAN';
+  wb.sheets.OBJETS[0].media_id='MEDIA_KEY';
+  wb.sheets.OBJETS[0].visual_archetype_code='KEY';
+  wb.sheets.MEDIA=[
+    {media_id:'MEDIA_HENCHMAN',type_media:'IMAGE',fichier_ou_url:'/visual/henchman.webp',actif:'TRUE'},
+    {media_id:'MEDIA_KEY',type_media:'IMAGE',fichier_ou_url:'/visual/key.webp',actif:'TRUE'}
+  ];
+  wb.sheets.VISUELS_SKIN=[{
+    visual_id:'VIS_HENCHMAN',skin_id:'RETRO_1900_1930',visual_type:'CHARACTER',
+    archetype_code:'HENCHMAN',media_id:'MEDIA_HENCHMAN',variant:'DEFAULT',actif:'TRUE'
+  }];
+  const plan=buildImportPlan(wb,{sourceBuffer:Buffer.from('visual-v2')});
+  assert.equal(plan.characters[0].portraitArchetypeCode,'HENCHMAN');
+  assert.equal(plan.gameObjects[0].mediaExternalId,'MEDIA_KEY');
+  assert.equal(plan.gameObjects[0].visualArchetypeCode,'KEY');
+  assert.equal(plan.skinVisualDefinitions[0].mediaExternalId,'MEDIA_HENCHMAN');
 });
 
 test('scenario version metadata comes from Excel and gender profile can be inferred', () => {

@@ -35,6 +35,7 @@ export const SHEETS = {
   VOTES: { id: 'vote_id', required: ['vote_id','titre','question','scope_type','choices_mode','secret','votes_par_electeur','pondere','abstention','modifiable','close_mode','result_visibility','actif'] },
   OPTIONS_VOTE: { id: 'vote_option_id', required: ['vote_option_id','vote_id','ordre','label','actif'] },
   MEDIA: { id: 'media_id', required: ['media_id','type_media','fichier_ou_url','actif'] },
+  VISUELS_SKIN: { id: 'visual_id', required: ['visual_id','skin_id','visual_type','archetype_code','media_id','actif'] },
   PROPS_REQUIS: { id: 'prop_requirement_id', required: ['prop_requirement_id','nom','type_prop','quantite_requise','actif'] },
   TRADUCTIONS: { id: 'translation_id', required: ['translation_id','entity_type','entity_id','field_name','langue','texte','actif'] }
 };
