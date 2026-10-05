@@ -644,21 +644,21 @@ function visualMedia(mediaMap, externalId) {
 function objectVisualCode(def) {
   const hay=normalizeSearchText(`${def?.name??''} ${def?.description??''} ${def?.support??''}`);
   const rules=[
-    ['KEY',/(clé|clef|key)/],
-    ['LETTER',/(lettre|courrier|enveloppe|telegram|télégramme|document|papier)/],
+    ['KEY',/(cle|clef|key)/],
+    ['LETTER',/(lettre|courrier|enveloppe|telegram|document|papier)/],
     ['PHOTO',/(photo|photographie|portrait)/],
     ['RING',/(bague|anneau|ring)/],
     ['JEWEL',/(bijou|collier|broche|bracelet|pendentif|jewel)/],
     ['WATCH',/(montre|watch)/],
-    ['VIAL',/(fiole|flacon|poison|serum|sérum|potion)/],
+    ['VIAL',/(fiole|flacon|poison|serum|potion)/],
     ['BOTTLE',/(bouteille|whisky|whiskey|vin|alcool|bottle)/],
     ['KNIFE',/(couteau|dagger|dague|knife)/],
     ['GUN',/(revolver|pistolet|fusil|arme|gun|rifle)/],
     ['MAP',/(carte|plan|map)/],
     ['NOTEBOOK',/(carnet|journal|registre|notebook)/],
-    ['MONEY',/(argent|billet|pièce|piece|bourse|dollar|money)/],
-    ['BADGE',/(badge|insigne|medaille|médaille)/],
-    ['BOX',/(coffre|boîte|boite|caisse|box|chest)/],
+    ['MONEY',/(argent|billet|piece|bourse|dollar|money)/],
+    ['BADGE',/(badge|insigne|medaille)/],
+    ['BOX',/(coffre|boite|caisse|box|chest)/],
   ];
   for(const [code,re] of rules) if(re.test(hay)) return code;
   return 'OBJECT';
