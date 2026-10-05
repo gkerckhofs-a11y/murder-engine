@@ -463,6 +463,7 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
   const [cashTarget,setCashTarget]=useState<any|null>(null);
   const [cashAmount,setCashAmount]=useState('');
   const [cashConfirmation,setCashConfirmation]=useState<string>('');
+  const [cashError,setCashError]=useState('');
 
   const inventoryMap=new Map((portal.inventory??[]).map((o:any)=>[o.objectExternalId,o]));
   const docObjectIds=new Set((portal.documentEntries??[]).map((d:any)=>d.objectExternalId).filter(Boolean));
@@ -487,14 +488,30 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
   async function confirmCashTransfer(){
     if(!cashTarget)return;
     const amount=Number(cashAmount);
-    if(!Number.isInteger(amount)||amount<=0||amount>cashValue)return;
+
+    setCashError('');
+
+    if(!Number.isInteger(amount)||amount<=0){
+      setCashError('Indiquez un montant entier supérieur à 0.');
+      return;
+    }
+
+    if(amount>cashValue){
+      setCashError('Vous ne disposez pas de suffisamment d’argent.');
+      return;
+    }
 
     const response=await Promise.resolve(onCashTransfer(cashTarget.characterExternalId,amount));
-    if(!response)return;
+
+    if(!response){
+      setCashError('Le virement n’a pas pu être effectué. Réessayez ou prévenez le Maître du Jeu.');
+      return;
+    }
 
     setCashConfirmation(`${amount} envoyé à ${cashTarget.name}.`);
     setCashTarget(null);
     setCashAmount('');
+    setCashError('');
   }
 
   return <div className="playerStack bagShell">
@@ -586,7 +603,7 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
       mode="DIRECT"
       targets={portal.otherCharacters}
       onClose={()=>setCashScannerOpen(false)}
-      onSelect={(target:any)=>{setCashTarget(target);setCashScannerOpen(false);setCashAmount('');}}
+      onSelect={(target:any)=>{setCashTarget(target);setCashScannerOpen(false);setCashAmount('');setCashError('');}}
     />}
 
     {cashTarget&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer le virement">
@@ -608,8 +625,9 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
             placeholder="0"
           />
         </label>
+        {cashError&&<p className="playerError cashTransferError">{cashError}</p>}
         <div className="giveConfirmActions">
-          <button className="playerSecondary" disabled={busy} onClick={()=>{setCashTarget(null);setCashAmount('');}}>Annuler</button>
+          <button className="playerSecondary" disabled={busy} onClick={()=>{setCashTarget(null);setCashAmount('');setCashError('');}}>Annuler</button>
           <button className="playerPrimary" disabled={busy||!Number.isInteger(Number(cashAmount))||Number(cashAmount)<=0||Number(cashAmount)>cashValue} onClick={()=>void confirmCashTransfer()}>Confirmer le virement</button>
         </div>
       </div>
