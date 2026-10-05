@@ -160,21 +160,82 @@ export default function PlayerPortal({token}:{token:string}){
 
 function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=>void}){
   const c=portal.character;
-  return <div className="playerStack">
+
+  const sections=[
+    ['sheet-story','Histoire'],
+    ['sheet-missions','Missions'],
+    ['sheet-timeline','Chronologie'],
+    ...(c.interpretationNotes?[['sheet-roleplay','Interprétation']]:[]),
+    ...(c.appearanceNotes?[['sheet-appearance','Apparence']]:[]),
+    ['sheet-qr','QR'],
+  ];
+
+  function goToSection(id:string){
+    document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  return <div className="playerStack playerSheetShell">
+    <nav className="sheetQuickNav" aria-label="Navigation dans ma fiche">
+      {sections.map(([id,label])=>
+        <button key={id} onClick={()=>goToSection(id)}>{label}</button>
+      )}
+    </nav>
+
     {c.motto&&<blockquote className="playerQuote">« {c.motto} »</blockquote>}
-    <section className="playerCard"><p className="playerSectionKicker">CE QUE JE SUIS</p><h2>Mon histoire</h2><p>{c.biography}</p>{c.secretIntro&&<div className="playerSecret"><h3>Ce que vous seul savez</h3><p>{c.secretIntro}</p></div>}{c.apparentMotive&&<><h3>Ma position</h3><p>{c.apparentMotive}</p></>}</section>
-    <section className="playerCard"><div className="playerSectionHead"><div><p className="playerSectionKicker">CE QUE JE DOIS ACCOMPLIR</p><h2>Mes missions</h2></div><span>{portal.objectives.length}</span></div>{portal.objectives.length===0?<p>Aucune mission structurée.</p>:portal.objectives.map((o:any)=><article className="playerObjective" key={o.externalId}><div><strong>{o.title}</strong><span>{o.status}</span></div><p>{o.description}</p></article>)}</section>
-    <section className="playerCard"><p className="playerSectionKicker">MON ALIBI / MA CHRONOLOGIE</p><h2>Ce que j’ai fait le soir du meurtre</h2>{c.personalTimeline?<p>{c.personalTimeline}</p>:<p className="playerMuted">Aucune chronologie particulière n’est renseignée pour ce personnage.</p>}</section>
-    {c.interpretationNotes&&<section className="playerCard playerRoleplayCard"><p className="playerSectionKicker">INCARNER MON PERSONNAGE</p><h2>Comment me la jouer</h2><p>{c.interpretationNotes}</p></section>}
-    {c.appearanceNotes&&<section className="playerCard playerAppearanceCard"><p className="playerSectionKicker">STYLE & DÉGUISEMENT</p><h2>Mon apparence</h2><p>{c.appearanceNotes}</p></section>}
-    <details className="playerCard playerUtilityDetails"><summary>Mon QR personnage</summary><p className="playerHelp">C’est l’unique QR de votre personnage. Pour une interaction DIRECTE, vous le présentez au joueur qui agit sur vous. Le MJ peut conserver une copie du même QR pour les interactions DISCRÈTES.</p><div className="playerCharacterQr"><QRCodeSVG value={`${window.location.origin}/scan/character/${encodeURIComponent(c.externalId)}`} size={180} level="M" includeMargin/><strong>{c.name}</strong><small>{c.publicRole||c.externalId}</small></div></details>
+
+    <section id="sheet-story" className="playerCard sheetAnchor">
+      <p className="playerSectionKicker">CE QUE JE SUIS</p>
+      <h2>Mon histoire</h2>
+      <p>{c.biography}</p>
+      {c.secretIntro&&<div className="playerSecret"><h3>Ce que vous seul savez</h3><p>{c.secretIntro}</p></div>}
+      {c.apparentMotive&&<><h3>Ma position</h3><p>{c.apparentMotive}</p></>}
+    </section>
+
+    <section id="sheet-missions" className="playerCard sheetAnchor">
+      <div className="playerSectionHead">
+        <div><p className="playerSectionKicker">CE QUE JE DOIS ACCOMPLIR</p><h2>Mes missions</h2></div>
+        <span>{portal.objectives.length}</span>
+      </div>
+      {portal.objectives.length===0
+        ? <p>Aucune mission structurée.</p>
+        : portal.objectives.map((o:any)=><article className="playerObjective" key={o.externalId}><div><strong>{o.title}</strong><span>{o.status}</span></div><p>{o.description}</p></article>)}
+    </section>
+
+    <section id="sheet-timeline" className="playerCard sheetAnchor">
+      <p className="playerSectionKicker">MON ALIBI / MA CHRONOLOGIE</p>
+      <h2>Ce que j’ai fait le soir du meurtre</h2>
+      {c.personalTimeline?<p>{c.personalTimeline}</p>:<p className="playerMuted">Aucune chronologie particulière n’est renseignée pour ce personnage.</p>}
+    </section>
+
+    {c.interpretationNotes&&<section id="sheet-roleplay" className="playerCard playerRoleplayCard sheetAnchor">
+      <p className="playerSectionKicker">INCARNER MON PERSONNAGE</p>
+      <h2>Comment me la jouer</h2>
+      <p>{c.interpretationNotes}</p>
+    </section>}
+
+    {c.appearanceNotes&&<section id="sheet-appearance" className="playerCard playerAppearanceCard sheetAnchor">
+      <p className="playerSectionKicker">STYLE & DÉGUISEMENT</p>
+      <h2>Mon apparence</h2>
+      <p>{c.appearanceNotes}</p>
+    </section>}
+
+    <details id="sheet-qr" className="playerCard playerUtilityDetails sheetAnchor">
+      <summary>Mon QR personnage</summary>
+      <p className="playerHelp">C’est l’unique QR de votre personnage. Pour une interaction DIRECTE, vous le présentez au joueur qui agit sur vous. Le MJ peut conserver une copie du même QR pour les interactions DISCRÈTES.</p>
+      <div className="playerCharacterQr">
+        <QRCodeSVG value={`${window.location.origin}/scan/character/${encodeURIComponent(c.externalId)}`} size={180} level="M" includeMargin/>
+        <strong>{c.name}</strong>
+        <small>{c.publicRole||c.externalId}</small>
+      </div>
+    </details>
+
     {!portal.participant.briefingReadAt&&<button className="playerPrimary" disabled={busy} onClick={onRead}>J’ai lu ma fiche</button>}
   </div>;
 }
 
 function PlayerNotebook({portal}:{portal:Portal}){
   type NotebookTab='context'|'relations'|'info'|'clues';
-  const [tab,setTab]=useState<NotebookTab>('context');
+  const [tab,setTab]=useState<NotebookTab>('relations');
   const [category,setCategory]=useState('ALL');
 
   const rows=useMemo(
@@ -209,10 +270,10 @@ function PlayerNotebook({portal}:{portal:Portal}){
     string,
     number|null
   ][]=[
-    ['context','Contexte',null],
     ['relations','Relations',portal.relationships?.length??0],
     ['info','Infos',rows.length],
     ['clues','Indices',clueRows.length],
+    ['context','Contexte',null],
   ];
 
   return <div className="playerStack notebookShell">
@@ -480,7 +541,7 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
   },[portal.documentEntries,portal.discoveries,portal.inventory]);
 
   const objects=(portal.inventory??[]).filter((o:any)=>!docObjectIds.has(o.objectExternalId));
-  const resources=portal.resources??[];
+  const resources=(portal.resources??[]).filter((r:any)=>['RES_PA','RES_CASH'].includes(String(r.resourceExternalId)));
   const cash=resources.find((r:any)=>r.resourceExternalId==='RES_CASH');
   const cashValue=Number(cash?.currentValue??0);
   const possessionCount=documentRows.length+objects.length;
@@ -517,7 +578,7 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
   return <div className="playerStack bagShell">
     <section className="playerCard bagResourcesCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">MES RESSOURCES</p><h2>Points d’action & argent</h2></div>
+        <div><p className="playerSectionKicker">MES RESSOURCES</p><h2>Ressources</h2></div>
         <span>{resources.length}</span>
       </div>
 
