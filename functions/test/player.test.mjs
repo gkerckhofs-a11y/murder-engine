@@ -59,6 +59,17 @@ test('Visual V1 exposes character portraits, relation portraits and object thumb
  assert.equal(letter.visualCode,'LETTER');
 });
 
+test('Visual V2 resolves skin archetype when no specific portrait exists',()=>{
+ const src=source();
+ src.characters=src.characters.map(c=>c.externalId==='CHAR_A'?{...c,portraitMediaId:null,portraitArchetypeCode:'HENCHMAN'}:c);
+ src.mediaAssets=[...src.mediaAssets,{externalId:'MEDIA_HENCHMAN',mediaType:'IMAGE',source:'/visual/henchman.webp',altText:'Homme de main',active:true}];
+ src.skinVisualDefinitions=[{externalId:'VIS_HENCHMAN',skinId:'RETRO_1900_1930',visualType:'CHARACTER',archetypeCode:'HENCHMAN',mediaExternalId:'MEDIA_HENCHMAN',variant:'DEFAULT',active:true}];
+ const ses=session();
+ ses.scenarioVersion={...ses.scenarioVersion,skinId:'RETRO_1900_1930'};
+ const out=shapePlayerPortal(participant(),ses,src,runtime(),new Date('2026-09-21T18:05:00Z'));
+ assert.equal(out.character.portrait.source,'/visual/henchman.webp');
+});
+
 test('V1.6.2 player portal exposes immersive document media for bag and notebook',()=>{
  const out=shapePlayerPortal(participant(),session(),source(),runtime(),new Date('2026-09-21T18:05:00Z'));
  const owned=out.documentEntries.find(d=>d.clueExternalId==='C1');
