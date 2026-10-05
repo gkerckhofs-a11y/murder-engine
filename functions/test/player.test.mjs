@@ -5,13 +5,18 @@ import { shapePlayerPortal, configureSessionPlayerAccess, getPlayerPortal, execu
 const participant=()=>({id:'P1',displayName:'Gael',active:true,characterExternalId:'CHAR_A',briefingStatus:'NOT_SENT',playerAccessToken:'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef1234567890_-',playerAccessEnabled:true,playerFirstOpenedAt:null,playerLastOpenedAt:null,playerOpenCount:0,briefingReadAt:null});
 const session=()=>({id:'S1',name:'Cosa',status:'LIVE',runtimeInitializedAt:'2026-09-21T18:00:00Z',scenarioVersion:{id:'V1',versionLabel:'2.3',playerSummary:'Pitch',scenario:{title:'Cosa Nostra'}},sessionParticipants_on_gameSession:[participant(),{id:'P2',displayName:'Bob',active:true,characterExternalId:'CHAR_B'}]});
 const source=()=>({
- characters:[{externalId:'CHAR_A',name:'Alice',publicRole:'Veuve',biography:'Bio',secretIntro:'Secret',active:true},{externalId:'CHAR_B',name:'Bob',publicRole:'Avocat',biography:'Bio B',active:true}],
+ characters:[{externalId:'CHAR_A',name:'Alice',publicRole:'Veuve',biography:'Bio',secretIntro:'Secret',portraitMediaId:'PORTRAIT_A',active:true},{externalId:'CHAR_B',name:'Bob',publicRole:'Avocat',biography:'Bio B',portraitMediaId:'PORTRAIT_B',active:true}],
  objectives:[{externalId:'OBJ1',ownerType:'CHARACTER',ownerExternalId:'CHAR_A',title:'Gagner',description:'Faire X',objectiveType:'PERSONAL',secret:true,initialStatus:'ACTIVE',active:true}],
  relationships:[{externalId:'REL1',characterAExternalId:'CHAR_A',characterBExternalId:'CHAR_B',textA:'Je lui fais confiance',textB:'Inverse',visibility:'PRIVATE',active:true}],
  facts:[{externalId:'F1',title:'Info',text:'Texte',nature:'FACT',importance:'IMPORTANT',notebookCategory:'Meurtre',active:true}],
  clues:[{externalId:'C1',playerName:'Lettre',clueType:'DOCUMENT',playerText:'Contenu',documentExternalId:'DOC1',mediaExternalId:'MEDIA1',objectExternalId:'DOC_OBJ_DOC1',active:true},{externalId:'C2',playerName:'Dossier caché',clueType:'DOCUMENT',playerText:'Un dossier compromettant.',locationExternalId:'LOC1',objectExternalId:'ITEM2',documentExternalId:'DOC2',major:true,active:true}],clueFacts:[],
  documentDefinitions:[{externalId:'DOC1',title:'Lettre',textContent:'Cher ami...',support:'DIGITAL',mediaExternalIds:'MEDIA1',active:true},{externalId:'DOC2',title:'Dossier caché',textContent:'Dossier',support:'PHYSICAL',mediaExternalIds:null,active:true}],
- mediaAssets:[{externalId:'MEDIA1',mediaType:'IMAGE',source:'/immersive/test/letter.png',altText:'Lettre',active:true}],
+ mediaAssets:[
+ {externalId:'MEDIA1',mediaType:'IMAGE',source:'/immersive/test/letter.png',altText:'Lettre',active:true},
+ {externalId:'PORTRAIT_A',mediaType:'IMAGE',source:'/immersive/test/alice.png',altText:'Alice',active:true},
+ {externalId:'PORTRAIT_B',mediaType:'IMAGE',source:'/immersive/test/bob.png',altText:'Bob',active:true},
+ {externalId:'OBJ_ITEM1',mediaType:'IMAGE',source:'/immersive/test/key.png',altText:'Clé',active:true}
+],
  resources:[{externalId:'RES_PA',name:'Points action',unit:'PA',active:true},{externalId:'RES_CASH',name:'Argent',unit:'$',active:true}],
  gameObjects:[{externalId:'DOC_OBJ_DOC1',name:'Lettre',description:'Lettre',transferable:true,stealable:true,consumable:false,critical:false,identification0:'Lettre',active:true},{externalId:'ITEM1',name:'Clé',description:'Une clé',transferable:true,stealable:true,consumable:false,critical:false,identification0:'Une clé inconnue',active:true},{externalId:'ITEM2',name:'Dossier',description:'Un dossier trouvé dans le bureau',transferable:true,stealable:true,consumable:false,critical:false,identification0:'Un dossier',active:true},{externalId:'ITEM_B',name:'Portefeuille',description:'Un portefeuille',transferable:true,stealable:true,consumable:false,critical:false,identification0:'Un portefeuille',active:true}],
  gameStateDefinitions:[{externalId:'ST1',name:'Blessé',description:'Vous êtes blessé',visibleToHolder:true,active:true}],
@@ -41,6 +46,17 @@ test('player portal exposes only own runtime state and safe actions',()=>{
  assert.equal(out.character.name,'Alice');assert.equal(out.resources[0].currentValue,4);assert.equal(out.inventory.find(o=>o.objectExternalId==='ITEM1').name,'Clé');assert.equal(out.notifications.length,1);assert.equal(out.unreadNotificationCount,1);
  assert.equal(out.interactions.find(x=>x.externalId==='ACT1').directEnabled,true);assert.equal(out.interactions.find(x=>x.externalId==='ACT_GM').directEnabled,false);assert.equal(out.interactions.find(x=>x.externalId==='ACT_DIRECT').scanMode,'DIRECT');assert.equal(out.interactions.find(x=>x.externalId==='ACT_SPY').scanMode,'DISCRET');
  assert.equal(out.votes.length,1);assert.equal(out.otherCharacters[0].characterExternalId,'CHAR_B');
+});
+
+test('Visual V1 exposes character portraits, relation portraits and object thumbnails',()=>{
+ const out=shapePlayerPortal(participant(),session(),source(),runtime(),new Date('2026-09-21T18:05:00Z'));
+ assert.equal(out.character.portrait.source,'/immersive/test/alice.png');
+ assert.equal(out.relationships[0].portrait.source,'/immersive/test/bob.png');
+ const key=out.inventory.find(o=>o.objectExternalId==='ITEM1');
+ assert.equal(key.visualCode,'KEY');
+ assert.equal(key.visualMedia.source,'/immersive/test/key.png');
+ const letter=out.inventory.find(o=>o.objectExternalId==='DOC_OBJ_DOC1');
+ assert.equal(letter.visualCode,'LETTER');
 });
 
 test('V1.6.2 player portal exposes immersive document media for bag and notebook',()=>{
