@@ -147,7 +147,7 @@ export default function PlayerPortal({token}:{token:string}){
           targetExternalId,
           requestOnly
         }),
-        requestOnly?'Demande envoyée au MJ ✓':''
+        requestOnly?tr(portal,'Demande envoyée au MJ ✓','Request sent to GM ✓'):''
       );
 
       if(response&&!requestOnly){
@@ -163,8 +163,8 @@ export default function PlayerPortal({token}:{token:string}){
       }
 
       return response;
-    }} onVote={(voteExternalId,round,selectedOptionExternalIds)=>act(()=>postJson('/api/player/vote',{token,voteExternalId,round,selectedOptionExternalIds}),'Vote enregistré ✓')}/>} 
-    {tab==='sac'&&<PlayerBag portal={portal} busy={busy} onGive={(objectExternalId,targetCharacterExternalId)=>act(()=>postJson('/api/player/object',{token,objectExternalId,targetCharacterExternalId}),'Objet transféré ✓')} onCashTransfer={(targetCharacterExternalId,amount)=>act(()=>postJson('/api/player/cash',{token,targetCharacterExternalId,amount}),'Virement effectué ✓')}/>} 
+    }} onVote={(voteExternalId,round,selectedOptionExternalIds)=>act(()=>postJson('/api/player/vote',{token,voteExternalId,round,selectedOptionExternalIds}),tr(portal,'Vote enregistré ✓','Vote recorded ✓'))}/>} 
+    {tab==='sac'&&<PlayerBag portal={portal} busy={busy} onGive={(objectExternalId,targetCharacterExternalId)=>act(()=>postJson('/api/player/object',{token,objectExternalId,targetCharacterExternalId}),tr(portal,'Objet transféré ✓','Item transferred ✓'))} onCashTransfer={(targetCharacterExternalId,amount)=>act(()=>postJson('/api/player/cash',{token,targetCharacterExternalId,amount}),tr(portal,'Virement effectué ✓','Transfer completed ✓'))}/>} 
     {tab==='news'&&<PlayerNews portal={portal} busy={busy} onRead={id=>act(()=>postJson('/api/player/notification/read',{token,notificationId:id}),'Notification lue')}/>} 
     {introOpen&&<div className="qrScannerOverlay playerStoryOverlay" role="dialog" aria-modal="true" aria-label="Introduction"><div className="qrScannerPanel playerStoryPanel"><p className="eyebrow">{tr(portal,'L’HISTOIRE COMMENCE','THE STORY BEGINS')}</p><h2>{s.scenarioTitle}</h2><div className="playerStoryText">{s.playerSummary}</div><button className="playerPrimary" onClick={closeIntro}>{tr(portal,'Entrer dans l’histoire','Enter the story')}</button></div></div>}
 
@@ -469,23 +469,23 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
 
       {specialKind?<>
         <p className="playActionHint">{scanMode==='DISCRET'
-          ? 'Scannez la copie du QR de la cible disponible chez le MJ.'
-          : 'Demandez à la cible de vous présenter son QR.'}</p>
+          ? tr(portal,'Scannez la copie du QR de la cible disponible chez le MJ.','Scan the target QR copy available from the GM.')
+          : tr(portal,'Demandez à la cible de vous présenter son QR.','Ask the target to show you their QR code.')}</p>
         <button className="playerPrimary playActionCta" disabled={busy||clandestineBusy||!i.directEnabled||i.cooldownRemainingSeconds>0} onClick={()=>setSpecialScanner(i)}>
-          📷 {scanMode==='DISCRET'?'Scanner discrètement':'Scanner la cible'}
+          📷 {scanMode==='DISCRET'?tr(portal,'Scanner discrètement','Scan discreetly'):tr(portal,'Scanner la cible','Scan target')}
         </button>
       </>:<>
         {characterTarget&&needsTarget&&<div className="characterTargetScan playTargetScan">
           {targetInfo
-            ? <p className="scannedCharacterTarget">Cible : <strong>{targetInfo.label}</strong>{targetInfo.subtitle?` · ${targetInfo.subtitle}`:''}</p>
-            : <p className="playActionHint">{scanMode==='DISCRET'?'Utilisez la copie du QR chez le MJ.':'Demandez à la cible de présenter son QR.'}</p>}
+            ? <p className="scannedCharacterTarget">{tr(portal,'Cible :','Target:')} <strong>{targetInfo.label}</strong>{targetInfo.subtitle?` · ${targetInfo.subtitle}`:''}</p>
+            : <p className="playActionHint">{scanMode==='DISCRET'?tr(portal,'Utilisez la copie du QR chez le MJ.','Use the QR copy held by the GM.'):tr(portal,'Demandez à la cible de présenter son QR.','Ask the target to show their QR code.')}</p>}
           <button className="playerSecondary" disabled={busy} onClick={()=>setCharacterScanner({interactionId:i.externalId,requestOnly:requestable,scanMode})}>
-            📷 {targetInfo?'Changer de cible':scanMode==='DISCRET'?'Scanner discrètement':'Scanner la cible'}
+            📷 {targetInfo?tr(portal,'Changer de cible','Change target'):scanMode==='DISCRET'?tr(portal,'Scanner discrètement','Scan discreetly'):tr(portal,'Scanner la cible','Scan target')}
           </button>
         </div>}
 
         {needsTarget&&!characterTarget&&<select value={targetId} onChange={e=>setTargets(v=>({...v,[i.externalId]:e.target.value}))}>
-          <option value="">Choisir la cible…</option>
+          <option value="">{tr(portal,'Choisir la cible…','Choose target…')}</option>
           {i.targets.map((t:any)=><option key={t.id} value={t.id}>{t.label}{t.subtitle?` — ${t.subtitle}`:''}</option>)}
         </select>}
 
@@ -493,10 +493,10 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
           const run=()=>onExecute(i.externalId,targetId||null,requestable);
           if(requestable)run(); else withPaConfirmation(i,run);
         }}>
-          {i.directEnabled?'Lancer l’action':requestable?'Demander au MJ':(i.blockedReason||'Indisponible')}
+          {i.directEnabled?tr(portal,'Lancer l’action','Start action'):requestable?tr(portal,'Demander au MJ','Ask GM'):(i.blockedReason||tr(portal,'Indisponible','Unavailable'))}
         </button>
 
-        {requestable&&Number(i.costValue??0)>0&&<small className="playerHelp">Le coût sera appliqué uniquement si le MJ valide l’action.</small>}
+        {requestable&&Number(i.costValue??0)>0&&<small className="playerHelp">{tr(portal,'Le coût sera appliqué uniquement si le MJ valide l’action.','The cost will only be applied if the GM approves the action.')}</small>}
       </>}
     </article>;
   }
@@ -523,7 +523,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
       </div>
       {searchCooldown>0&&<div className="portalSearchCooldown"><span>{tr(portal,'Nouvelle fouille dans','Next search in')}</span><strong>{playerCountdown(searchCooldown)}</strong></div>}
       <button className="playerPrimary scanLaunchButton playMainCta" disabled={busy||portal.session?.status!=='LIVE'||searchCooldown>0} onClick={()=>setScannerOpen(true)}>
-        {searchCooldown>0?`Disponible dans ${playerCountdown(searchCooldown)}`:'📷 Scanner un lieu'}
+        {searchCooldown>0?(isEnglish(portal)?`Available in ${playerCountdown(searchCooldown)}`:`Disponible dans ${playerCountdown(searchCooldown)}`):tr(portal,'📷 Scanner un lieu','📷 Scan a location')}
       </button>
       {portal.session?.status!=='LIVE'&&<small className="playerHelp">{tr(portal,'Disponible lorsque la partie est lancée.','Available once the game has started.')}</small>}
     </section>
@@ -546,10 +546,10 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     </details>
 
     {scannerOpen&&<QrLocationScanner token={token} language={portal.session?.language} onClose={()=>setScannerOpen(false)}/>} 
-    {characterScanner&&<QrCharacterScanner title={characterScanner.scanMode==='DISCRET'?'Scanner la cible discrètement':'Scanner la cible'} mode={characterScanner.scanMode} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setCharacterScanner(null)} onSelect={(target:any)=>{setTargets(v=>({...v,[characterScanner.interactionId]:target.characterExternalId}));setCharacterScanner(null);}}/>}
-    {specialScanner&&<QrCharacterScanner title={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'Scanner la cible discrètement':'Scanner la cible'} mode={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT'} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setSpecialScanner(null)} onSelect={(target:any)=>{const interaction=specialScanner;setSpecialScanner(null);withPaConfirmation(interaction,()=>void attemptClandestine(interaction,target));}}/>}
-    {paPrompt&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer la dépense de PA"><div className="qrScannerPanel paConfirmPanel"><p className="eyebrow">{tr(portal,'CONFIRMATION D’ACTION','ACTION CONFIRMATION')}</p><h2>{paPrompt.title}</h2><p>Voulez-vous dépenser <strong>{paPrompt.cost} PA</strong> pour tenter cette action ?</p>{paPrompt.current!=null&&<div className="paSpendPreview"><span>{tr(portal,'Avant','Before')} <strong>{paPrompt.current} PA</strong></span><span>{tr(portal,'Après','After')} <strong>{paPrompt.remaining} PA</strong></span></div>}<div className="giveConfirmActions"><button className="playerSecondary" onClick={()=>setPaPrompt(null)}>{tr(portal,'Non','No')}</button><button className="playerPrimary" onClick={()=>{const run=paPrompt.run;setPaPrompt(null);run();}}>{tr(portal,'Oui, continuer','Yes, continue')}</button></div></div></div>}
-    {clandestineResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat action clandestine"><div className="qrScannerPanel clandestineResultPanel"><p className="eyebrow">{tr(portal,'INTERACTION QR','QR INTERACTION')}</p><h2>{clandestineResult.success?'Réussite':'Échec'}</h2>{!clandestineResult.success?<p>La tentative échoue. La cible reçoit une notification anonyme indiquant qu’une action a été tentée sur elle.</p>:clandestineResult.claimed?<p>Objet récupéré : <strong>{clandestineResult.claimed.name}</strong>. La victime reçoit une notification sans identité de l’auteur.</p>:<><p>{clandestineResult.kind==='STEAL'?'Choisissez maintenant un seul objet à subtiliser. Ce choix est à usage unique.':'Vous identifiez les objets accessibles sur la cible.'}</p>{clandestineResult.items?.length?<div className="clandestineItemList">{clandestineResult.items.map((o:any)=><article key={o.objectExternalId}><div><strong>{o.name}</strong>{o.description&&<small>{o.description}</small>}</div>{clandestineResult.kind==='STEAL'&&<button className="playerPrimary" disabled={clandestineBusy||!clandestineResult.grantToken} onClick={()=>void claimSteal(o)}>{tr(portal,'Voler cet objet','Steal this item')}</button>}</article>)}</div>:<p>{tr(portal,'Aucun objet accessible n’est trouvé.','No accessible item was found.')}</p>}</>}<button className="playerSecondary" disabled={clandestineBusy} onClick={()=>setClandestineResult(null)}>{tr(portal,'Fermer','Close')}</button></div></div>}
+    {characterScanner&&<QrCharacterScanner title={characterScanner.scanMode==='DISCRET'?tr(portal,'Scanner la cible discrètement','Scan target discreetly'):tr(portal,'Scanner la cible','Scan target')} mode={characterScanner.scanMode} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setCharacterScanner(null)} onSelect={(target:any)=>{setTargets(v=>({...v,[characterScanner.interactionId]:target.characterExternalId}));setCharacterScanner(null);}}/>}
+    {specialScanner&&<QrCharacterScanner title={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?tr(portal,'Scanner la cible discrètement','Scan target discreetly'):tr(portal,'Scanner la cible','Scan target')} mode={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT'} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setSpecialScanner(null)} onSelect={(target:any)=>{const interaction=specialScanner;setSpecialScanner(null);withPaConfirmation(interaction,()=>void attemptClandestine(interaction,target));}}/>}
+    {paPrompt&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Confirmer la dépense de PA','Confirm AP spending')}><div className="qrScannerPanel paConfirmPanel"><p className="eyebrow">{tr(portal,'CONFIRMATION D’ACTION','ACTION CONFIRMATION')}</p><h2>{paPrompt.title}</h2><p>{tr(portal,'Voulez-vous dépenser','Do you want to spend')} <strong>{paPrompt.cost} {isEnglish(portal)?'AP':'PA'}</strong> {tr(portal,'pour tenter cette action ?','to attempt this action?')}</p>{paPrompt.current!=null&&<div className="paSpendPreview"><span>{tr(portal,'Avant','Before')} <strong>{paPrompt.current} PA</strong></span><span>{tr(portal,'Après','After')} <strong>{paPrompt.remaining} PA</strong></span></div>}<div className="giveConfirmActions"><button className="playerSecondary" onClick={()=>setPaPrompt(null)}>{tr(portal,'Non','No')}</button><button className="playerPrimary" onClick={()=>{const run=paPrompt.run;setPaPrompt(null);run();}}>{tr(portal,'Oui, continuer','Yes, continue')}</button></div></div></div>}
+    {clandestineResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat action clandestine"><div className="qrScannerPanel clandestineResultPanel"><p className="eyebrow">{tr(portal,'INTERACTION QR','QR INTERACTION')}</p><h2>{clandestineResult.success?tr(portal,'Réussite','Success'):tr(portal,'Échec','Failure')}</h2>{!clandestineResult.success?<p>{tr(portal,'La tentative échoue. La cible reçoit une notification anonyme indiquant qu’une action a été tentée sur elle.','The attempt fails. The target receives an anonymous notification that an action was attempted on them.')}</p>:clandestineResult.claimed?<p>{tr(portal,'Objet récupéré :','Item obtained:')} <strong>{clandestineResult.claimed.name}</strong>. {tr(portal,'La victime reçoit une notification sans identité de l’auteur.','The victim receives a notification without the author’s identity.')}</p>:<><p>{clandestineResult.kind==='STEAL'?tr(portal,'Choisissez maintenant un seul objet à subtiliser. Ce choix est à usage unique.','Choose one item to steal now. This choice can only be used once.'):tr(portal,'Vous identifiez les objets accessibles sur la cible.','You identify the items accessible on the target.')}</p>{clandestineResult.items?.length?<div className="clandestineItemList">{clandestineResult.items.map((o:any)=><article key={o.objectExternalId}><div><strong>{o.name}</strong>{o.description&&<small>{o.description}</small>}</div>{clandestineResult.kind==='STEAL'&&<button className="playerPrimary" disabled={clandestineBusy||!clandestineResult.grantToken} onClick={()=>void claimSteal(o)}>{tr(portal,'Voler cet objet','Steal this item')}</button>}</article>)}</div>:<p>{tr(portal,'Aucun objet accessible n’est trouvé.','No accessible item was found.')}</p>}</>}<button className="playerSecondary" disabled={clandestineBusy} onClick={()=>setClandestineResult(null)}>{tr(portal,'Fermer','Close')}</button></div></div>}
   </div>;
 }
 
@@ -589,23 +589,23 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
     setCashError('');
 
     if(!Number.isInteger(amount)||amount<=0){
-      setCashError('Indiquez un montant entier supérieur à 0.');
+      setCashError(tr(portal,'Indiquez un montant entier supérieur à 0.','Enter a whole amount greater than 0.'));
       return;
     }
 
     if(amount>cashValue){
-      setCashError('Vous ne disposez pas de suffisamment d’argent.');
+      setCashError(tr(portal,'Vous ne disposez pas de suffisamment d’argent.','You do not have enough money.'));
       return;
     }
 
     const response=await Promise.resolve(onCashTransfer(cashTarget.characterExternalId,amount));
 
     if(!response){
-      setCashError('Le virement n’a pas pu être effectué. Réessayez ou prévenez le Maître du Jeu.');
+      setCashError(tr(portal,'Le virement n’a pas pu être effectué. Réessayez ou prévenez le Maître du Jeu.','The transfer could not be completed. Try again or tell the GM.'));
       return;
     }
 
-    setCashConfirmation(`${amount} envoyé à ${cashTarget.name}.`);
+    setCashConfirmation(isEnglish(portal)?`${amount} sent to ${cashTarget.name}.`:`${amount} envoyé à ${cashTarget.name}.`);
     setCashTarget(null);
     setCashAmount('');
     setCashError('');
@@ -717,7 +717,7 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
       <div className="qrScannerPanel cashTransferPanel">
         <p className="eyebrow">{tr(portal,'VIREMENT','TRANSFER')}</p>
         <h2>{tr(portal,'Envoyer de l’argent','Send money')}</h2>
-        <p>À <strong>{cashTarget.name}</strong>{cashTarget.publicRole?` · ${cashTarget.publicRole}`:''}</p>
+        <p>{tr(portal,'À','To')} <strong>{cashTarget.name}</strong>{cashTarget.publicRole?` · ${cashTarget.publicRole}`:''}</p>
         <div className="cashBalancePreview"><span>{tr(portal,'Disponible','Available')}</span><strong>{cashValue}</strong></div>
         <label className="cashAmountField">
           <span>{tr(portal,'Montant','Amount')}</span>
@@ -791,13 +791,13 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
     setConfirmation({
       title:
         accusation
-          ? 'Accusation enregistrée'
-          : 'Vote enregistré',
+          ? tr(portal,'Accusation enregistrée','Accusation recorded')
+          : tr(portal,'Vote enregistré','Vote recorded'),
 
       body:
         accusation
-          ? `Votre accusation contre ${label} a bien été enregistrée. Le résultat sera révélé au moment prévu par le Maître du Jeu.`
-          : `Votre vote pour ${label} a bien été enregistré.`
+          ? (isEnglish(portal)?`Your accusation against ${label} has been recorded. The result will be revealed at the time planned by the GM.`:`Votre accusation contre ${label} a bien été enregistrée. Le résultat sera révélé au moment prévu par le Maître du Jeu.`)
+          : (isEnglish(portal)?`Your vote for ${label} has been recorded.`:`Votre vote pour ${label} a bien été enregistré.`)
     });
   }
 
@@ -873,10 +873,10 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
               {v.hasVoted
                 ? (
                     v.modifiable
-                      ? 'Modifier mon vote'
-                      : 'Vote enregistré ✓'
+                      ? tr(portal,'Modifier mon vote','Change my vote')
+                      : tr(portal,'Vote enregistré ✓','Vote recorded ✓')
                   )
-                : 'Voter'}
+                : tr(portal,'Voter','Vote')}
             </button>
           </article>
         )
@@ -926,7 +926,7 @@ function PlayerNews({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:(id:
       <p className="newsSectionIntro">{tr(portal,'Messages de l’organisation, événements du scénario et informations qui vous concernent.','Messages from the organizers, scenario events and information concerning you.')}</p>
       {notifications.length===0
         ? <p>{tr(portal,'Aucune nouvelle pour le moment.','No news for now.')}</p>
-        : notifications.map((n:any)=><NewsNotification key={n.id} n={n} busy={busy} onRead={onRead}/>)}
+        : notifications.map((n:any)=><NewsNotification key={n.id} n={n} busy={busy} onRead={onRead} portal={portal}/>)}
     </section>
 
     <section className="playerCard">
@@ -942,7 +942,7 @@ function PlayerNews({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:(id:
         : logs.map((l:any)=>
           <article className="newsLog" key={l.id??`${l.actionType}-${l.createdAt}-${l.refExternalId}`}>
             <small>{niceTime(l.createdAt)}</small>
-            <strong>{actionLogTitle(l)}</strong>
+            <strong>{actionLogTitle(l,portal)}</strong>
             {l.note&&<p>{l.note}</p>}
           </article>
         )}
@@ -962,23 +962,23 @@ function PlayerNews({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:(id:
   </div>;
 }
 
-function NewsNotification({n,busy,onRead}:{n:any;busy:boolean;onRead:(id:string)=>void}){
+function NewsNotification({n,busy,onRead,portal}:{n:any;busy:boolean;onRead:(id:string)=>void;portal:Portal}){
   const kind=String(n.kind??'INFO').toUpperCase();
   const pressLike=['NEWS','EVENT','ACTU','PUBLIC'].includes(kind);
   const sourceLabel=
     ['GM','MJ','ORGANIZATION','ORGANISATION'].includes(kind)
-      ? 'Message de l’organisation'
+      ? tr(portal,'Message de l’organisation','Organizer message')
       : pressLike
-        ? 'Actualité'
+        ? tr(portal,'Actualité','News')
         : kind==='THEFT'
-          ? 'Alerte personnelle'
+          ? tr(portal,'Alerte personnelle','Personal alert')
           : kind==='OBJECT'
-            ? 'Information reçue'
+            ? tr(portal,'Information reçue','Information received')
             : kind==='CASH'
-              ? 'Argent reçu'
+              ? tr(portal,'Argent reçu','Money received')
               : kind==='INTERACTION_TARGET'
-              ? 'Événement personnel'
-              : 'Information';
+              ? tr(portal,'Événement personnel','Personal event')
+              : tr(portal,'Information','Information');
 
   return <article className={`playerMessage newsMessage ${n.readAt?'read':'unread'} ${pressLike?'pressArticle':''}`}>
     <div>
@@ -986,19 +986,19 @@ function NewsNotification({n,busy,onRead}:{n:any;busy:boolean;onRead:(id:string)
       <strong>{n.title}</strong>
       <p>{n.body}</p>
     </div>
-    {!n.readAt&&<button className="playerSecondary" disabled={busy} onClick={()=>onRead(n.id)}>Marquer comme lu</button>}
+    {!n.readAt&&<button className="playerSecondary" disabled={busy} onClick={()=>onRead(n.id)}>{tr(portal,'Marquer comme lu','Mark as read')}</button>}
   </article>;
 }
 
-function actionLogTitle(l:any){
+function actionLogTitle(l:any,portal?:Portal){
   const type=String(l?.actionType??'').toUpperCase();
-  if(type==='INTERACTION_EXECUTE')return 'Action exécutée';
-  if(type==='PLAYER_INTERACTION_REQUEST')return 'Demande envoyée au MJ';
-  if(type==='OBJECT_TRANSFER')return 'Objet transféré';
-  if(type==='OBJECT_STOLEN')return 'Objet subtilisé';
-  if(type==='CLUE_REVEAL')return 'Indice découvert';
-  if(type==='CASH_TRANSFER')return 'Argent envoyé';
-  if(type==='CASH_RECEIVED')return 'Argent reçu';
-  if(type.includes('VOTE'))return 'Vote enregistré';
-  return 'Action de jeu';
+  if(type==='INTERACTION_EXECUTE')return tr(portal,'Action exécutée','Action executed');
+  if(type==='PLAYER_INTERACTION_REQUEST')return tr(portal,'Demande envoyée au MJ','Request sent to GM');
+  if(type==='OBJECT_TRANSFER')return tr(portal,'Objet transféré','Item transferred');
+  if(type==='OBJECT_STOLEN')return tr(portal,'Objet subtilisé','Item stolen');
+  if(type==='CLUE_REVEAL')return tr(portal,'Indice découvert','Clue discovered');
+  if(type==='CASH_TRANSFER')return tr(portal,'Argent envoyé','Money sent');
+  if(type==='CASH_RECEIVED')return tr(portal,'Argent reçu','Money received');
+  if(type.includes('VOTE'))return tr(portal,'Vote enregistré','Vote recorded');
+  return tr(portal,'Action de jeu','Game action');
 }
