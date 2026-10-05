@@ -159,39 +159,46 @@ export default function PlayerPortal({token}:{token:string}){
 }
 
 function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=>void}){
+  type SheetTab='story'|'missions'|'timeline'|'roleplay'|'appearance'|'qr';
   const c=portal.character;
+  const [tab,setTab]=useState<SheetTab>('story');
 
-  const sections=[
-    ['sheet-story','Histoire'],
-    ['sheet-missions','Missions'],
-    ['sheet-timeline','Chronologie'],
-    ...(c.interpretationNotes?[['sheet-roleplay','Interprétation']]:[]),
-    ...(c.appearanceNotes?[['sheet-appearance','Apparence']]:[]),
-    ['sheet-qr','QR'],
+  const tabs:[
+    SheetTab,
+    string
+  ][]=[
+    ['story','Histoire'],
+    ['missions','Missions'],
+    ['timeline','Chronologie'],
+    ...(c.interpretationNotes?[['roleplay','Interprétation'] as [SheetTab,string]]:[]),
+    ...(c.appearanceNotes?[['appearance','Apparence'] as [SheetTab,string]]:[]),
+    ['qr','QR'],
   ];
 
-  function goToSection(id:string){
-    document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'});
-  }
-
   return <div className="playerStack playerSheetShell">
-    <nav className="sheetQuickNav" aria-label="Navigation dans ma fiche">
-      {sections.map(([id,label])=>
-        <button key={id} onClick={()=>goToSection(id)}>{label}</button>
+    <nav className="sheetTabs" aria-label="Rubriques de ma fiche">
+      {tabs.map(([id,label])=>
+        <button
+          key={id}
+          className={tab===id?'active':''}
+          onClick={()=>setTab(id)}
+        >
+          {label}
+        </button>
       )}
     </nav>
 
-    {c.motto&&<blockquote className="playerQuote">« {c.motto} »</blockquote>}
+    {c.motto&&tab==='story'&&<blockquote className="playerQuote">« {c.motto} »</blockquote>}
 
-    <section id="sheet-story" className="playerCard sheetAnchor">
+    {tab==='story'&&<section className="playerCard">
       <p className="playerSectionKicker">CE QUE JE SUIS</p>
       <h2>Mon histoire</h2>
       <p>{c.biography}</p>
       {c.secretIntro&&<div className="playerSecret"><h3>Ce que vous seul savez</h3><p>{c.secretIntro}</p></div>}
       {c.apparentMotive&&<><h3>Ma position</h3><p>{c.apparentMotive}</p></>}
-    </section>
+    </section>}
 
-    <section id="sheet-missions" className="playerCard sheetAnchor">
+    {tab==='missions'&&<section className="playerCard">
       <div className="playerSectionHead">
         <div><p className="playerSectionKicker">CE QUE JE DOIS ACCOMPLIR</p><h2>Mes missions</h2></div>
         <span>{portal.objectives.length}</span>
@@ -199,35 +206,36 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
       {portal.objectives.length===0
         ? <p>Aucune mission structurée.</p>
         : portal.objectives.map((o:any)=><article className="playerObjective" key={o.externalId}><div><strong>{o.title}</strong><span>{o.status}</span></div><p>{o.description}</p></article>)}
-    </section>
+    </section>}
 
-    <section id="sheet-timeline" className="playerCard sheetAnchor">
+    {tab==='timeline'&&<section className="playerCard">
       <p className="playerSectionKicker">MON ALIBI / MA CHRONOLOGIE</p>
       <h2>Ce que j’ai fait le soir du meurtre</h2>
       {c.personalTimeline?<p>{c.personalTimeline}</p>:<p className="playerMuted">Aucune chronologie particulière n’est renseignée pour ce personnage.</p>}
-    </section>
+    </section>}
 
-    {c.interpretationNotes&&<section id="sheet-roleplay" className="playerCard playerRoleplayCard sheetAnchor">
+    {tab==='roleplay'&&c.interpretationNotes&&<section className="playerCard playerRoleplayCard">
       <p className="playerSectionKicker">INCARNER MON PERSONNAGE</p>
       <h2>Comment me la jouer</h2>
       <p>{c.interpretationNotes}</p>
     </section>}
 
-    {c.appearanceNotes&&<section id="sheet-appearance" className="playerCard playerAppearanceCard sheetAnchor">
+    {tab==='appearance'&&c.appearanceNotes&&<section className="playerCard playerAppearanceCard">
       <p className="playerSectionKicker">STYLE & DÉGUISEMENT</p>
       <h2>Mon apparence</h2>
       <p>{c.appearanceNotes}</p>
     </section>}
 
-    <details id="sheet-qr" className="playerCard playerUtilityDetails sheetAnchor">
-      <summary>Mon QR personnage</summary>
+    {tab==='qr'&&<section className="playerCard playerUtilityDetails">
+      <p className="playerSectionKicker">MON IDENTIFIANT DE JEU</p>
+      <h2>Mon QR personnage</h2>
       <p className="playerHelp">C’est l’unique QR de votre personnage. Pour une interaction DIRECTE, vous le présentez au joueur qui agit sur vous. Le MJ peut conserver une copie du même QR pour les interactions DISCRÈTES.</p>
       <div className="playerCharacterQr">
         <QRCodeSVG value={`${window.location.origin}/scan/character/${encodeURIComponent(c.externalId)}`} size={180} level="M" includeMargin/>
         <strong>{c.name}</strong>
         <small>{c.publicRole||c.externalId}</small>
       </div>
-    </details>
+    </section>}
 
     {!portal.participant.briefingReadAt&&<button className="playerPrimary" disabled={busy} onClick={onRead}>J’ai lu ma fiche</button>}
   </div>;
@@ -584,21 +592,24 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
 
       {resources.length===0
         ? <p>Aucune ressource n’est suivie pour votre personnage.</p>
-        : <div className="bagResourceGrid bagResourceGridV12">
+        : <div className="bagResourceCompact">
           {resources.map((r:any)=>
-            <article className={`bagResourceCard ${r.resourceExternalId==='RES_CASH'?'cash':''}`} key={r.resourceExternalId}>
-              <small>{resourceLabel(r.resourceExternalId)}</small>
-              <strong>{r.currentValue}{r.maxValue!=null?`/${r.maxValue}`:''}</strong>
-              {r.unit&&<span>{r.unit}</span>}
-              {r.resourceExternalId==='RES_CASH'&&portal.otherCharacters.length>0&&
-                <button className="playerSecondary bagCashTransferButton" disabled={busy||cashValue<=0||portal.session?.status!=='LIVE'} onClick={()=>setCashScannerOpen(true)}>
-                  💸 Virer de l’argent
-                </button>}
-            </article>
+            <div className="bagResourceCompactItem" key={r.resourceExternalId}>
+              <span>{resourceLabel(r.resourceExternalId)}</span>
+              <strong>
+                {r.currentValue}
+                {r.maxValue!=null?`/${r.maxValue}`:''}
+                {r.resourceExternalId==='RES_CASH'&&r.unit?` ${r.unit}`:''}
+              </strong>
+            </div>
           )}
+          {cash&&portal.otherCharacters.length>0&&
+            <button className="playerSecondary bagCashTransferButton" disabled={busy||cashValue<=0||portal.session?.status!=='LIVE'} onClick={()=>setCashScannerOpen(true)}>
+              💸 Virer
+            </button>}
         </div>}
 
-      {cash&&<p className="playerHelp bagCashHelp">Les virements reçus apparaissent automatiquement dans votre solde et dans vos notifications.</p>}
+      {cash&&<p className="playerHelp bagCashHelp">Les virements reçus mettent automatiquement votre solde à jour.</p>}
     </section>
 
     <section className="playerCard bagPossessionsCard">
