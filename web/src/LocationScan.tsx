@@ -11,7 +11,7 @@ type LocationPayload = {
   location:{externalId:string;name:string;description:string}; actions:LocationAction[]; rewardsRemaining:number; searchCooldownRemainingSeconds:number;
   forbidden:boolean; empty:boolean;
 };
-type ActionResult = {result:{interactionName:string;success:boolean;resolution:string;actorRoll?:{rolls:number[];sum:number}|null;actorTotal?:number|null;targetTotal?:number|null;cost?:{resourceExternalId:string;value:number;remaining:number}|null};reward:{kind:string;clue?:{name:string;text:string;clueType:string}|null;object?:{name:string;description?:string|null}|null};location:{name:string}};
+type ActionResult = {result:{interactionName:string;success:boolean;resolution:string;actorRoll?:{rolls:number[];sum:number}|null;actorTotal?:number|null;targetTotal?:number|null;cost?:{resourceExternalId:string;value:number;remaining:number}|null};reward:{kind:string;clue?:{name:string;text:string;clueType:string;mode:'TAKEABLE'|'PERSISTENT'}|null;object?:{name:string;description?:string|null;logisticsCode?:string|null;physicalPickupRequired?:boolean}|null};location:{name:string}};
 
 async function fetchJson<T>(url:string,init?:RequestInit):Promise<T>{
   const r=await fetch(url,init);const ct=r.headers.get('content-type')??'';const raw=await r.text();let data:any=null;
