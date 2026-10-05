@@ -22,7 +22,8 @@ function locationFromQr(text:string):string|null {
     : null;
 }
 
-function cameraErrorMessage(error:unknown){
+function cameraErrorMessage(error:unknown,language='FR'){
+  const en=String(language).toUpperCase()==='EN';
   const name=
     error &&
     typeof error==='object' &&
@@ -31,29 +32,32 @@ function cameraErrorMessage(error:unknown){
       : '';
 
   if(name==='NotAllowedError')
-    return 'Accès à la caméra refusé. Autorise la caméra dans les réglages du navigateur.';
+    return en?'Camera access denied. Allow camera access in your browser settings.':'Accès à la caméra refusé. Autorise la caméra dans les réglages du navigateur.';
 
   if(name==='NotFoundError')
-    return 'Aucune caméra utilisable n’a été trouvée sur cet appareil.';
+    return en?'No usable camera was found on this device.':'Aucune caméra utilisable n’a été trouvée sur cet appareil.';
 
   if(name==='NotReadableError')
-    return 'La caméra est déjà utilisée par une autre application. Ferme-la puis réessaie.';
+    return en?'The camera is already being used by another application. Close it and try again.':'La caméra est déjà utilisée par une autre application. Ferme-la puis réessaie.';
 
   if(name==='OverconstrainedError')
-    return 'La caméra ne supporte pas les réglages demandés. Réessaie.';
+    return en?'The camera does not support the requested settings. Try again.':'La caméra ne supporte pas les réglages demandés. Réessaie.';
 
   return error instanceof Error
     ? error.message
-    : 'Impossible d’ouvrir la caméra.';
+    : (en?'Unable to open the camera.':'Impossible d’ouvrir la caméra.');
 }
 
 export default function QrLocationScanner({
   token,
-  onClose
+  onClose,
+  language='FR'
 }:{
   token:string;
   onClose:()=>void;
+  language?:string;
 }){
+  const en=String(language).toUpperCase()==='EN';
   const videoRef=useRef<HTMLVideoElement|null>(null);
   const controlsRef=useRef<{stop:()=>void}|null>(null);
 
@@ -61,7 +65,7 @@ export default function QrLocationScanner({
   const doneRef=useRef(false);
 
   const [error,setError]=useState('');
-  const [status,setStatus]=useState('Activation de la caméra…');
+  const [status,setStatus]=useState(en?'Starting camera…':'Activation de la caméra…');
   const [attempt,setAttempt]=useState(0);
 
   useEffect(()=>{
@@ -73,7 +77,7 @@ export default function QrLocationScanner({
 
     doneRef.current=false;
     setError('');
-    setStatus('Activation de la caméra…');
+    setStatus(en?'Starting camera…':'Activation de la caméra…');
 
     const reader=new BrowserQRCodeReader(undefined,{
       delayBetweenScanAttempts:150,
@@ -110,7 +114,7 @@ export default function QrLocationScanner({
 
             if(!locationExternalId){
               setStatus(
-                'QR détecté, mais ce n’est pas un QR de lieu Murder Engine.'
+                en?'QR detected, but this is not a Murder Engine location QR code.':'QR détecté, mais ce n’est pas un QR de lieu Murder Engine.'
               );
               return;
             }
@@ -126,7 +130,7 @@ export default function QrLocationScanner({
             }catch{}
 
             setStatus(
-              `Lieu reconnu · ${locationExternalId}`
+              en?`Location recognized · ${locationExternalId}`:`Lieu reconnu · ${locationExternalId}`
             );
 
             window.location.assign(
@@ -172,12 +176,12 @@ export default function QrLocationScanner({
 
         if(!cancelled)
           setStatus(
-            'Cadre le QR du lieu entièrement dans le viseur.'
+            en?'Fit the location QR code entirely inside the frame.':'Cadre le QR du lieu entièrement dans le viseur.'
           );
 
       }catch(e){
         if(!cancelled)
-          setError(cameraErrorMessage(e));
+          setError(cameraErrorMessage(e,language));
       }
     }
 
@@ -213,14 +217,14 @@ export default function QrLocationScanner({
     className="qrScannerOverlay"
     role="dialog"
     aria-modal="true"
-    aria-label="Scanner un QR de lieu"
+    aria-label={en?'Scan a location QR code':'Scanner un QR de lieu'}
   >
     <div className="qrScannerPanel">
 
       <div className="qrScannerHead">
         <div>
-          <p className="eyebrow">FOUILLE · QR</p>
-          <h2>Scanner le lieu</h2>
+          <p className="eyebrow">{en?'SEARCH · QR':'FOUILLE · QR'}</p>
+          <h2>{en?'Scan the location':'Scanner le lieu'}</h2>
         </div>
 
         <button
@@ -232,8 +236,9 @@ export default function QrLocationScanner({
       </div>
 
       <p className="playerHelp">
-        Le QR valide le lieu où tu te trouves.
-        Aucune fouille n’est lancée avant le scan.
+        {en
+          ? 'The QR code validates your current location. No search starts before the scan.'
+          : 'Le QR valide le lieu où tu te trouves. Aucune fouille n’est lancée avant le scan.'}
       </p>
 
       <div className="qrVideoFrame qrVideoFrameLive">
