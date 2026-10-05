@@ -230,3 +230,28 @@ test('V1.6.1 giving a documentary object preserves knowledge for sender and gran
  assert.deepEqual(revealed.map(x=>x.characterExternalId),['CHAR_A','CHAR_B']);
  assert.ok(revealed.every(x=>x.clueExternalId==='C2'));
 });
+
+test('V1.11C own location is flagged and exposes no search action',async()=>{
+ const src=source();
+ src.gameLocations=src.gameLocations.map(l=>l.externalId==='LOC1'?{...l,lockExternalId:'OWNER:CHAR_A'}:l);
+ const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();throw new Error('bad op')};
+ const view=await getPlayerLocation(participant().playerAccessToken,'LOC1',{reader});
+ assert.equal(view.forbidden,true);
+ assert.equal(view.empty,false);
+ assert.equal(view.actions.length,0);
+ await assert.rejects(()=>executePlayerLocationAction(participant().playerAccessToken,{interactionExternalId:'ACT1',locationExternalId:'LOC1'},{reader,executor:async()=>({})}),/LOCATION_OWNED_BY_CHARACTER/);
+});
+
+test('V1.11C exhausted location is flagged and exposes no search action',async()=>{
+ const src=source();
+ src.clues=src.clues.filter(c=>c.locationExternalId!=='LOC1');
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.filter(o=>!(o.holderType==='LOCATION'&&o.holderExternalId==='LOC1'));
+ const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;throw new Error('bad op')};
+ const view=await getPlayerLocation(participant().playerAccessToken,'LOC1',{reader});
+ assert.equal(view.forbidden,false);
+ assert.equal(view.empty,true);
+ assert.equal(view.actions.length,0);
+ await assert.rejects(()=>executePlayerLocationAction(participant().playerAccessToken,{interactionExternalId:'ACT1',locationExternalId:'LOC1'},{reader,executor:async()=>({})}),/LOCATION_EMPTY/);
+});
+

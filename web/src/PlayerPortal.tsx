@@ -277,13 +277,15 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
 
     if(!selected)return;
 
-    await Promise.resolve(
+    const response=await Promise.resolve(
       onVote(
         v.externalId,
         v.round,
         [selected]
       )
     );
+
+    if(!response)return;
 
     const option=
       (v.options??[])

@@ -9,8 +9,9 @@ type LocationAction = {
 type LocationPayload = {
   session:{id:string;name?:string|null;status:string;scenarioTitle:string}; character:{externalId:string;name:string};
   location:{externalId:string;name:string;description:string}; actions:LocationAction[]; rewardsRemaining:number; searchCooldownRemainingSeconds:number;
+  forbidden:boolean; empty:boolean;
 };
-type ActionResult = {result:{interactionName:string;success:boolean;resolution:string;actorRoll?:{rolls:number[];sum:number}|null;actorTotal?:number|null;targetTotal?:number|null;cost?:{resourceExternalId:string;value:number;remaining:number}|null};reward:{kind:string;clue?:{name:string;text:string;clueType:string}|null;object?:{name:string;description?:string|null}|null};location:{name:string}};
+type ActionResult = {result:{interactionName:string;success:boolean;resolution:string;actorRoll?:{rolls:number[];sum:number}|null;actorTotal?:number|null;targetTotal?:number|null;cost?:{resourceExternalId:string;value:number;remaining:number}|null};reward:{kind:string;clue?:{name:string;text:string;clueType:string;mode:'TAKEABLE'|'PERSISTENT'}|null;object?:{name:string;description?:string|null;logisticsCode?:string|null;physicalPickupRequired?:boolean}|null};location:{name:string}};
 
 async function fetchJson<T>(url:string,init?:RequestInit):Promise<T>{
   const r=await fetch(url,init);const ct=r.headers.get('content-type')??'';const raw=await r.text();let data:any=null;
@@ -37,10 +38,10 @@ export default function LocationScan({locationExternalId}:{locationExternalId:st
   if(!data)return null;
 
   const presentation=(data as any).presentation??{};
-  const skinId=String(presentation.skinId??'CONTEMPORARY_1980_2000');
-  const skinClass=`skin-${skinId.toLowerCase().replaceAll('_','-')}`;
+  const skinId=asSkinId(presentation.skinId);
+  const skinClass=skinClassFor(skinId);
   const skinStyle={
-    '--skin-accent':presentation.accentColor||'#c59a4a',
+    '--skin-accent':presentation.accentColor||defaultAccentForSkin(skinId),
     '--skin-background-image':presentation.background?.source
       ? `url("${presentation.background.source}")`
       : 'none',
@@ -49,9 +50,9 @@ export default function LocationScan({locationExternalId}:{locationExternalId:st
   return <main className={`playerShell scanShell ${skinClass}`} style={skinStyle}>
     <header className="playerHero scanHero"><div>{presentation.logo?.source&&<img className="playerScenarioLogo playerScenarioLogoScan" src={presentation.logo.source} alt={presentation.logo.altText||data.session.scenarioTitle}/>}<p className="eyebrow">{data.session.scenarioTitle}</p><h1>{data.location.name}</h1><p>{data.location.description}</p></div><div className="playerCharacterBadge"><span>Vous jouez</span><strong>{data.character.name}</strong></div></header>
     {error&&<p className="playerError">{error}</p>}
-    {(data as any).forbidden&&<section className="playerCard locationBlockedCard"><p className="eyebrow">FOUILLE IMPOSSIBLE</p><h2>C’est votre propre espace</h2><p>Vous connaissez déjà trop bien cet endroit pour pouvoir le fouiller. Cherchez des indices ailleurs.</p></section>}
+    {data.forbidden&&<section className="playerCard locationBlockedCard"><p className="eyebrow">FOUILLE IMPOSSIBLE</p><h2>C’est votre propre espace</h2><p>Vous connaissez déjà trop bien cet endroit pour pouvoir le fouiller. Cherchez des indices ailleurs.</p></section>}
 
-    {(data as any).empty&&<section className="playerCard locationEmptyCard"><p className="eyebrow">LIEU ÉPUISÉ</p><h2>Cette pièce est vide</h2><p>Tout ce qui pouvait être emporté a déjà été découvert. Essayez un autre endroit.</p></section>}
+    {data.empty&&<section className="playerCard locationEmptyCard"><p className="eyebrow">LIEU ÉPUISÉ</p><h2>Cette pièce est vide</h2><p>Tout ce qui pouvait être emporté a déjà été découvert. Essayez un autre endroit.</p></section>}
 
 
     {last&&<section className={`playerCard scanResult ${last.result.success?'success':'failure'}`}><p className="eyebrow">RÉSULTAT</p><h2>{last.result.success?'Réussite':'Échec'}</h2>{last.result.actorRoll&&<p className="diceResult">Jet : {last.result.actorRoll.rolls.join(' + ')}{last.result.actorTotal!=null?` → total ${last.result.actorTotal}`:''}{last.result.targetTotal!=null?` / difficulté ${last.result.targetTotal}`:''}</p>}{last.reward?.clue&&<div className="scanReward"><small className={`discoveryModeBadge ${last.reward.clue.mode==='TAKEABLE'?'takeable':'persistent'}`}>{last.reward.clue.mode==='TAKEABLE'?'📦 Élément récupérable':'👁 Information persistante'}</small><strong>{last.reward.clue.name}</strong><p>{last.reward.clue.text}</p>{last.reward.clue.mode==='PERSISTENT'&&<em>Cette information reste accessible aux autres joueurs.</em>}</div>}{last.reward?.object&&<div className="scanReward objectReward"><strong>Objet découvert : {last.reward.object.name}</strong>{last.reward.object.description&&<p>{last.reward.object.description}</p>}{last.reward.object.logisticsCode&&<div className="physicalPickupCallout"><span>OBJET PHYSIQUE</span><strong>À récupérer auprès du Maître du Jeu</strong><p>Présentez-vous au MJ et donnez-lui simplement ce code :</p><b>{last.reward.object.logisticsCode}</b></div>}</div>}{last.result.success&&last.reward?.kind==='NONE'&&<p>Tu ne trouves rien de nouveau ici.</p>}{last.result.cost&&<small>Coût : {last.result.cost.value} {resourceLabel(last.result.cost.resourceExternalId)} · reste {last.result.cost.remaining}</small>}</section>}
