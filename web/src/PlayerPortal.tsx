@@ -303,10 +303,10 @@ function PlayerNotebook({portal}:{portal:Portal}){
     string,
     number|null
   ][]=[
-    ['relations','Relations',portal.relationships?.length??0],
-    ['info','Infos',rows.length],
-    ['clues','Indices',clueRows.length],
-    ['context','Contexte',null],
+    ['relations',tr(portal,'Relations','Relations'),portal.relationships?.length??0],
+    ['info',tr(portal,'Infos','Info'),rows.length],
+    ['clues',tr(portal,'Indices','Clues'),clueRows.length],
+    ['context',tr(portal,'Contexte','Context'),null],
   ];
 
   return <div className="playerStack notebookShell">
@@ -324,25 +324,25 @@ function PlayerNotebook({portal}:{portal:Portal}){
     </nav>
 
     {tab==='context'&&<section className="playerCard notebookContextCard">
-      <p className="playerSectionKicker">L’HISTOIRE</p>
-      <h2>{portal.session?.scenarioTitle||'Contexte'}</h2>
+      <p className="playerSectionKicker">{tr(portal,'L’HISTOIRE','THE STORY')}</p>
+      <h2>{portal.session?.scenarioTitle||tr(portal,'Contexte','Context')}</h2>
       {portal.session?.playerSummary
         ? <div className="notebookIntroText">{portal.session.playerSummary}</div>
-        : <p>Aucun texte d’introduction n’est renseigné pour ce scénario.</p>}
+        : <p>{tr(portal,'Aucun texte d’introduction n’est renseigné pour ce scénario.','No introduction text is provided for this scenario.')}</p>}
     </section>}
 
     {tab==='relations'&&<section className="playerCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">CE QUE JE SAIS SUR LES AUTRES</p><h2>Personnes & relations</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'CE QUE JE SAIS SUR LES AUTRES','WHAT I KNOW ABOUT OTHERS')}</p><h2>{tr(portal,'Personnes & relations','People & relationships')}</h2></div>
         <span>{portal.relationships?.length??0}</span>
       </div>
       {!portal.relationships?.length
-        ? <p>Vous n’avez encore aucune relation structurée dans votre carnet.</p>
+        ? <p>{tr(portal,'Vous n’avez encore aucune relation structurée dans votre carnet.','You do not have any structured relationships in your notebook yet.')}</p>
         : portal.relationships.map((r:any)=>
           <article className={`playerRelation ${r.portrait?'hasPortrait':''}`} key={r.externalId}>
             {r.portrait&&<img className="relationPortrait" src={r.portrait.source} alt={r.portrait.altText||`Portrait de ${r.otherName}`}/>}
             <div className="relationContent">
-              <small>{r.relationType||'Relation'}</small>
+              <small>{r.relationType||tr(portal,'Relation','Relationship')}</small>
               <strong>{r.otherName}</strong>
               {r.otherPublicRole&&<em>{r.otherPublicRole}</em>}
               <p>{r.text}</p>
@@ -353,19 +353,19 @@ function PlayerNotebook({portal}:{portal:Portal}){
 
     {tab==='info'&&<section className="playerCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">MES INFORMATIONS</p><h2>Ce que je sais</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'MES INFORMATIONS','MY INFORMATION')}</p><h2>{tr(portal,'Ce que je sais','What I know')}</h2></div>
         <span>{rows.length}</span>
       </div>
 
       {categories.length>1&&<div className="notebookCategoryFilters" role="group" aria-label="Filtrer les informations">
-        <button className={category==='ALL'?'active':''} onClick={()=>setCategory('ALL')}>Tout</button>
+        <button className={category==='ALL'?'active':''} onClick={()=>setCategory('ALL')}>{tr(portal,'Tout','All')}</button>
         {categories.map(c=>
           <button key={c} className={category===c?'active':''} onClick={()=>setCategory(c)}>{c}</button>
         )}
       </div>}
 
       {visibleRows.length===0
-        ? <p>Aucune information structurée pour le moment.</p>
+        ? <p>{tr(portal,'Aucune information structurée pour le moment.','No structured information yet.')}</p>
         : visibleRows.map((k:any)=>
           <article className="playerKnowledge" key={`${k.factExternalId}-${k.learnedAt}`}>
             <small>{k.fact.notebookCategory||k.sourceType}</small>
@@ -377,16 +377,16 @@ function PlayerNotebook({portal}:{portal:Portal}){
 
     {tab==='clues'&&<section className="playerCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">CE QUE J’AI DÉCOUVERT</p><h2>Indices & documents</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'CE QUE J’AI DÉCOUVERT','WHAT I DISCOVERED')}</p><h2>{tr(portal,'Indices & documents','Clues & documents')}</h2></div>
         <span>{clueRows.length}</span>
       </div>
       {clueRows.length===0
-        ? <p>Vous n’avez encore découvert aucun indice.</p>
+        ? <p>{tr(portal,'Vous n’avez encore découvert aucun indice.','You have not discovered any clues yet.')}</p>
         : clueRows.map((d:any)=>
           <article className={`playerClue ${d.immersiveDocument?'immersiveClue':''}`} key={d.externalId}>
             <div className="clueBadges">
               <small>{d.clueType||'INDICE'}</small>
-              {d.owned&&<small className="ownedBadge">dans votre sac</small>}
+              {d.owned&&<small className="ownedBadge">{tr(portal,'dans votre sac','in your bag')}</small>}
             </div>
             <strong>{d.playerName}</strong>
             <p>{d.playerText}</p>
@@ -448,7 +448,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     const targetId=targets[i.externalId]||'';
     const targetInfo=(i.targets??[]).find((t:any)=>t.id===targetId);
     const disabled=busy||(!i.directEnabled&&!requestable)||(needsTarget&&!targetId)||i.cooldownRemainingSeconds>0;
-    const modeLabel=scanMode==='DISCRET'?'Discrètement':'Face à face';
+    const modeLabel=scanMode==='DISCRET'?tr(portal,'Discrètement','Discreetly'):tr(portal,'Face à face','Face to face');
 
     return <article className={`playerAction playActionCard ${!i.directEnabled&&!requestable?'isUnavailable':''}`} key={i.externalId}>
       <div className="playActionHeader">
@@ -457,7 +457,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
           {characterTarget&&<small className={`playModeBadge ${scanMode.toLowerCase()}`}>{modeLabel}</small>}
         </div>
         <div className="playActionBadges">
-          {Number(i.costValue??0)>0&&<span>{i.costValue} {resourceLabel(i.costResourceExternalId)}</span>}
+          {Number(i.costValue??0)>0&&<span>{i.costValue} {resourceLabel(i.costResourceExternalId,portal)}</span>}
           {i.ability&&<span>{i.ability.name} niv. {i.ability.level}</span>}
           {i.cooldownRemainingSeconds>0&&<span>⏱ {Math.ceil(i.cooldownRemainingSeconds/60)} min</span>}
         </div>
@@ -503,53 +503,53 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
 
   return <div className="playerStack playTab">
     <section className="playStatusStrip">
-      <div><small>Points d’action</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div>
-      <div><small>Prochaine fouille</small><strong>{searchCooldown>0?playerCountdown(searchCooldown):'Disponible'}</strong></div>
+      <div><small>{tr(portal,'Points d’action','Action points')}</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div>
+      <div><small>{tr(portal,'Prochaine fouille','Next search')}</small><strong>{searchCooldown>0?playerCountdown(searchCooldown):tr(portal,'Disponible','Available')}</strong></div>
     </section>
 
     {portal.votes?.length>0&&<section className="playPriorityBlock">
-      <div className="playPriorityTitle"><span>🗳</span><div><small>DÉCISION EN COURS</small><strong>Votre vote est attendu</strong></div></div>
+      <div className="playPriorityTitle"><span>🗳</span><div><small>{tr(portal,'DÉCISION EN COURS','DECISION IN PROGRESS')}</small><strong>{tr(portal,'Votre vote est attendu','Your vote is required')}</strong></div></div>
       <PlayerVotes portal={portal} busy={busy} onVote={onVote}/>
     </section>}
 
     <section className="playerCard playMainCard searchScanCard">
       <div className="playCardLead">
         <span className="playCardIcon">🔎</span>
-        <div><p className="playerSectionKicker">ENQUÊTER</p><h2>Fouiller un lieu</h2><p>Scannez le QR présent dans la pièce pour tenter une fouille.</p></div>
+        <div><p className="playerSectionKicker">{tr(portal,'ENQUÊTER','INVESTIGATE')}</p><h2>{tr(portal,'Fouiller un lieu','Search a location')}</h2><p>{tr(portal,'Scannez le QR présent dans la pièce pour tenter une fouille.','Scan the QR code in the room to attempt a search.')}</p></div>
       </div>
       <div className="playActionBadges">
         <span>1 PA</span>
         {searchAbility&&<span>{searchAbility.name} niv. {searchAbility.level}</span>}
       </div>
-      {searchCooldown>0&&<div className="portalSearchCooldown"><span>Nouvelle fouille dans</span><strong>{playerCountdown(searchCooldown)}</strong></div>}
+      {searchCooldown>0&&<div className="portalSearchCooldown"><span>{tr(portal,'Nouvelle fouille dans','Next search in')}</span><strong>{playerCountdown(searchCooldown)}</strong></div>}
       <button className="playerPrimary scanLaunchButton playMainCta" disabled={busy||portal.session?.status!=='LIVE'||searchCooldown>0} onClick={()=>setScannerOpen(true)}>
         {searchCooldown>0?`Disponible dans ${playerCountdown(searchCooldown)}`:'📷 Scanner un lieu'}
       </button>
-      {portal.session?.status!=='LIVE'&&<small className="playerHelp">Disponible lorsque la partie est lancée.</small>}
+      {portal.session?.status!=='LIVE'&&<small className="playerHelp">{tr(portal,'Disponible lorsque la partie est lancée.','Available once the game has started.')}</small>}
     </section>
 
     {localError&&<p className="playerError">{localError}</p>}
 
     <section className="playerCard playMainCard">
-      <div className="playerSectionHead"><div><p className="playerSectionKicker">INTERAGIR</p><h2>Agir sur quelqu’un</h2><p className="playSectionIntro">Choisissez votre action, puis scannez la personne concernée.</p></div><span>{characterInteractions.length}</span></div>
-      {characterInteractions.length===0?<p>Aucune action sur un personnage n’est disponible pour le moment.</p>:<div className="playActionList">{characterInteractions.map(renderInteraction)}</div>}
+      <div className="playerSectionHead"><div><p className="playerSectionKicker">{tr(portal,'INTERAGIR','INTERACT')}</p><h2>{tr(portal,'Agir sur quelqu’un','Act on someone')}</h2><p className="playSectionIntro">{tr(portal,'Choisissez votre action, puis scannez la personne concernée.','Choose your action, then scan the person concerned.')}</p></div><span>{characterInteractions.length}</span></div>
+      {characterInteractions.length===0?<p>{tr(portal,'Aucune action sur un personnage n’est disponible pour le moment.','No character action is currently available.')}</p>:<div className="playActionList">{characterInteractions.map(renderInteraction)}</div>}
     </section>
 
     {otherInteractions.length>0&&<section className="playerCard playMainCard">
-      <div className="playerSectionHead"><div><p className="playerSectionKicker">AUTRES POSSIBILITÉS</p><h2>Autres actions</h2></div><span>{otherInteractions.length}</span></div>
+      <div className="playerSectionHead"><div><p className="playerSectionKicker">{tr(portal,'AUTRES POSSIBILITÉS','OTHER OPTIONS')}</p><h2>{tr(portal,'Autres actions','Other actions')}</h2></div><span>{otherInteractions.length}</span></div>
       <div className="playActionList">{otherInteractions.map(renderInteraction)}</div>
     </section>}
 
     <details className="playerCard playSkillsDetails">
-      <summary><span>🎯 Mes compétences</span><small>{portal.abilities?.length??0}</small></summary>
-      {!portal.abilities?.length?<p>Aucune compétence particulière n’est renseignée.</p>:<div className="abilityGrid playAbilityGrid">{portal.abilities.map((a:any)=><article className="abilityCard" key={a.externalId}><div><strong>{a.name}</strong><span>Niveau {a.level}</span></div>{a.description&&<p>{a.description}</p>}</article>)}</div>}
+      <summary><span>🎯 {tr(portal,'Mes compétences','My skills')}</span><small>{portal.abilities?.length??0}</small></summary>
+      {!portal.abilities?.length?<p>{tr(portal,'Aucune compétence particulière n’est renseignée.','No special skill is provided.')}</p>:<div className="abilityGrid playAbilityGrid">{portal.abilities.map((a:any)=><article className="abilityCard" key={a.externalId}><div><strong>{a.name}</strong><span>Niveau {a.level}</span></div>{a.description&&<p>{a.description}</p>}</article>)}</div>}
     </details>
 
     {scannerOpen&&<QrLocationScanner token={token} onClose={()=>setScannerOpen(false)}/>} 
     {characterScanner&&<QrCharacterScanner title={characterScanner.scanMode==='DISCRET'?'Scanner la cible discrètement':'Scanner la cible'} mode={characterScanner.scanMode} targets={portal.otherCharacters} onClose={()=>setCharacterScanner(null)} onSelect={(target:any)=>{setTargets(v=>({...v,[characterScanner.interactionId]:target.characterExternalId}));setCharacterScanner(null);}}/>}
     {specialScanner&&<QrCharacterScanner title={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'Scanner la cible discrètement':'Scanner la cible'} mode={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT'} targets={portal.otherCharacters} onClose={()=>setSpecialScanner(null)} onSelect={(target:any)=>{const interaction=specialScanner;setSpecialScanner(null);withPaConfirmation(interaction,()=>void attemptClandestine(interaction,target));}}/>}
-    {paPrompt&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer la dépense de PA"><div className="qrScannerPanel paConfirmPanel"><p className="eyebrow">CONFIRMATION D’ACTION</p><h2>{paPrompt.title}</h2><p>Voulez-vous dépenser <strong>{paPrompt.cost} PA</strong> pour tenter cette action ?</p>{paPrompt.current!=null&&<div className="paSpendPreview"><span>Avant <strong>{paPrompt.current} PA</strong></span><span>Après <strong>{paPrompt.remaining} PA</strong></span></div>}<div className="giveConfirmActions"><button className="playerSecondary" onClick={()=>setPaPrompt(null)}>Non</button><button className="playerPrimary" onClick={()=>{const run=paPrompt.run;setPaPrompt(null);run();}}>Oui, continuer</button></div></div></div>}
-    {clandestineResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat action clandestine"><div className="qrScannerPanel clandestineResultPanel"><p className="eyebrow">INTERACTION QR</p><h2>{clandestineResult.success?'Réussite':'Échec'}</h2>{!clandestineResult.success?<p>La tentative échoue. La cible reçoit une notification anonyme indiquant qu’une action a été tentée sur elle.</p>:clandestineResult.claimed?<p>Objet récupéré : <strong>{clandestineResult.claimed.name}</strong>. La victime reçoit une notification sans identité de l’auteur.</p>:<><p>{clandestineResult.kind==='STEAL'?'Choisissez maintenant un seul objet à subtiliser. Ce choix est à usage unique.':'Vous identifiez les objets accessibles sur la cible.'}</p>{clandestineResult.items?.length?<div className="clandestineItemList">{clandestineResult.items.map((o:any)=><article key={o.objectExternalId}><div><strong>{o.name}</strong>{o.description&&<small>{o.description}</small>}</div>{clandestineResult.kind==='STEAL'&&<button className="playerPrimary" disabled={clandestineBusy||!clandestineResult.grantToken} onClick={()=>void claimSteal(o)}>Voler cet objet</button>}</article>)}</div>:<p>Aucun objet accessible n’est trouvé.</p>}</>}<button className="playerSecondary" disabled={clandestineBusy} onClick={()=>setClandestineResult(null)}>Fermer</button></div></div>}
+    {paPrompt&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer la dépense de PA"><div className="qrScannerPanel paConfirmPanel"><p className="eyebrow">{tr(portal,'CONFIRMATION D’ACTION','ACTION CONFIRMATION')}</p><h2>{paPrompt.title}</h2><p>Voulez-vous dépenser <strong>{paPrompt.cost} PA</strong> pour tenter cette action ?</p>{paPrompt.current!=null&&<div className="paSpendPreview"><span>{tr(portal,'Avant','Before')} <strong>{paPrompt.current} PA</strong></span><span>{tr(portal,'Après','After')} <strong>{paPrompt.remaining} PA</strong></span></div>}<div className="giveConfirmActions"><button className="playerSecondary" onClick={()=>setPaPrompt(null)}>{tr(portal,'Non','No')}</button><button className="playerPrimary" onClick={()=>{const run=paPrompt.run;setPaPrompt(null);run();}}>{tr(portal,'Oui, continuer','Yes, continue')}</button></div></div></div>}
+    {clandestineResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat action clandestine"><div className="qrScannerPanel clandestineResultPanel"><p className="eyebrow">{tr(portal,'INTERACTION QR','QR INTERACTION')}</p><h2>{clandestineResult.success?'Réussite':'Échec'}</h2>{!clandestineResult.success?<p>La tentative échoue. La cible reçoit une notification anonyme indiquant qu’une action a été tentée sur elle.</p>:clandestineResult.claimed?<p>Objet récupéré : <strong>{clandestineResult.claimed.name}</strong>. La victime reçoit une notification sans identité de l’auteur.</p>:<><p>{clandestineResult.kind==='STEAL'?'Choisissez maintenant un seul objet à subtiliser. Ce choix est à usage unique.':'Vous identifiez les objets accessibles sur la cible.'}</p>{clandestineResult.items?.length?<div className="clandestineItemList">{clandestineResult.items.map((o:any)=><article key={o.objectExternalId}><div><strong>{o.name}</strong>{o.description&&<small>{o.description}</small>}</div>{clandestineResult.kind==='STEAL'&&<button className="playerPrimary" disabled={clandestineBusy||!clandestineResult.grantToken} onClick={()=>void claimSteal(o)}>{tr(portal,'Voler cet objet','Steal this item')}</button>}</article>)}</div>:<p>{tr(portal,'Aucun objet accessible n’est trouvé.','No accessible item was found.')}</p>}</>}<button className="playerSecondary" disabled={clandestineBusy} onClick={()=>setClandestineResult(null)}>{tr(portal,'Fermer','Close')}</button></div></div>}
   </div>;
 }
 
@@ -614,16 +614,16 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
   return <div className="playerStack bagShell">
     <section className="playerCard bagResourcesCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">MES RESSOURCES</p><h2>Ressources</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'MES RESSOURCES','MY RESOURCES')}</p><h2>{tr(portal,'Ressources','Resources')}</h2></div>
         <span>{resources.length}</span>
       </div>
 
       {resources.length===0
-        ? <p>Aucune ressource n’est suivie pour votre personnage.</p>
+        ? <p>{tr(portal,'Aucune ressource n’est suivie pour votre personnage.','No resource is tracked for your character.')}</p>
         : <div className="bagResourceCompact">
           {resources.map((r:any)=>
             <div className="bagResourceCompactItem" key={r.resourceExternalId}>
-              <span>{resourceLabel(r.resourceExternalId)}</span>
+              <span>{resourceLabel(r.resourceExternalId,portal)}</span>
               <strong>
                 {r.currentValue}
                 {r.maxValue!=null?`/${r.maxValue}`:''}
@@ -637,29 +637,29 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
             </button>}
         </div>}
 
-      {cash&&<p className="playerHelp bagCashHelp">Les virements reçus mettent automatiquement votre solde à jour.</p>}
+      {cash&&<p className="playerHelp bagCashHelp">{tr(portal,'Les virements reçus mettent automatiquement votre solde à jour.','Incoming transfers automatically update your balance.')}</p>}
     </section>
 
     <section className="playerCard bagPossessionsCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">MES POSSESSIONS</p><h2>Ce que je possède</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'MES POSSESSIONS','MY POSSESSIONS')}</p><h2>{tr(portal,'Ce que je possède','What I own')}</h2></div>
         <span>{possessionCount}</span>
       </div>
 
       {possessionCount===0
-        ? <p>Vous ne possédez actuellement aucun objet ou document enregistré.</p>
+        ? <p>{tr(portal,'Vous ne possédez actuellement aucun objet ou document enregistré.','You currently own no registered item or document.')}</p>
         : <div className="bagPossessionList">
           {documentRows.map((d:any)=>
             <article className={`bagDocument bagPossessionItem ${d.immersiveDocument?'immersiveBagDocument':''}`} key={d.clueExternalId}>
-              <div className="bagPossessionType">📄 Document / indice</div>
+              <div className="bagPossessionType">📄 {tr(portal,'Document / indice','Document / clue')}</div>
               {d.immersiveDocument&&<ImmersiveDocument entry={d}/>}
               <div className="bagDocumentMeta">
                 <strong>{d.playerName}</strong>
                 <p>{d.playerText}</p>
-                <em>Cette information reste mémorisée dans votre Carnet.</em>
+                <em>{tr(portal,'Cette information reste mémorisée dans votre Carnet.','This information remains saved in your Notebook.')}</em>
               </div>
               {d.object?.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow">
-                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(d.object)}>📷 Donner</button>
+                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(d.object)}>📷 {tr(portal,'Donner','Give')}</button>
               </div>}
             </article>
           )}
@@ -672,13 +672,13 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
                   : <span aria-hidden="true">{objectVisualGlyph(o.visualCode)}</span>}
               </div>
               <div className="objectVisualBody">
-                <div className="bagPossessionType">Objet</div>
+                <div className="bagPossessionType">{tr(portal,'Objet','Item')}</div>
                 <strong>{o.name}</strong>
                 <p>{o.identification}</p>
                 {o.charges!=null&&<small>Charges : {o.charges}</small>}
               </div>
               {o.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow objectVisualAction">
-                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(o)}>📷 Donner</button>
+                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(o)}>📷 {tr(portal,'Donner','Give')}</button>
               </div>}
             </article>
           )}
@@ -695,12 +695,12 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
 
     {pending&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer le don">
       <div className="qrScannerPanel giveConfirmPanel">
-        <p className="eyebrow">DON · QR VALIDÉ</p>
+        <p className="eyebrow">{tr(portal,'DON · QR VALIDÉ','GIFT · QR VALIDATED')}</p>
         <h2>Donner {pending.object.name} ?</h2>
-        <p>Destinataire : <strong>{pending.target.name}</strong>{pending.target.publicRole?` · ${pending.target.publicRole}`:''}</p>
+        <p>{tr(portal,'Destinataire :','Recipient:')} <strong>{pending.target.name}</strong>{pending.target.publicRole?` · ${pending.target.publicRole}`:''}</p>
         <div className="giveConfirmActions">
-          <button className="playerSecondary" disabled={busy} onClick={()=>setPending(null)}>Annuler</button>
-          <button className="playerPrimary" disabled={busy} onClick={()=>{onGive(pending.object.objectExternalId,pending.target.characterExternalId);setPending(null);}}>Confirmer le don</button>
+          <button className="playerSecondary" disabled={busy} onClick={()=>setPending(null)}>{tr(portal,'Annuler','Cancel')}</button>
+          <button className="playerPrimary" disabled={busy} onClick={()=>{onGive(pending.object.objectExternalId,pending.target.characterExternalId);setPending(null);}}>{tr(portal,'Confirmer le don','Confirm gift')}</button>
         </div>
       </div>
     </div>}
@@ -715,12 +715,12 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
 
     {cashTarget&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer le virement">
       <div className="qrScannerPanel cashTransferPanel">
-        <p className="eyebrow">VIREMENT</p>
-        <h2>Envoyer de l’argent</h2>
+        <p className="eyebrow">{tr(portal,'VIREMENT','TRANSFER')}</p>
+        <h2>{tr(portal,'Envoyer de l’argent','Send money')}</h2>
         <p>À <strong>{cashTarget.name}</strong>{cashTarget.publicRole?` · ${cashTarget.publicRole}`:''}</p>
-        <div className="cashBalancePreview"><span>Disponible</span><strong>{cashValue}</strong></div>
+        <div className="cashBalancePreview"><span>{tr(portal,'Disponible','Available')}</span><strong>{cashValue}</strong></div>
         <label className="cashAmountField">
-          <span>Montant</span>
+          <span>{tr(portal,'Montant','Amount')}</span>
           <input
             type="number"
             inputMode="numeric"
@@ -734,16 +734,16 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
         </label>
         {cashError&&<p className="playerError cashTransferError">{cashError}</p>}
         <div className="giveConfirmActions">
-          <button className="playerSecondary" disabled={busy} onClick={()=>{setCashTarget(null);setCashAmount('');setCashError('');}}>Annuler</button>
-          <button className="playerPrimary" disabled={busy||!Number.isInteger(Number(cashAmount))||Number(cashAmount)<=0||Number(cashAmount)>cashValue} onClick={()=>void confirmCashTransfer()}>Confirmer le virement</button>
+          <button className="playerSecondary" disabled={busy} onClick={()=>{setCashTarget(null);setCashAmount('');setCashError('');}}>{tr(portal,'Annuler','Cancel')}</button>
+          <button className="playerPrimary" disabled={busy||!Number.isInteger(Number(cashAmount))||Number(cashAmount)<=0||Number(cashAmount)>cashValue} onClick={()=>void confirmCashTransfer()}>{tr(portal,'Confirmer le virement','Confirm transfer')}</button>
         </div>
       </div>
     </div>}
 
     {cashConfirmation&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Virement effectué">
       <div className="qrScannerPanel cashTransferPanel">
-        <p className="eyebrow">VIREMENT</p>
-        <h2>✓ Argent envoyé</h2>
+        <p className="eyebrow">{tr(portal,'VIREMENT','TRANSFER')}</p>
+        <h2>✓ {tr(portal,'Argent envoyé','Money sent')}</h2>
         <p>{cashConfirmation}</p>
         <button className="playerPrimary" onClick={()=>setCashConfirmation('')}>Continuer</button>
       </div>
@@ -806,14 +806,14 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
 
       <div className="playerSectionHead">
         <div>
-          <p className="playerSectionKicker">DÉCIDER</p>
-          <h2>Vote</h2>
+          <p className="playerSectionKicker">{tr(portal,'DÉCIDER','DECIDE')}</p>
+          <h2>{tr(portal,'Vote','Vote')}</h2>
         </div>
         <span>{portal.votes.length}</span>
       </div>
 
       {portal.votes.length===0
-        ? <p>Aucun scrutin ne vous concerne actuellement.</p>
+        ? <p>{tr(portal,'Aucun scrutin ne vous concerne actuellement.','No vote currently concerns you.')}</p>
         : portal.votes.map((v:any)=>
           <article
             className="playerVote"
@@ -918,27 +918,27 @@ function PlayerNews({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:(id:
     <section className="playerCard newsFeedCard">
       <div className="playerSectionHead">
         <div>
-          <p className="playerSectionKicker">CE QU’IL SE PASSE</p>
-          <h2>Notifications</h2>
+          <p className="playerSectionKicker">{tr(portal,'CE QU’IL SE PASSE','WHAT IS HAPPENING')}</p>
+          <h2>{tr(portal,'Notifications','Notifications')}</h2>
         </div>
         <span>{notifications.length}</span>
       </div>
-      <p className="newsSectionIntro">Messages de l’organisation, événements du scénario et informations qui vous concernent.</p>
+      <p className="newsSectionIntro">{tr(portal,'Messages de l’organisation, événements du scénario et informations qui vous concernent.','Messages from the organizers, scenario events and information concerning you.')}</p>
       {notifications.length===0
-        ? <p>Aucune nouvelle pour le moment.</p>
+        ? <p>{tr(portal,'Aucune nouvelle pour le moment.','No news for now.')}</p>
         : notifications.map((n:any)=><NewsNotification key={n.id} n={n} busy={busy} onRead={onRead}/>)}
     </section>
 
     <section className="playerCard">
       <div className="playerSectionHead">
         <div>
-          <p className="playerSectionKicker">CE QUE J’AI FAIT</p>
-          <h2>Actions réalisées</h2>
+          <p className="playerSectionKicker">{tr(portal,'CE QUE J’AI FAIT','WHAT I DID')}</p>
+          <h2>{tr(portal,'Actions réalisées','Completed actions')}</h2>
         </div>
         <span>{logs.length}</span>
       </div>
       {logs.length===0
-        ? <p>Aucune action mécanique enregistrée pour le moment.</p>
+        ? <p>{tr(portal,'Aucune action mécanique enregistrée pour le moment.','No mechanical action recorded yet.')}</p>
         : logs.map((l:any)=>
           <article className="newsLog" key={l.id??`${l.actionType}-${l.createdAt}-${l.refExternalId}`}>
             <small>{niceTime(l.createdAt)}</small>
@@ -949,14 +949,14 @@ function PlayerNews({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:(id:
     </section>
 
     <section className="playerCard rulesCard">
-      <p className="playerSectionKicker">RÈGLES DU JEU</p>
-      <h2>Comment jouer</h2>
+      <p className="playerSectionKicker">{tr(portal,'RÈGLES DU JEU','GAME RULES')}</p>
+      <h2>{tr(portal,'Comment jouer','How to play')}</h2>
       <ul>
-        <li>Les discussions, négociations, mensonges et alliances entre joueurs sont libres, sauf indication contraire du scénario.</li>
-        <li>Avant une action mécanique payante, Murder Engine vous indique son coût et vous demande confirmation.</li>
-        <li>Les QR servent à valider un lieu ou une cible. L’onglet Jouer vous indique quand agir face à face ou discrètement.</li>
-        <li>Après une tentative de fouille, un délai de 10 minutes s’applique avant la suivante.</li>
-        <li>Lorsqu’une action nécessite un jugement humain, le MJ reste l’arbitre.</li>
+        <li>{tr(portal,'Les discussions, négociations, mensonges et alliances entre joueurs sont libres, sauf indication contraire du scénario.','Discussions, negotiations, lies and alliances between players are free unless the scenario states otherwise.')}</li>
+        <li>{tr(portal,'Avant une action mécanique payante, Murder Engine vous indique son coût et vous demande confirmation.','Before a mechanical action that costs resources, Murder Engine shows the cost and asks for confirmation.')}</li>
+        <li>{tr(portal,'Les QR servent à valider un lieu ou une cible. L’onglet Jouer vous indique quand agir face à face ou discrètement.','QR codes validate a location or target. The Play tab tells you when to act face to face or discreetly.')}</li>
+        <li>{tr(portal,'Après une tentative de fouille, un délai de 10 minutes s’applique avant la suivante.','After a search attempt, a 10-minute delay applies before the next one.')}</li>
+        <li>{tr(portal,'Lorsqu’une action nécessite un jugement humain, le MJ reste l’arbitre.','When an action requires human judgement, the GM remains the referee.')}</li>
       </ul>
     </section>
   </div>;
