@@ -172,17 +172,17 @@ mutation TransferPlayerCash(
   $senderLog: SessionActionLog_Data!,
   $targetLog: SessionActionLog_Data!
 ) @transaction {
-  sessionResource_update(
+  senderResource: sessionResource_update(
     key: {gameSessionId: $sessionId, characterExternalId: $senderCharacterExternalId, resourceExternalId: "RES_CASH"}
     data: {currentValue: $senderValue, updatedAt: $updatedAt}
   )
-  sessionResource_update(
+  targetResource: sessionResource_update(
     key: {gameSessionId: $sessionId, characterExternalId: $targetCharacterExternalId, resourceExternalId: "RES_CASH"}
     data: {currentValue: $targetValue, updatedAt: $updatedAt}
   )
-  sessionPlayerNotification_insert(data: $notification)
-  sessionActionLog_insert(data: $senderLog)
-  sessionActionLog_insert(data: $targetLog)
+  notification: sessionPlayerNotification_insert(data: $notification)
+  senderLog: sessionActionLog_insert(data: $senderLog)
+  targetLog: sessionActionLog_insert(data: $targetLog)
 }
 `;
 
