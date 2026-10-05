@@ -216,10 +216,10 @@ mutation UpdateSessionStatus($sessionId: UUID!, $status: String!) {
 `;
 
 const UPDATE_SESSION_DETAILS_MUTATION = `
-mutation UpdateSessionDetails($sessionId: UUID!, $name: String!, $scheduledAt: Timestamp, $venue: String) {
+mutation UpdateSessionDetails($sessionId: UUID!, $name: String!, $scheduledAt: Timestamp, $venue: String, $language: String!) {
   gameSession_update(
     id: $sessionId
-    data: { name: $name, scheduledAt: $scheduledAt, venue: $venue }
+    data: { name: $name, scheduledAt: $scheduledAt, venue: $venue, language: $language }
   )
 }
 `;
@@ -590,7 +590,8 @@ export async function createGameSession(input, { reader = defaultReader, executo
   const id = randomUUID();
   const scheduledAt = input?.scheduledAt ? String(input.scheduledAt) : null;
   const name = String(input?.name ?? '').trim() || `${version.scenario.title} — ${version.versionLabel}`;
-  const language = String(input?.language ?? version.language ?? 'FR').trim() || 'FR';
+  const language = String(input?.language ?? version.language ?? 'FR').trim().toUpperCase() || 'FR';
+  if (!['FR','EN'].includes(language)) throw new Error('INVALID_SESSION_LANGUAGE');
 
   await executor(CREATE_SESSION_MUTATION, {
     data: {
@@ -696,6 +697,8 @@ export async function updateGameSessionDetails(sessionId, input, { reader = defa
   const name = cleanText(input?.name, 120);
   if (!name) throw new Error('SESSION_NAME_REQUIRED');
   const venue = cleanText(input?.venue, 180) || null;
+  const language = String(input?.language ?? detail.language ?? 'FR').trim().toUpperCase() || 'FR';
+  if (!['FR','EN'].includes(language)) throw new Error('INVALID_SESSION_LANGUAGE');
 
   let scheduledAt = null;
   if (input?.scheduledAt) {
@@ -704,8 +707,8 @@ export async function updateGameSessionDetails(sessionId, input, { reader = defa
     scheduledAt = date.toISOString();
   }
 
-  await executor(UPDATE_SESSION_DETAILS_MUTATION, { sessionId, name, scheduledAt, venue });
-  return { sessionId, name, scheduledAt, venue };
+  await executor(UPDATE_SESSION_DETAILS_MUTATION, { sessionId, name, scheduledAt, venue, language });
+  return { sessionId, name, scheduledAt, venue, language };
 }
 
 export async function setGameSessionStatus(sessionId, status, { reader = defaultReader, executor = defaultExecutor } = {}) {
