@@ -11191,3 +11191,170 @@ button.skinGalleryCard:disabled{
   --notebook-tab-active-bg:#53573d;
   --notebook-tab-active-text:#fff2d1;
 }
+
+
+/* ==========================================================
+   V1.12D — PLAYER BAG / CASH TRANSFERS
+   ========================================================== */
+
+.bagShell{gap:12px}
+
+.bagResourcesCard,
+.bagPossessionsCard{
+  color:inherit;
+}
+
+.bagResourceGridV12{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+
+.bagResourceCard{
+  display:grid;
+  gap:4px;
+  min-width:0;
+  padding:13px;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:13px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+  color:inherit;
+}
+
+.bagResourceCard>small{
+  color:inherit;
+  opacity:.72;
+  font-size:.68rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+
+.bagResourceCard>strong{
+  color:inherit;
+  font-size:1.45rem;
+  line-height:1.1;
+}
+
+.bagResourceCard>span{
+  color:inherit;
+  opacity:.7;
+  font-size:.72rem;
+}
+
+.bagCashTransferButton{
+  width:100%;
+  margin-top:8px;
+}
+
+.bagCashHelp{
+  margin:2px 0 0;
+}
+
+.bagPossessionList{
+  display:grid;
+  gap:10px;
+}
+
+.bagPossessionItem{
+  display:grid;
+  gap:8px;
+  margin:0;
+  color:inherit;
+}
+
+.bagPossessionType{
+  width:max-content;
+  padding:3px 8px;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 5%,transparent);
+  color:inherit;
+  font-size:.65rem;
+  font-weight:800;
+}
+
+.bagPossessionItem .bagDocumentMeta strong,
+.bagPossessionItem>strong{
+  color:inherit;
+}
+
+.bagPossessionItem .bagDocumentMeta p,
+.bagPossessionItem>p{
+  color:inherit;
+  opacity:.86;
+}
+
+.bagPossessionItem .bagDocumentMeta em,
+.bagPossessionItem>small{
+  color:inherit;
+  opacity:.68;
+}
+
+.cashTransferPanel{
+  display:grid;
+  gap:14px;
+}
+
+.cashBalancePreview{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:10px 12px;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:11px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+}
+
+.cashBalancePreview span{
+  opacity:.72;
+}
+
+.cashBalancePreview strong{
+  font-size:1.35rem;
+}
+
+.cashAmountField{
+  display:grid;
+  gap:6px;
+}
+
+.cashAmountField>span{
+  font-size:.72rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+
+.cashAmountField input{
+  width:100%;
+  min-height:48px;
+  padding:10px 12px;
+  border-radius:10px;
+  font-size:1.15rem;
+  font-weight:800;
+}
+
+/* Bag content follows each skin's own ink. */
+.skin-retro-1900-1930 .bagShell{color:var(--retro-ink)}
+.skin-western .bagShell{color:var(--western-ink)}
+.skin-contemporary-1980-2000 .bagShell{color:var(--contemporary-text)}
+.skin-futuristic .bagShell{color:var(--future-text)}
+.skin-classic-mystery .bagShell{color:var(--mystery-ink)}
+.skin-medieval-fantasy .bagShell{color:var(--medieval-ink)}
+.skin-victorian-gothic .bagShell{color:var(--gothic-ink)}
+.skin-noir-1940-1950 .bagShell{color:var(--noir-ink)}
+.skin-vintage-1960-1970 .bagShell{color:var(--vintage-ink)}
+
+@media(max-width:520px){
+  .bagResourceGridV12{
+    grid-template-columns:1fr 1fr;
+  }
+  .bagResourceCard{
+    padding:11px;
+  }
+  .bagResourceCard>strong{
+    font-size:1.25rem;
+  }
+}
