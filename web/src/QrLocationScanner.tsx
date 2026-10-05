@@ -231,7 +231,7 @@ export default function QrLocationScanner({
           className="playerSecondary scannerClose"
           onClick={onClose}
         >
-          Fermer
+          {en?'Close':'Fermer'}
         </button>
       </div>
 
@@ -265,7 +265,7 @@ export default function QrLocationScanner({
               className="playerPrimary"
               onClick={retry}
             >
-              Réessayer la caméra
+              {en?'Retry camera':'Réessayer la caméra'}
             </button>
           </div>
         : <p className="scannerStatus">
