@@ -11623,3 +11623,17 @@ button.skinGalleryCard:disabled{
     padding:7px 10px;
   }
 }
+
+
+/* V1.12G — merged sheet subsections */
+.sheetSubsection{
+  margin-top:18px;
+  padding-top:15px;
+  border-top:1px solid color-mix(in srgb,currentColor 16%,transparent);
+}
+.sheetSubsection h3{
+  margin:.15rem 0 .45rem;
+}
+.sheetSubsection p:last-child{
+  margin-bottom:0;
+}
