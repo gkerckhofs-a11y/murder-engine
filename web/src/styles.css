@@ -10725,3 +10725,193 @@ button.skinGalleryCard:disabled{
     grid-template-columns:1fr;
   }
 }
+
+
+/* ==========================================================
+   V1.12 — PLAYER "JOUER" UX
+   ========================================================== */
+
+.playTab{gap:14px}
+.playStatusStrip{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.playStatusStrip>div{
+  display:grid;
+  gap:2px;
+  padding:12px 14px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:14px;
+  background:rgba(255,255,255,.05);
+}
+.playStatusStrip small{
+  color:rgba(255,255,255,.72);
+  font-size:.68rem;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.playStatusStrip strong{
+  color:#fff;
+  font-size:1.1rem;
+}
+
+.playPriorityBlock{
+  display:grid;
+  gap:10px;
+  padding:10px;
+  border:1px solid color-mix(in srgb,var(--skin-accent,#c59a4a) 52%,transparent);
+  border-radius:18px;
+  background:color-mix(in srgb,var(--skin-accent,#c59a4a) 9%,rgba(20,24,28,.94));
+}
+.playPriorityBlock>.playerCard{
+  margin:0;
+}
+.playPriorityTitle{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:4px 4px 0;
+}
+.playPriorityTitle>span{font-size:1.8rem}
+.playPriorityTitle div{display:grid;gap:1px}
+.playPriorityTitle small{
+  color:var(--skin-accent,#d8b56d);
+  font-size:.65rem;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.playPriorityTitle strong{color:#fff}
+
+.playMainCard{display:grid;gap:14px}
+.playCardLead{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:13px;
+  align-items:start;
+}
+.playCardLead h2{margin:.05rem 0 .2rem}
+.playCardLead p:last-child,
+.playSectionIntro{
+  margin:.25rem 0 0;
+  color:rgba(255,255,255,.74);
+}
+.playCardIcon{
+  display:grid;
+  place-items:center;
+  width:46px;
+  height:46px;
+  border-radius:13px;
+  background:color-mix(in srgb,var(--skin-accent,#c59a4a) 16%,transparent);
+  font-size:1.45rem;
+}
+
+.playActionList{display:grid;gap:10px}
+.playActionCard{
+  display:grid;
+  gap:11px;
+  padding:14px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:14px;
+  background:rgba(255,255,255,.035);
+}
+.playActionCard.isUnavailable{opacity:.72}
+.playActionHeader{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:12px;
+  align-items:start;
+}
+.playActionHeader>div:first-child{
+  display:grid;
+  gap:5px;
+}
+.playActionHeader strong{
+  color:#fff;
+  font-size:1.05rem;
+}
+.playModeBadge{
+  width:max-content;
+  padding:3px 8px;
+  border-radius:999px;
+  font-size:.66rem;
+  font-weight:800;
+}
+.playModeBadge.direct{
+  background:rgba(83,160,116,.18);
+  color:#c8efd5;
+}
+.playModeBadge.discret{
+  background:rgba(132,104,170,.22);
+  color:#e2d4f3;
+}
+.playActionBadges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.playActionBadges span{
+  display:inline-flex;
+  align-items:center;
+  min-height:25px;
+  padding:3px 8px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  background:rgba(255,255,255,.05);
+  color:#eef2f4;
+  font-size:.68rem;
+  font-weight:750;
+}
+.playActionHeader .playActionBadges{justify-content:flex-end}
+.playActionDescription{
+  margin:0;
+  color:rgba(255,255,255,.8);
+  line-height:1.45;
+}
+.playActionUsage{
+  color:rgba(255,255,255,.65);
+}
+.playActionHint{
+  margin:0;
+  color:rgba(255,255,255,.74);
+  font-size:.86rem;
+}
+.playActionCta,
+.playMainCta{
+  width:100%;
+}
+.playTargetScan{
+  display:grid;
+  gap:8px;
+}
+.playTargetScan .scannedCharacterTarget{margin:0}
+.playSkillsDetails summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  cursor:pointer;
+  font-weight:800;
+}
+.playSkillsDetails summary small{
+  display:grid;
+  place-items:center;
+  min-width:28px;
+  height:28px;
+  padding:0 8px;
+  border-radius:999px;
+  background:rgba(255,255,255,.07);
+  color:rgba(255,255,255,.8);
+}
+.playSkillsDetails[open] summary{margin-bottom:14px}
+.playAbilityGrid{margin-top:4px}
+
+@media(max-width:520px){
+  .playStatusStrip{grid-template-columns:1fr 1fr}
+  .playStatusStrip>div{padding:10px 11px}
+  .playStatusStrip strong{font-size:.95rem}
+  .playActionHeader{grid-template-columns:1fr}
+  .playActionHeader .playActionBadges{justify-content:flex-start}
+  .playCardLead{grid-template-columns:40px 1fr}
+  .playCardIcon{width:40px;height:40px;font-size:1.2rem}
+}
