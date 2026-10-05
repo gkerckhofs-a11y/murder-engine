@@ -11637,3 +11637,125 @@ button.skinGalleryCard:disabled{
 .sheetSubsection p:last-child{
   margin-bottom:0;
 }
+
+
+/* ==========================================================
+   VISUAL IMMERSION V1 — PORTRAITS + OBJECT THUMBNAILS
+   ========================================================== */
+
+.characterPortraitHero{
+  display:grid;
+  grid-template-columns:96px minmax(0,1fr);
+  align-items:end;
+  gap:14px;
+  margin:10px 0 16px;
+}
+.characterPortraitHero img{
+  width:96px;
+  height:120px;
+  object-fit:cover;
+  border:1px solid color-mix(in srgb,currentColor 22%,transparent);
+  border-radius:12px;
+  background:color-mix(in srgb,currentColor 5%,transparent);
+  box-shadow:0 8px 20px rgba(0,0,0,.18);
+}
+.characterPortraitHero figcaption{
+  display:grid;
+  gap:3px;
+  padding-bottom:4px;
+}
+.characterPortraitHero figcaption strong{
+  font-size:1.05rem;
+  color:inherit;
+}
+.characterPortraitHero figcaption span{
+  color:inherit;
+  opacity:.68;
+  font-size:.82rem;
+}
+
+.playerRelation.hasPortrait{
+  grid-template-columns:54px minmax(0,1fr);
+  align-items:start;
+  gap:11px;
+}
+.relationPortrait{
+  width:54px;
+  height:64px;
+  object-fit:cover;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:9px;
+  background:color-mix(in srgb,currentColor 5%,transparent);
+}
+.relationContent{
+  display:grid;
+  gap:3px;
+  min-width:0;
+}
+.relationContent p{
+  margin:.25rem 0 0;
+}
+
+.visualPossessionItem{
+  grid-template-columns:64px minmax(0,1fr);
+  align-items:start;
+  gap:12px;
+}
+.objectVisualThumb{
+  display:grid;
+  place-items:center;
+  width:64px;
+  height:64px;
+  overflow:hidden;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:12px;
+  background:color-mix(in srgb,currentColor 6%,transparent);
+}
+.objectVisualThumb img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.objectVisualThumb span{
+  font-size:2rem;
+  line-height:1;
+}
+.objectVisualBody{
+  display:grid;
+  gap:5px;
+  min-width:0;
+}
+.objectVisualBody>strong{
+  color:inherit;
+}
+.objectVisualBody>p{
+  margin:0;
+  color:inherit;
+  opacity:.86;
+}
+.objectVisualAction{
+  grid-column:1/-1;
+  margin-top:2px;
+}
+
+@media(max-width:520px){
+  .characterPortraitHero{
+    grid-template-columns:82px minmax(0,1fr);
+    gap:12px;
+  }
+  .characterPortraitHero img{
+    width:82px;
+    height:104px;
+  }
+  .visualPossessionItem{
+    grid-template-columns:56px minmax(0,1fr);
+    gap:10px;
+  }
+  .objectVisualThumb{
+    width:56px;
+    height:56px;
+  }
+  .objectVisualThumb span{
+    font-size:1.7rem;
+  }
+}
