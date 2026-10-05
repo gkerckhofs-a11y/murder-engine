@@ -324,7 +324,7 @@ export default function App() {
     try { await postJson('/api/sessions/status',{sessionId:session.id,status}); await openSession(session.id); await loadSessions(); }
     catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); }
   }
-  async function updateSessionDetails(input:{name:string;scheduledAt:string;venue:string}) {
+  async function updateSessionDetails(input:{name:string;scheduledAt:string;venue:string;language:string}) {
     if (!session) return;
     setSessionError('');
     try {
@@ -333,6 +333,7 @@ export default function App() {
         name: input.name,
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt).toISOString() : null,
         venue: input.venue,
+        language: input.language,
       });
       await openSession(session.id); await loadSessions();
     } catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); throw e; }
@@ -585,12 +586,12 @@ function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;erro
 }
 
 function CreateSessionForm({version,onCreate}:{version:ScenarioVersionDetail;onCreate:(input:{name:string;scheduledAt?:string;venue?:string;language?:string;notes?:string})=>Promise<void>}) {
-  const [open,setOpen]=useState(false); const [name,setName]=useState(`${version.scenario.title} — session`); const [scheduledAt,setScheduledAt]=useState(''); const [venue,setVenue]=useState(''); const [busy,setBusy]=useState(false);
+  const [open,setOpen]=useState(false); const [name,setName]=useState(`${version.scenario.title} — session`); const [scheduledAt,setScheduledAt]=useState(''); const [venue,setVenue]=useState(''); const [language,setLanguage]=useState(String(version.language||'FR').toUpperCase()==='EN'?'EN':'FR'); const [busy,setBusy]=useState(false);
   if(!open) return <section className="sessionCta card"><div><p className="eyebrow">EXPLOITATION</p><h3>Préparer une partie</h3><p>Crée une session indépendante de ce snapshot pour inscrire les joueurs et faire le casting.</p></div><button onClick={()=>setOpen(true)}>Créer une session</button></section>;
-  return <section className="sessionCta card sessionForm"><div><p className="eyebrow">NOUVELLE SESSION</p><h3>{version.scenario.title} · {version.variantName||`V${version.versionLabel}`}</h3><p>{version.genderComposition.label} · {genderProfileLabel(version.genderProfile)}</p></div><div className="formGrid"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label></div><div className="formActions"><button className="secondary" onClick={()=>setOpen(false)}>Annuler</button><button disabled={!name.trim()||busy} onClick={async()=>{setBusy(true);try{await onCreate({name,scheduledAt,venue,language:version.language});}finally{setBusy(false);}}}>{busy?'Création…':'Créer et ouvrir'}</button></div></section>;
+  return <section className="sessionCta card sessionForm"><div><p className="eyebrow">NOUVELLE SESSION</p><h3>{version.scenario.title} · {version.variantName||`V${version.versionLabel}`}</h3><p>{version.genderComposition.label} · {genderProfileLabel(version.genderProfile)}</p></div><div className="formGrid"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label><label>Langue joueurs<select value={language} onChange={e=>setLanguage(e.target.value)}><option value="FR">Français</option><option value="EN">English</option></select></label></div><div className="formActions"><button className="secondary" onClick={()=>setOpen(false)}>Annuler</button><button disabled={!name.trim()||busy} onClick={async()=>{setBusy(true);try{await onCreate({name,scheduledAt,venue,language});}finally{setBusy(false);}}}>{busy?'Création…':'Créer et ouvrir'}</button></div></section>;
 }
 
-function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onDelete:()=>void;onPrecast:(enabled:boolean)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
+function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onDelete:()=>void;onPrecast:(enabled:boolean)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
   const [showArchived,setShowArchived]=useState(false);
   const listedSessions=showArchived?props.sessions:props.sessions.filter(s=>s.status!=='ARCHIVED');
 
@@ -677,19 +678,20 @@ function PlayerAccessPanel({session,onToggle,onMessage}:{session:SessionDetail;o
 }
 
 
-function EditSessionPanel({session,onSave}:{session:SessionDetail;onSave:(input:{name:string;scheduledAt:string;venue:string})=>Promise<void>}) {
+function EditSessionPanel({session,onSave}:{session:SessionDetail;onSave:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>}) {
   const [open,setOpen]=useState(false);
   const [name,setName]=useState(session.name||'');
   const [scheduledAt,setScheduledAt]=useState(localDateTimeInput(session.scheduledAt));
   const [venue,setVenue]=useState(session.venue||'');
+  const [language,setLanguage]=useState(String(session.language||'FR').toUpperCase()==='EN'?'EN':'FR');
   const [busy,setBusy]=useState(false);
   const locked=Boolean(session.startedAt||session.pausedAt||session.finishedAt||['LIVE','PAUSED','FINISHED'].includes(session.status));
 
-  useEffect(()=>{ setName(session.name||''); setScheduledAt(localDateTimeInput(session.scheduledAt)); setVenue(session.venue||''); },[session.id,session.name,session.scheduledAt,session.venue]);
+  useEffect(()=>{ setName(session.name||''); setScheduledAt(localDateTimeInput(session.scheduledAt)); setVenue(session.venue||''); setLanguage(String(session.language||'FR').toUpperCase()==='EN'?'EN':'FR'); },[session.id,session.name,session.scheduledAt,session.venue,session.language]);
 
   if(!open) return <div className="sessionEditBar"><button className="secondary" disabled={locked} title={locked?'La date et l’heure sont verrouillées après le lancement du live.':''} onClick={()=>setOpen(true)}>Modifier la session</button>{locked&&<span>Date et heure verrouillées après lancement du live.</span>}</div>;
 
-  return <section className="card editSessionPanel"><div className="paneHead"><div><p className="eyebrow">PARAMÈTRES DE SESSION</p><h3>Modifier date, heure et lieu</h3></div></div><div className="formGrid editSessionFields"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label></div><div className="formActions"><button className="secondary" disabled={busy} onClick={()=>{setName(session.name||'');setScheduledAt(localDateTimeInput(session.scheduledAt));setVenue(session.venue||'');setOpen(false);}}>Annuler</button><button disabled={busy||!name.trim()} onClick={async()=>{setBusy(true);try{await onSave({name,scheduledAt,venue});setOpen(false);}finally{setBusy(false);}}}>{busy?'Enregistrement…':'Enregistrer les modifications'}</button></div></section>;
+  return <section className="card editSessionPanel"><div className="paneHead"><div><p className="eyebrow">PARAMÈTRES DE SESSION</p><h3>Modifier date, heure et lieu</h3></div></div><div className="formGrid editSessionFields"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label><label>Langue joueurs<select value={language} onChange={e=>setLanguage(e.target.value)}><option value="FR">Français</option><option value="EN">English</option></select></label></div><div className="formActions"><button className="secondary" disabled={busy} onClick={()=>{setName(session.name||'');setScheduledAt(localDateTimeInput(session.scheduledAt));setVenue(session.venue||'');setLanguage(String(session.language||'FR').toUpperCase()==='EN'?'EN':'FR');setOpen(false);}}>Annuler</button><button disabled={busy||!name.trim()} onClick={async()=>{setBusy(true);try{await onSave({name,scheduledAt,venue,language});setOpen(false);}finally{setBusy(false);}}}>{busy?'Enregistrement…':'Enregistrer les modifications'}</button></div></section>;
 }
 
 
