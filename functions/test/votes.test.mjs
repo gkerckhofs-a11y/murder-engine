@@ -19,6 +19,31 @@ test('LIST electorate keeps only cast and allowed characters',()=>{
   assert.deepEqual(resolveElectorate(source().voteDefinitions[0],session().sessionParticipants_on_gameSession),['CHAR_A','CHAR_B','CHAR_C']);
 });
 
+test('VOTE_WINNERS electorate resolves character winners from prior closed votes',()=>{
+  const def={
+    externalId:'VOTE_FINAL',
+    scopeType:'VOTE_WINNERS',
+    scopeRef:'VOTE_SEAT_A;VOTE_SEAT_B',
+  };
+
+  const src=source();
+  src.voteOptionDefinitions.push(
+    {externalId:'SEAT_A_OPT',voteExternalId:'VOTE_SEAT_A',orderIndex:1,label:'Alice',characterExternalId:'CHAR_A',active:true},
+    {externalId:'SEAT_B_OPT',voteExternalId:'VOTE_SEAT_B',orderIndex:1,label:'Bob',characterExternalId:'CHAR_B',active:true},
+  );
+
+  const rt=runtime();
+  rt.sessionVotes=[
+    {voteExternalId:'VOTE_SEAT_A',round:1,status:'CLOSED',resultJson:JSON.stringify({winnerOptionExternalId:'SEAT_A_OPT'})},
+    {voteExternalId:'VOTE_SEAT_B',round:2,status:'CLOSED',resultJson:JSON.stringify({winnerOptionExternalId:'SEAT_B_OPT'})},
+  ];
+
+  assert.deepEqual(
+    resolveElectorate(def,session().sessionParticipants_on_gameSession,rt,src),
+    ['CHAR_A','CHAR_B']
+  );
+});
+
 test('tally detects absolute majority',()=>{
   const out=tallyVote({definition:source().voteDefinitions[0],options:source().voteOptionDefinitions,electorate:['CHAR_A','CHAR_B','CHAR_C'],ballots:[
     {electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:'OPT_A',weight:1},
