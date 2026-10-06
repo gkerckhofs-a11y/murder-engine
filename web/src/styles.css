@@ -11378,3 +11378,33 @@ button.skinGalleryCard:disabled{
 .skinVisual-hollywood-1930 .skinVisualSecret{
   background:#6a2f37;
 }
+
+
+.mediaAuthRequired{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin:16px 0;
+  padding:16px 18px;
+  border:1px solid #6b5a3c;
+  border-radius:12px;
+  background:#211d17;
+}
+
+.mediaAuthRequired>div{
+  display:grid;
+  gap:4px;
+}
+
+.mediaAuthRequired p{
+  margin:2px 0 0;
+  color:#aeb8be;
+}
+
+@media(max-width:620px){
+  .mediaAuthRequired{
+    align-items:stretch;
+    flex-direction:column;
+  }
+}
