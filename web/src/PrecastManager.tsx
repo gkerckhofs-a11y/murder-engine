@@ -293,7 +293,7 @@ function CampaignDetail({
         {campaign.registrations.map(r=>{
           const transferred=r.status==='TRANSFERRED';
           const checked=selected.includes(r.id);
-          return <label className={`castingRow ${transferred?'archived':''}`} key={r.id}>
+          return <label className={`castingRow registrationRow ${transferred?'archived':''}`} key={r.id}>
             <input type="checkbox" disabled={transferred} checked={!transferred&&checked} onChange={e=>setSelected(ids=>e.target.checked?[...ids,r.id]:ids.filter(id=>id!==r.id))}/>
             <div className="participantIdentity"><strong>{r.displayName}</strong><small>{r.email}</small><div className="participantBadges"><span className="ageBadge">{r.ageBracket}</span><span>{genderPrefLabel(r.genderPreference)}</span><span className="involvementBadge">{involvementLabel(r.desiredInvolvement)}</span></div>{r.notes&&<small>{r.notes}</small>}</div>
             <span className={`castDot ${transferred?'done':''}`}>{transferred?'Session ✓':checked?'✓':'…'}</span>
