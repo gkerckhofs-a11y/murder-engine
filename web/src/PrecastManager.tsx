@@ -224,7 +224,11 @@ function CampaignDetail({
 }){
   const available=campaign.registrations.filter(r=>r.active!==false&&r.status!=='TRANSFERRED');
   const [selected,setSelected]=useState<string[]>(available.map(r=>r.id));
-  const compatibleVersions=useMemo(()=>campaign.versions??[],[campaign.versions]);
+  const compatibleVersions=useMemo(()=>{
+    const all=campaign.versions??[];
+    const sameLanguage=all.filter(v=>String(v.language??'').toUpperCase()===String(campaign.language??'').toUpperCase());
+    return sameLanguage.length?sameLanguage:all;
+  },[campaign.versions,campaign.language]);
   const [versionId,setVersionId]=useState(compatibleVersions.find(v=>{
     const min=v.minPlayers??v.playableCharacters;const max=v.maxPlayers??v.playableCharacters;
     return available.length>=min&&available.length<=max;
