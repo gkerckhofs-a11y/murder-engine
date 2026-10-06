@@ -478,6 +478,8 @@ export async function createSessionFromPrecast(campaignId,input,{
       genderPreference:registration.genderPreference||'SANS_PREFERENCE',
       desiredInvolvement:registration.desiredInvolvement,
       notes:registration.notes??null,
+      source:'PRECAST',
+      precastSubmittedAt:registration.submittedAt??null,
     });
   }
 
