@@ -1,5 +1,9 @@
 const SESSION_PURGE_MUTATION = `
 mutation PurgeSession($sessionId: UUID!) @transaction {
+  precastRegistration_updateMany(
+    where:{transferredSessionId:{eq:$sessionId}}
+    data:{status:"REGISTERED",transferredSessionId:null}
+  )
   sessionPlayerNotification_deleteMany(where:{gameSessionId:{eq:$sessionId}})
   sessionBallot_deleteMany(where:{gameSessionId:{eq:$sessionId}})
   sessionVote_deleteMany(where:{gameSessionId:{eq:$sessionId}})
@@ -72,16 +76,15 @@ query SessionForPurge($sessionId: UUID!) {
 
 const SCENARIO_PURGE_QUERY = `
 query ScenarioForPurge($scenarioId: UUID!) {
-  scenario(id:$scenarioId) {
-    id title
-    scenarioVersions_on_scenario {
-      id
-      gameSessions_on_scenarioVersion { id name status }
-    }
-    precastCampaigns_on_scenario {
-      id name status
-    }
-  }
+  scenario(id:$scenarioId) { id title }
+  scenarioVersions(where:{scenarioId:{eq:$scenarioId}}) { id }
+  precastCampaigns(where:{scenarioId:{eq:$scenarioId}}) { id name status }
+}
+`;
+
+const SESSIONS_FOR_VERSION_QUERY = `
+query SessionsForScenarioVersion($versionId: UUID!) {
+  gameSessions(where:{scenarioVersionId:{eq:$versionId}}) { id name status }
 }
 `;
 
@@ -140,9 +143,13 @@ export async function purgeScenarioFamily(scenarioId,{reader=defaultReader,execu
   const scenario=data?.scenario;
   if(!scenario)throw new Error('SCENARIO_NOT_FOUND');
 
-  const versions=scenario.scenarioVersions_on_scenario??[];
-  const sessions=versions.flatMap(v=>v.gameSessions_on_scenarioVersion??[]);
-  const campaigns=scenario.precastCampaigns_on_scenario??[];
+  const versions=data?.scenarioVersions??[];
+  const campaigns=data?.precastCampaigns??[];
+  const sessions=[];
+  for(const version of versions){
+    const sessionData=await reader(SESSIONS_FOR_VERSION_QUERY,{versionId:version.id});
+    sessions.push(...(sessionData?.gameSessions??[]));
+  }
 
   for(const session of sessions){
     await executor(SESSION_PURGE_MUTATION,{sessionId:session.id});
@@ -172,4 +179,5 @@ export const __cleanupOps={
   SCENARIO_DELETE_MUTATION,
   SESSION_LOOKUP_QUERY,
   SCENARIO_PURGE_QUERY,
+  SESSIONS_FOR_VERSION_QUERY,
 };
