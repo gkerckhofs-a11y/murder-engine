@@ -141,7 +141,7 @@ test('first import inserts parents, snapshot and enrichment', async () => {
     reader: async (operation) => {
       reads += 1;
       if (operation === IMPORT_PREFLIGHT_QUERY) return { data:{ organization:null, scenario:null, scenarioVersion:null } };
-      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[], clues:[{externalId:'CLUE_1'}], clueFacts:[{clueExternalId:'CLUE_1',factExternalId:'FACT_1'}] } };
+      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[], clues:[], clueFacts:[] } };
       assert.fail('Unexpected read operation');
     },
     executor: async (operation, variables) => {
@@ -182,7 +182,7 @@ test('re-import of same immutable version skips base and only inserts missing en
   const result = await persistImportPlan(plan, {}, {
     reader: async (operation) => {
       if (operation === IMPORT_PREFLIGHT_QUERY) return { data:{ organization:{id:plan.ids.organizationId}, scenario:{id:plan.ids.scenarioId}, scenarioVersion:{id:plan.ids.scenarioVersionId} } };
-      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[] } };
+      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[], clues:[{externalId:'CLUE_1'}], clueFacts:[{clueExternalId:'CLUE_1',factExternalId:'FACT_1'}] } };
       assert.fail('Unexpected read operation');
     },
     executor: async (operation, variables) => {
