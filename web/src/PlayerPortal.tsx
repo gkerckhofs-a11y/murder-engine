@@ -442,14 +442,19 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
 
   function renderInteraction(i:any){
     const specialKind=Boolean(i.clandestineKind);
-    const scanMode=String(i.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT';
+    const rawScanMode=String(i.scanMode??'DIRECT').toUpperCase();
+    const scanMode=rawScanMode==='DISCRET'?'DISCRET':rawScanMode==='SELECT'?'SELECT':'DIRECT';
     const requestable=!i.directEnabled&&i.blockedReason==='À demander au MJ';
     const characterTarget=['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase());
     const needsTarget=Boolean(i.targets?.length>0);
     const targetId=targets[i.externalId]||'';
     const targetInfo=(i.targets??[]).find((t:any)=>t.id===targetId);
     const disabled=busy||(!i.directEnabled&&!requestable)||(needsTarget&&!targetId)||i.cooldownRemainingSeconds>0;
-    const modeLabel=scanMode==='DISCRET'?tr(portal,'Discrètement','Discreetly'):tr(portal,'Face à face','Face to face');
+    const modeLabel=scanMode==='DISCRET'
+      ? tr(portal,'Discrètement','Discreetly')
+      : scanMode==='SELECT'
+        ? tr(portal,'Choix libre','Select')
+        : tr(portal,'Face à face','Face to face');
 
     return <article className={`playerAction playActionCard ${!i.directEnabled&&!requestable?'isUnavailable':''}`} key={i.externalId}>
       <div className="playActionHeader">
@@ -476,11 +481,18 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
           📷 {scanMode==='DISCRET'?tr(portal,'Scanner discrètement','Scan discreetly'):tr(portal,'Scanner la cible','Scan target')}
         </button>
       </>:<>
-        {characterTarget&&needsTarget&&<div className="characterTargetScan playTargetScan">
+        {characterTarget&&needsTarget&&scanMode==='SELECT'&&
+          <select value={targetId} onChange={e=>setTargets(v=>({...v,[i.externalId]:e.target.value}))}>
+            <option value="">{tr(portal,'Choisir le personnage…','Choose a character…')}</option>
+            {i.targets.map((t:any)=><option key={t.id} value={t.id}>{t.label}{t.subtitle?` — ${t.subtitle}`:''}</option>)}
+          </select>
+        }
+
+        {characterTarget&&needsTarget&&scanMode!=='SELECT'&&<div className="characterTargetScan playTargetScan">
           {targetInfo
             ? <p className="scannedCharacterTarget">{tr(portal,'Cible :','Target:')} <strong>{targetInfo.label}</strong>{targetInfo.subtitle?` · ${targetInfo.subtitle}`:''}</p>
             : <p className="playActionHint">{scanMode==='DISCRET'?tr(portal,'Utilisez la copie du QR chez le MJ.','Use the QR copy held by the GM.'):tr(portal,'Demandez à la cible de présenter son QR.','Ask the target to show their QR code.')}</p>}
-          <button className="playerSecondary" disabled={busy} onClick={()=>setCharacterScanner({interactionId:i.externalId,requestOnly:requestable,scanMode})}>
+          <button className="playerSecondary" disabled={busy} onClick={()=>setCharacterScanner({interactionId:i.externalId,requestOnly:requestable,scanMode:scanMode as 'DIRECT'|'DISCRET'})}>
             📷 {targetInfo?tr(portal,'Changer de cible','Change target'):scanMode==='DISCRET'?tr(portal,'Scanner discrètement','Scan discreetly'):tr(portal,'Scanner la cible','Scan target')}
           </button>
         </div>}
