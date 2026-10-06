@@ -107,25 +107,31 @@ export function resolveElectorate(definition, participants, runtime=null, source
       (source.voteOptionDefinitions??[]).map(option=>[option.externalId,option])
     );
 
+    const sourceVoteExternalIds=splitIds(definition.scopeRef);
+    if(!sourceVoteExternalIds.length)return [];
+
     const winners=[];
 
-    for(const sourceVoteExternalId of splitIds(definition.scopeRef)){
+    for(const sourceVoteExternalId of sourceVoteExternalIds){
       const closed=(runtime.sessionVotes??[])
         .filter(v=>v.voteExternalId===sourceVoteExternalId&&v.status==='CLOSED'&&v.resultJson)
         .sort((a,b)=>Number(b.round??0)-Number(a.round??0))[0];
 
-      if(!closed)continue;
+      if(!closed)return [];
 
       let result=null;
       try{result=JSON.parse(closed.resultJson)}catch{}
       const winnerOptionExternalId=result?.winnerOptionExternalId;
       const characterExternalId=optionMap.get(winnerOptionExternalId)?.characterExternalId;
 
-      if(characterExternalId&&castSet.has(characterExternalId))
-        winners.push(characterExternalId);
+      if(!characterExternalId||!castSet.has(characterExternalId))
+        return [];
+
+      winners.push(characterExternalId);
     }
 
-    return [...new Set(winners)];
+    const unique=[...new Set(winners)];
+    return unique.length===sourceVoteExternalIds.length?unique:[];
   }
 
   return [];
