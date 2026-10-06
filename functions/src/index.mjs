@@ -433,12 +433,14 @@ function requirePostJson(req, res) {
 
 export const purgeSessionView = onRequest({ region:'europe-west1', cors:true, invoker:'public', maxInstances:3, timeoutSeconds:180 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
+  if(!await requireOrganizerAuth(req,res)) return;
   try { return res.status(200).json({ok:true,result:await purgeGameSession(String(body.sessionId??'').trim())}); }
   catch(error){ logger.error('Session purge failed',error); return res.status(400).json({error:'SESSION_PURGE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
 export const purgeScenarioView = onRequest({ region:'europe-west1', cors:true, invoker:'public', maxInstances:2, timeoutSeconds:300 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
+  if(!await requireOrganizerAuth(req,res)) return;
   try { return res.status(200).json({ok:true,result:await purgeScenarioFamily(String(body.scenarioId??'').trim())}); }
   catch(error){ logger.error('Scenario purge failed',error); return res.status(400).json({error:'SCENARIO_PURGE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
