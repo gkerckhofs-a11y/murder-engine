@@ -23,6 +23,7 @@ type Registration = {
   status:string;
   transferredSessionId?:string|null;
   submittedAt?:string|null;
+  active?:boolean;
 };
 
 type Campaign = {
