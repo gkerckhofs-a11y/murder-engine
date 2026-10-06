@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { organizerToken, ORGANIZER_EMAIL } from './admin-auth';
 
 type Asset={
   externalId:string;
@@ -43,12 +44,31 @@ async function fetchJson<T>(url:string,init?:RequestInit):Promise<T>{
   return json as T;
 }
 
+async function authenticatedFetch<T>(
+  url:string,
+  init:RequestInit={},
+  interactive=false
+):Promise<T>{
+  const token=await organizerToken(interactive);
+
+  if(!token)
+    throw new Error('ORGANIZER_AUTH_REQUIRED');
+
+  const headers=new Headers(init.headers??{});
+  headers.set('authorization',`Bearer ${token}`);
+
+  return fetchJson<T>(url,{
+    ...init,
+    headers,
+  });
+}
+
 const postJson=<T,>(url:string,body:any)=>
-  fetchJson<T>(url,{
+  authenticatedFetch<T>(url,{
     method:'POST',
     headers:{'content-type':'application/json'},
     body:JSON.stringify(body),
-  });
+  },true);
 
 export default function MediaLibraryPanel({
   version,
@@ -66,6 +86,7 @@ export default function MediaLibraryPanel({
   const [loading,setLoading]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
+  const [authRequired,setAuthRequired]=useState(false);
   const [uploadFile,setUploadFile]=useState<File|null>(null);
   const [uploadLabel,setUploadLabel]=useState('');
   const [uploadTags,setUploadTags]=useState('');
@@ -130,7 +151,7 @@ export default function MediaLibraryPanel({
     setError('');
 
     try{
-      const result=await fetchJson<{
+      const result=await authenticatedFetch<{
         ok:boolean;
         assets:Asset[];
         overrides:Record<string,Override>;
@@ -138,8 +159,15 @@ export default function MediaLibraryPanel({
 
       setAssets(result.assets??[]);
       setOverrides(result.overrides??{});
+      setAuthRequired(false);
     }catch(e){
-      setError(e instanceof Error?e.message:String(e));
+      const message=e instanceof Error?e.message:String(e);
+      if(message==='ORGANIZER_AUTH_REQUIRED'){
+        setAuthRequired(true);
+        setError('');
+      }else{
+        setError(message);
+      }
     }finally{
       setLoading(false);
     }
@@ -182,9 +210,13 @@ export default function MediaLibraryPanel({
     setError('');
 
     try{
+      const token=await organizerToken(true);
+      if(!token)throw new Error('ORGANIZER_AUTH_REQUIRED');
+
       const result=await fetchJson<{ok:boolean;asset:Asset}>('/api/media/upload',{
         method:'POST',
         headers:{
+          'authorization':`Bearer ${token}`,
           'content-type':uploadFile.type||'application/octet-stream',
           'x-version-id':version.id,
           'x-file-name':uploadFile.name,
@@ -226,7 +258,36 @@ export default function MediaLibraryPanel({
     {open&&<>
       {error&&<p className="errorbox">{error}</p>}
 
-      <div className="mediaTypeTabs">
+      {authRequired&&
+        <div className="mediaAuthRequired">
+          <div>
+            <span className="micro">ACCÈS ORGANISATEUR</span>
+            <strong>Connexion Google requise</strong>
+            <p>
+              La médiathèque peut ajouter des fichiers dans Firebase Storage.
+              Elle est donc réservée au compte organisateur.
+            </p>
+          </div>
+          <button onClick={async()=>{
+            setBusy(true);
+            setError('');
+            try{
+              const token=await organizerToken(true);
+              if(!token)throw new Error('ORGANIZER_AUTH_REQUIRED');
+              setAuthRequired(false);
+              await load();
+            }catch(e){
+              setError(e instanceof Error?e.message:String(e));
+            }finally{
+              setBusy(false);
+            }
+          }}>
+            Se connecter avec ${ORGANIZER_EMAIL}
+          </button>
+        </div>
+      }
+
+      {!authRequired&&<><div className="mediaTypeTabs">
         <button className={targetType==='CHARACTER'?'active secondary':'secondary'} onClick={()=>setTargetType('CHARACTER')}>
           Personnages
         </button>
@@ -358,7 +419,7 @@ export default function MediaLibraryPanel({
             }
           </div>
         </div>
-      </div>
+      </div></>}
     </>}
   </section>;
 }
