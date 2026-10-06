@@ -529,7 +529,7 @@ export function interactionScanMode(interaction) {
   const target=String(interaction?.targetType ?? '').toUpperCase();
   if(!['PLAYER','CHARACTER'].includes(target)) return null;
   const explicit=String(interaction?.scanMode ?? '').trim().toUpperCase();
-  if(['DIRECT','DISCRET'].includes(explicit)) return explicit;
+  if(['DIRECT','DISCRET','SELECT'].includes(explicit)) return explicit;
   return interaction?.targetSecret ? 'DISCRET' : 'DIRECT';
 }
 
