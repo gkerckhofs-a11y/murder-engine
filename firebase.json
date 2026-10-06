@@ -82,6 +82,20 @@
         }
       },
       {
+        "source": "/api/admin/purge/session",
+        "function": {
+          "functionId": "purgeSessionView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/admin/purge/scenario",
+        "function": {
+          "functionId": "purgeScenarioView",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/precast/list",
         "function": {
           "functionId": "listPrecastCampaignsView",
