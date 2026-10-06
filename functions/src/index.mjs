@@ -19,6 +19,15 @@ import { getInteractionDashboard, executeInteraction, revealClueToCharacter, tra
 import { getVoteDashboard, openSessionVote, castSessionBallot, closeSessionVote } from './votes.mjs';
 import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
 import { updateScenarioAppearanceFamily } from './scenario-appearance.mjs';
+import {
+  listPrecastCampaigns,
+  getPrecastCampaign,
+  createPrecastCampaign,
+  setPrecastCampaignStatus,
+  getPublicPrecastCampaign,
+  submitPublicPrecastRegistration,
+  createSessionFromPrecast,
+} from './registrations.mjs';
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
@@ -262,6 +271,52 @@ function requirePostJson(req, res) {
   }
   return req.body ?? {};
 }
+
+export const listPrecastCampaignsView = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
+  if(!requireGet(req,res)) return;
+  try { return res.status(200).json({ok:true,campaigns:await listPrecastCampaigns()}); }
+  catch(error){ logger.error('Precast campaigns read failed',error); return res.status(500).json({error:'PRECAST_CAMPAIGNS_READ_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
+});
+
+export const getPrecastCampaignView = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
+  if(!requireGet(req,res)) return;
+  const campaignId=String(req.query.campaignId??'').trim();
+  if(!campaignId) return res.status(400).json({error:'PRECAST_CAMPAIGN_ID_REQUIRED'});
+  try { return res.status(200).json({ok:true,campaign:await getPrecastCampaign(campaignId)}); }
+  catch(error){ logger.error('Precast campaign read failed',error); return res.status(404).json({error:'PRECAST_CAMPAIGN_READ_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
+});
+
+export const createPrecastCampaignView = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
+  const body=requirePostJson(req,res); if(!body)return;
+  try { return res.status(201).json({ok:true,campaign:await createPrecastCampaign(body)}); }
+  catch(error){ logger.error('Precast campaign creation failed',error); return res.status(400).json({error:'PRECAST_CAMPAIGN_CREATE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
+});
+
+export const updatePrecastCampaignStatusView = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
+  const body=requirePostJson(req,res); if(!body)return;
+  try { return res.status(200).json({ok:true,result:await setPrecastCampaignStatus(String(body.campaignId??'').trim(),body.status)}); }
+  catch(error){ logger.error('Precast campaign status failed',error); return res.status(400).json({error:'PRECAST_CAMPAIGN_STATUS_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
+});
+
+export const getPublicPrecastCampaignView = onRequest({ region:'europe-west1', cors:true, maxInstances:12, timeoutSeconds:60 }, async (req,res)=>{
+  if(!requireGet(req,res)) return;
+  const token=String(req.query.token??'').trim();
+  try { return res.status(200).json({ok:true,campaign:await getPublicPrecastCampaign(token)}); }
+  catch(error){ const message=error instanceof Error?error.message:String(error); return res.status(/NOT_FOUND|CLOSED|INVALID/.test(message)?404:400).json({error:'PUBLIC_PRECAST_CAMPAIGN_FAILED',message}); }
+});
+
+export const submitPublicPrecastRegistrationView = onRequest({ region:'europe-west1', cors:true, maxInstances:12, timeoutSeconds:60 }, async (req,res)=>{
+  const body=requirePostJson(req,res); if(!body)return;
+  try { return res.status(201).json({ok:true,registration:await submitPublicPrecastRegistration(String(body.token??'').trim(),body)}); }
+  catch(error){ const message=error instanceof Error?error.message:String(error); return res.status(/NOT_FOUND|CLOSED/.test(message)?404:400).json({error:'PUBLIC_PRECAST_SUBMIT_FAILED',message,details:error?.details??undefined}); }
+});
+
+export const createSessionFromPrecastView = onRequest({ region:'europe-west1', cors:true, maxInstances:3, timeoutSeconds:180 }, async (req,res)=>{
+  const body=requirePostJson(req,res); if(!body)return;
+  try { return res.status(201).json({ok:true,result:await createSessionFromPrecast(String(body.campaignId??'').trim(),body)}); }
+  catch(error){ logger.error('Create session from precast failed',error); return res.status(400).json({error:'PRECAST_CREATE_SESSION_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
+});
+
 
 export const listSessions = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   if (!requireGet(req, res)) return;
