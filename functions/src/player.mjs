@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { executeInteraction, transferSessionObject, revealClueToCharacter } from './interactions.mjs';
-import { castSessionBallot } from './votes.mjs';
+import { castSessionBallot, resolveElectorate } from './votes.mjs';
 import { getGameSession } from './sessions.mjs';
 
 const PLAYER_ACCESS_QUERY = `
@@ -657,9 +657,12 @@ function playerVotes(source,runtime,session,characterExternalId) {
   for(const o of source.voteOptionDefinitions??[]){if(o.active===false)continue;if(!optionsByVote.has(o.voteExternalId))optionsByVote.set(o.voteExternalId,[]);optionsByVote.get(o.voteExternalId).push(o);}
   const cast=(session.sessionParticipants_on_gameSession??[]).filter(p=>p.active!==false&&p.characterExternalId).map(p=>p.characterExternalId);
   return (source.voteDefinitions??[]).filter(v=>v.active!==false).flatMap(v=>{
-    let electorate=[];
-    if(v.scopeType==='ALL')electorate=cast;
-    else if(v.scopeType==='LIST'){const allowed=new Set(splitIds(v.scopeRef));electorate=cast.filter(id=>allowed.has(id));}
+    const electorate=resolveElectorate(
+      v,
+      session.sessionParticipants_on_gameSession??[],
+      runtime,
+      source
+    );
     if(!electorate.includes(characterExternalId))return [];
     const openRounds=(runtime.sessionVotes??[]).filter(r=>r.voteExternalId===v.externalId&&r.status==='OPEN').sort((a,b)=>b.round-a.round);
     const round=openRounds[0]; if(!round)return [];
