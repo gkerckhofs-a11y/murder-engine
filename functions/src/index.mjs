@@ -19,6 +19,7 @@ import { getInteractionDashboard, executeInteraction, revealClueToCharacter, tra
 import { getVoteDashboard, openSessionVote, castSessionBallot, closeSessionVote } from './votes.mjs';
 import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
 import { updateScenarioAppearanceFamily } from './scenario-appearance.mjs';
+import { purgeGameSession, purgeScenarioFamily } from './cleanup.mjs';
 import {
   listPrecastCampaigns,
   getPrecastCampaign,
@@ -271,6 +272,19 @@ function requirePostJson(req, res) {
   }
   return req.body ?? {};
 }
+
+export const purgeSessionView = onRequest({ region:'europe-west1', cors:true, maxInstances:3, timeoutSeconds:180 }, async (req,res)=>{
+  const body=requirePostJson(req,res); if(!body)return;
+  try { return res.status(200).json({ok:true,result:await purgeGameSession(String(body.sessionId??'').trim())}); }
+  catch(error){ logger.error('Session purge failed',error); return res.status(400).json({error:'SESSION_PURGE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
+});
+
+export const purgeScenarioView = onRequest({ region:'europe-west1', cors:true, maxInstances:2, timeoutSeconds:300 }, async (req,res)=>{
+  const body=requirePostJson(req,res); if(!body)return;
+  try { return res.status(200).json({ok:true,result:await purgeScenarioFamily(String(body.scenarioId??'').trim())}); }
+  catch(error){ logger.error('Scenario purge failed',error); return res.status(400).json({error:'SCENARIO_PURGE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
+});
+
 
 export const listPrecastCampaignsView = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
   if(!requireGet(req,res)) return;
