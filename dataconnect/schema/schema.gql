@@ -424,6 +424,42 @@ type VoteOptionDefinition @table(key: ["scenarioVersion", "externalId"]) {
 }
 
 # ------------------------------------------------------------
+# Pre-casting / registrations before a session exists
+# ------------------------------------------------------------
+
+type PrecastCampaign @table {
+  organization: Organization!
+  scenario: Scenario!
+  name: String!
+  token: String! @unique
+  language: String! @default(value: "FR")
+  status: String! @default(value: "OPEN")
+  plannedAt: Timestamp
+  venueHint: String
+  publicNote: String
+  openCount: Int! @default(value: 0)
+  submissionCount: Int! @default(value: 0)
+  lastOpenedAt: Timestamp
+  closedAt: Timestamp
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type PrecastRegistration @table {
+  campaign: PrecastCampaign!
+  displayName: String!
+  email: String!
+  ageBracket: String!
+  genderPreference: String
+  desiredInvolvement: String!
+  notes: String
+  status: String! @default(value: "REGISTERED")
+  transferredSessionId: String
+  submittedAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+  active: Boolean! @default(value: true)
+}
+
+# ------------------------------------------------------------
 # Runtime anchor. Runtime tables will be expanded after importer.
 # ------------------------------------------------------------
 
