@@ -188,10 +188,10 @@ export default function MediaLibraryPanel({
           'content-type':uploadFile.type||'application/octet-stream',
           'x-version-id':version.id,
           'x-file-name':uploadFile.name,
-          'x-media-label':uploadLabel.trim()||uploadFile.name,
+          'x-media-label':encodeURIComponent(uploadLabel.trim()||uploadFile.name),
           'x-media-category':targetType,
-          'x-media-tags':uploadTags.trim(),
-          'x-media-alt':uploadLabel.trim()||uploadFile.name,
+          'x-media-tags':encodeURIComponent(uploadTags.trim()),
+          'x-media-alt':encodeURIComponent(uploadLabel.trim()||uploadFile.name),
         },
         body:await uploadFile.arrayBuffer(),
       });
