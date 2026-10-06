@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import JSZip from 'jszip';
 import QRCode from 'qrcode';
 import { asSkinId, skinClassFor, defaultAccentForSkin } from './skin-registry';
+import NarrativeText from './NarrativeText';
 
 type Props={versionId?:string;sessionId?:string};
 
@@ -194,6 +195,7 @@ function CharacterSheets({pack,skinClass}:{pack:any;skinClass:string}){
 
         <header className="gmPrintHeader">
           <p>{pack.scenario.title} · {pack.scenario.era||''}</p>
+          {c.portrait?.source&&<img className="gmCharacterPortrait" src={c.portrait.source} alt={c.portrait.altText||c.name}/>}
           <h1>{c.name}</h1>
           <h2>{c.publicRole||'Personnage'}</h2>
           {c.narrativeAge&&<span>{c.narrativeAge}</span>}
@@ -205,41 +207,41 @@ function CharacterSheets({pack,skinClass}:{pack:any;skinClass:string}){
 
         <section>
           <h3>Mon histoire</h3>
-          <p>{c.biography||'—'}</p>
+          <NarrativeText text={c.biography||'—'} className="gmNarrativeText"/>
         </section>
 
         {c.interpretationNotes&&
           <section>
             <h3>Comment me la jouer</h3>
-            <p>{c.interpretationNotes}</p>
+            <NarrativeText text={c.interpretationNotes} className="gmNarrativeText"/>
           </section>
         }
 
         {c.appearanceNotes&&
           <section>
             <h3>Mon apparence</h3>
-            <p>{c.appearanceNotes}</p>
+            <NarrativeText text={c.appearanceNotes} className="gmNarrativeText"/>
           </section>
         }
 
         {c.secretIntro&&
           <section className="gmPrintSecret">
             <h3>Ce que vous seul savez</h3>
-            <p>{c.secretIntro}</p>
+            <NarrativeText text={c.secretIntro} className="gmNarrativeText compact"/>
           </section>
         }
 
         {c.apparentMotive&&
           <section>
             <h3>Ma position</h3>
-            <p>{c.apparentMotive}</p>
+            <NarrativeText text={c.apparentMotive} className="gmNarrativeText compact"/>
           </section>
         }
 
         {c.personalTimeline&&
           <section>
             <h3>Ma chronologie</h3>
-            <p>{c.personalTimeline}</p>
+            <NarrativeText text={c.personalTimeline} className="gmNarrativeText"/>
           </section>
         }
 
