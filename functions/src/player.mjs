@@ -19,6 +19,7 @@ query PlayerAccessByToken($token: String!) {
         accentColor
         logoMediaExternalId
         backgroundMediaExternalId
+        mediaOverridesJson
         scenario { id title slug skinId accentColor }
       }
       sessionParticipants_on_gameSession(orderBy: {createdAt: ASC}) {
@@ -33,7 +34,7 @@ query PlayerAccessByToken($token: String!) {
 const PLAYER_SOURCE_QUERY = `
 query PlayerSource($versionId: UUID!) {
   characters(where: {scenarioVersionId: {eq: $versionId}}) {
-    externalId name publicRole dramaticFunction narrativeAge gender biography secretIntro interpretationNotes appearanceNotes apparentMotive personalTimeline motto playable active
+    externalId name publicRole dramaticFunction narrativeAge gender biography secretIntro interpretationNotes appearanceNotes apparentMotive personalTimeline motto portraitMediaId portraitArchetypeCode playable active
   }
   objectives(where: {scenarioVersionId: {eq: $versionId}}) {
     externalId ownerType ownerExternalId title description objectiveType secret initialStatus importance active
@@ -54,7 +55,7 @@ query PlayerSource($versionId: UUID!) {
   mediaAssets(where: {scenarioVersionId: {eq: $versionId}}) { externalId mediaType source altText notes active }
   resources(where: {scenarioVersionId: {eq: $versionId}}) { externalId name unit isPublic active }
   gameObjects(where: {scenarioVersionId: {eq: $versionId}}) {
-    externalId name description logisticsCode transferable stealable consumable critical identification0 identification1 identification2 identification3 active
+    externalId name description logisticsCode transferable stealable consumable critical identification0 identification1 identification2 identification3 mediaExternalId visualArchetypeCode active
   }
   gameStateDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
     externalId name description visibleToHolder visiblePublic active
@@ -618,6 +619,60 @@ function immersiveDocumentForClue(clue, documentMap, mediaMap){
 }
 
 
+function parseMediaOverrides(value){
+  if(!value)return {};
+  try{
+    const parsed=JSON.parse(value);
+    return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{};
+  }catch{
+    return {};
+  }
+}
+
+function resolvePresentationMedia({
+  session,
+  mediaMap,
+  targetType,
+  targetExternalId,
+  fallbackExternalId,
+}){
+  const overrides=parseMediaOverrides(
+    session?.scenarioVersion?.mediaOverridesJson
+  );
+
+  const override=
+    overrides[`${String(targetType??'').toUpperCase()}:${targetExternalId}`];
+
+  if(override?.source){
+    const source=immersiveMediaSource(override.source);
+    if(source)return {
+      externalId:override.assetExternalId??null,
+      mediaType:override.mediaType??'IMAGE',
+      source,
+      altText:override.altText??override.label??null,
+      label:override.label??null,
+      override:true,
+    };
+  }
+
+  if(fallbackExternalId){
+    const media=mediaMap.get(fallbackExternalId);
+    if(media&&media.active!==false){
+      const source=immersiveMediaSource(media.source);
+      if(source)return {
+        externalId:media.externalId,
+        mediaType:media.mediaType??null,
+        source,
+        altText:media.altText??null,
+        notes:media.notes??null,
+        override:false,
+      };
+    }
+  }
+
+  return null;
+}
+
 function scenarioPresentation(session,source) {
   const mediaMap=byId((source.mediaAssets??[]).filter(m=>m.active!==false));
 
@@ -678,7 +733,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
   const objectives=(source.objectives??[]).filter(o=>o.active!==false&&o.ownerType==='CHARACTER'&&o.ownerExternalId===characterExternalId).map(o=>({...o,status:objectiveRuntime.get(o.externalId)?.status??o.initialStatus,progress:objectiveRuntime.get(o.externalId)?.progress??0,notes:objectiveRuntime.get(o.externalId)?.notes??null}));
   const knowledge=(runtime.sessionKnowledges??[]).filter(k=>k.characterExternalId===characterExternalId).map(k=>({factExternalId:k.factExternalId,sourceType:k.sourceType,learnedAt:k.learnedAt,fact:factMap.get(k.factExternalId)})).filter(k=>k.fact).sort((a,b)=>new Date(a.learnedAt).getTime()-new Date(b.learnedAt).getTime());
   const discoveries=(runtime.sessionClueDiscoveries??[]).filter(d=>d.characterExternalId===characterExternalId).map(d=>{const clue=clueMap.get(d.clueExternalId);return {...d,clue:clue?{...clue,immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap)}:null};}).filter(d=>d.clue).sort((a,b)=>new Date(a.discoveredAt).getTime()-new Date(b.discoveredAt).getTime());
-  const inventory=(runtime.sessionObjects??[]).filter(o=>o.inPlay!==false&&o.holderType==='CHARACTER'&&o.holderExternalId===characterExternalId).map(o=>{const def=objectMap.get(o.objectExternalId);const level=Math.max(0,Math.min(3,Number(o.identificationLevel??0)));const identification=def?.[`identification${level}`]||def?.description||def?.name||o.objectExternalId;return {...o,name:def?.name??o.objectExternalId,description:def?.description??'',identification,transferable:Boolean(def?.transferable),consumable:Boolean(def?.consumable),critical:Boolean(def?.critical)};});
+  const inventory=(runtime.sessionObjects??[]).filter(o=>o.inPlay!==false&&o.holderType==='CHARACTER'&&o.holderExternalId===characterExternalId).map(o=>{const def=objectMap.get(o.objectExternalId);const level=Math.max(0,Math.min(3,Number(o.identificationLevel??0)));const identification=def?.[`identification${level}`]||def?.description||def?.name||o.objectExternalId;const media=resolvePresentationMedia({session,mediaMap,targetType:'OBJECT',targetExternalId:o.objectExternalId,fallbackExternalId:def?.mediaExternalId});return {...o,name:def?.name??o.objectExternalId,description:def?.description??'',identification,media,visualArchetypeCode:def?.visualArchetypeCode??null,transferable:Boolean(def?.transferable),consumable:Boolean(def?.consumable),critical:Boolean(def?.critical)};});
   const states=(runtime.sessionCharacterStates??[]).filter(s=>s.characterExternalId===characterExternalId&&s.active!==false).map(s=>({...s,definition:stateMap.get(s.stateExternalId)})).filter(s=>s.definition?.visibleToHolder!==false).map(s=>({...s,name:s.definition?.name??s.stateExternalId,description:s.definition?.description??''}));
   const ownedObjectIds=new Set(inventory.map(o=>o.objectExternalId));
   const documentEntries=(source.clues??[]).filter(c=>c.active!==false&&c.objectExternalId&&ownedObjectIds.has(c.objectExternalId)&&c.addToNotebook!==false).map(c=>({clueExternalId:c.externalId,objectExternalId:c.objectExternalId,documentExternalId:c.documentExternalId??null,playerName:c.playerName,playerText:c.playerText,clueType:c.clueType,support:c.support,presentationMode:c.presentationMode,immersiveDocument:immersiveDocumentForClue(c,documentMap,mediaMap),owned:true}));
@@ -687,11 +742,18 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
   const notifications=(runtime.sessionPlayerNotifications??[]).filter(n=>n.characterExternalId===characterExternalId).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
   const interactions=playerInteractions(source,runtime,session,characterExternalId,resources,now);
   const votes=playerVotes(source,runtime,session,characterExternalId);
+  const characterPortrait=resolvePresentationMedia({
+    session,
+    mediaMap,
+    targetType:'CHARACTER',
+    targetExternalId:character.externalId,
+    fallbackExternalId:character.portraitMediaId,
+  });
   return {
     presentation:scenarioPresentation(session,source),
     participant:{id:participant.id,displayName:participant.displayName,briefingStatus:participant.briefingStatus,briefingReadAt:participant.briefingReadAt??null,playerOpenCount:Number(participant.playerOpenCount??0)},
     session:{id:session.id,name:session.name,scheduledAt:session.scheduledAt,venue:session.venue,status:session.status,startedAt:session.startedAt,pausedAt:session.pausedAt,finishedAt:session.finishedAt,scenarioTitle:session.scenarioVersion?.scenario?.title??'Murder Party',playerSummary:session.scenarioVersion?.playerSummary??''},
-    character:{externalId:character.externalId,name:character.name,publicRole:character.publicRole,biography:character.biography,secretIntro:character.secretIntro,interpretationNotes:character.interpretationNotes,appearanceNotes:character.appearanceNotes,apparentMotive:character.apparentMotive,personalTimeline:character.personalTimeline,motto:character.motto,narrativeAge:character.narrativeAge},
+    character:{externalId:character.externalId,name:character.name,publicRole:character.publicRole,biography:character.biography,secretIntro:character.secretIntro,interpretationNotes:character.interpretationNotes,appearanceNotes:character.appearanceNotes,apparentMotive:character.apparentMotive,personalTimeline:character.personalTimeline,motto:character.motto,narrativeAge:character.narrativeAge,portrait:characterPortrait,portraitArchetypeCode:character.portraitArchetypeCode??null},
     otherCharacters:(session.sessionParticipants_on_gameSession??[]).filter(p=>p.active!==false&&p.characterExternalId&&p.characterExternalId!==characterExternalId).map(p=>{const c=charMap.get(p.characterExternalId);return{characterExternalId:p.characterExternalId,name:c?.name??p.characterExternalId,publicRole:c?.publicRole??null,participantName:p.displayName};}),
     objectives,relationships,resources,knowledge,discoveries,documentEntries,inventory,states,abilities:effectiveAbilities(source,characterExternalId).filter(a=>!a.secret),interactions,votes,notifications,actionLogs,unreadNotificationCount:notifications.filter(n=>!n.readAt).length,searchCooldownRemainingSeconds:globalLocationSearchCooldownRemaining(source,runtime,characterExternalId,now),
   };
