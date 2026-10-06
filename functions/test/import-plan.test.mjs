@@ -275,7 +275,7 @@ test('clue imports are split into Data Connect batches of at most 100 rows', asy
   assert.equal(result.imported.clueFacts,136);
 });
 
-test('immersive documents import media and synthesize a transferable object', () => {
+test('digital documents remain native documents and do not synthesize GameObjects', () => {
   const wb = workbook();
   wb.sheets.MEDIA = [{ media_id:'MEDIA_LETTER', type_media:'IMAGE', fichier_ou_url:'/immersive/test/letter.png', alt_text:'Lettre manuscrite', notes:'test', actif:'TRUE' }];
   wb.sheets.DOCUMENTS = [{ document_id:'DOC_LETTER', titre:'Lettre secrète', contenu_texte:'Cher ami...', support:'DIGITAL', media_id:'MEDIA_LETTER', reutilisable:'TRUE', consommable:'FALSE', owner_initial_type:'CHARACTER', owner_initial_id:'CHAR_A', clue_ids:'CLUE_1', code_logistique:'D-01', actif:'TRUE', transferable:'TRUE', volable:'TRUE' }];
@@ -286,8 +286,17 @@ test('immersive documents import media and synthesize a transferable object', ()
   assert.equal(plan.mediaAssets.length,1);
   assert.equal(plan.documents[0].mediaExternalIds,'MEDIA_LETTER');
   assert.equal(plan.mediaAssets[0].source,'/immersive/test/letter.png');
-  assert.equal(plan.clues[0].objectExternalId,'DOC_OBJ_DOC_LETTER');
-  const object=plan.gameObjects.find(o=>o.externalId==='DOC_OBJ_DOC_LETTER');
+  assert.equal(plan.clues[0].objectExternalId,null);
+  assert.equal(plan.gameObjects.some(o=>o.externalId==='DOC_OBJ_DOC_LETTER'),false);
+});
+
+test('physical documents may still synthesize transferable GameObjects', () => {
+  const wb = workbook();
+  wb.sheets.DOCUMENTS = [{ document_id:'DOC_PHYSICAL', titre:'Dossier papier', contenu_texte:'Contenu', support:'PHYSICAL', reutilisable:'TRUE', consommable:'FALSE', owner_initial_type:'CHARACTER', owner_initial_id:'CHAR_A', clue_ids:'CLUE_1', code_logistique:'D-02', actif:'TRUE', transferable:'TRUE', volable:'TRUE' }];
+  wb.sheets.INDICES[0].document_id='DOC_PHYSICAL';
+  const plan=buildImportPlan(wb,{sourceBuffer:Buffer.from('physical-doc')});
+  assert.equal(plan.clues[0].objectExternalId,'DOC_OBJ_DOC_PHYSICAL');
+  const object=plan.gameObjects.find(o=>o.externalId==='DOC_OBJ_DOC_PHYSICAL');
   assert.ok(object);
   assert.equal(object.ownerInitialExternalId,'CHAR_A');
   assert.equal(object.transferable,true);
