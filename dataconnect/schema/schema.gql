@@ -55,6 +55,9 @@ type ScenarioVersion @table {
   logoMediaExternalId: String
   backgroundMediaExternalId: String
 
+  # Presentation overrides selected from the reusable organization media library.
+  mediaOverridesJson: String
+
   locked: Boolean! @default(value: false)
   importedAt: Timestamp! @default(expr: "request.time")
 }
@@ -185,6 +188,22 @@ type MediaAsset @table(key: ["scenarioVersion", "externalId"]) {
   altText: String
   notes: String
   active: Boolean! @default(value: true)
+}
+
+# Reusable visual assets shared by every scenario in one organization.
+type OrganizationMediaAsset @table(key: ["organization", "externalId"]) {
+  organization: Organization!
+  externalId: String!
+  label: String!
+  category: String!
+  mediaType: String!
+  source: String!
+  altText: String
+  tags: String
+  skinId: String
+  active: Boolean! @default(value: true)
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
 }
 
 type DocumentDefinition @table(key: ["scenarioVersion", "externalId"]) {
