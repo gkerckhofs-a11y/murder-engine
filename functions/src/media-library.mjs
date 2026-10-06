@@ -142,6 +142,12 @@ function overrideKey(targetType,targetExternalId){
   return `${String(targetType??'').trim().toUpperCase()}:${String(targetExternalId??'').trim()}`;
 }
 
+function decodeHeaderValue(value){
+  const raw=String(value??'');
+  if(!raw)return '';
+  try{return decodeURIComponent(raw)}catch{return raw}
+}
+
 function sanitizeFilename(value){
   const raw=String(value??'image').trim()||'image';
 
@@ -199,9 +205,9 @@ export async function uploadMediaLibraryAsset(versionId,input){
   if(!['GENERAL','CHARACTER','OBJECT','CLUE','BACKGROUND','LOGO'].includes(category))
     throw new Error('INVALID_MEDIA_CATEGORY');
 
-  const label=String(input?.label??input?.filename??'Image').trim().slice(0,160);
-  const altText=String(input?.altText??label).trim().slice(0,300)||null;
-  const tags=String(input?.tags??'').trim().slice(0,1000)||null;
+  const label=decodeHeaderValue(input?.label??input?.filename??'Image').trim().slice(0,160);
+  const altText=decodeHeaderValue(input?.altText??label).trim().slice(0,300)||null;
+  const tags=decodeHeaderValue(input?.tags??'').trim().slice(0,1000)||null;
   const skinId=String(input?.skinId??'').trim().toUpperCase().slice(0,80)||null;
 
   const extension={
