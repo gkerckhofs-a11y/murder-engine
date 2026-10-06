@@ -156,10 +156,16 @@ export default function PlayerPortal({token}:{token:string}){
 
         setResultPopup({
           success:Boolean(r?.success),
-          title:Boolean(r?.success)?tr(portal,'Réussite','Success'):tr(portal,'Échec','Failure'),
-          body:Boolean(r?.success)
-            ? tr(portal,'Votre action a réussi. Les effets ont été appliqués à votre personnage.','Your action succeeded. The effects have been applied to your character.')
-            : tr(portal,'Votre tentative échoue. Aucun effet positif n’est appliqué.','Your attempt failed. No positive effect was applied.')
+          title:r?.rumor
+            ? (isEnglish(portal)?`Rumour — ${r.rumor.targetName}`:`Rumeur — ${r.rumor.targetName}`)
+            : Boolean(r?.success)
+              ? tr(portal,'Réussite','Success')
+              : tr(portal,'Échec','Failure'),
+          body:r?.rumor?.text
+            ? String(r.rumor.text)
+            : Boolean(r?.success)
+              ? tr(portal,'Votre action a réussi. Les effets ont été appliqués à votre personnage.','Your action succeeded. The effects have been applied to your character.')
+              : tr(portal,'Votre tentative échoue. Aucun effet positif n’est appliqué.','Your attempt failed. No positive effect was applied.')
         });
       }
 
