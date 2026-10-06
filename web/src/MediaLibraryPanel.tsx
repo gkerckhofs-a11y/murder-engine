@@ -250,8 +250,8 @@ export default function MediaLibraryPanel({
         </p>
       </div>
 
-      <button className="secondary" onClick={()=>setOpen(v=>!v)}>
-        {open?'Fermer':'Ouvrir la médiathèque'}
+      <button className="secondary mediaHeadAction" onClick={()=>setOpen(v=>!v)}>
+        {open?'Fermer':'Ouvrir'}
       </button>
     </div>
 
@@ -287,12 +287,12 @@ export default function MediaLibraryPanel({
         </div>
       }
 
-      {!authRequired&&<><div className="mediaTypeTabs">
-        <button className={targetType==='CHARACTER'?'active secondary':'secondary'} onClick={()=>setTargetType('CHARACTER')}>
-          Personnages
+      {!authRequired&&<><div className="mediaTypeTabs" role="tablist" aria-label="Type de visuel">
+        <button className={targetType==='CHARACTER'?'active':''} onClick={()=>setTargetType('CHARACTER')}>
+          <span>Personnages</span><b>{(version?.characters??[]).filter((c:any)=>c.active!==false).length}</b>
         </button>
-        <button className={targetType==='OBJECT'?'active secondary':'secondary'} onClick={()=>setTargetType('OBJECT')}>
-          Objets
+        <button className={targetType==='OBJECT'?'active':''} onClick={()=>setTargetType('OBJECT')}>
+          <span>Objets</span><b>{(version?.objects??[]).filter((o:any)=>o.active!==false).length}</b>
         </button>
       </div>
 
@@ -326,7 +326,7 @@ export default function MediaLibraryPanel({
                   <small>{target.subtitle||target.externalId}</small>
                 </span>
 
-                <em>{image?.source?'personnalisé':'défaut'}</em>
+                <em className={image?.source?'custom':'default'}>{image?.source?'Image choisie':'Défaut'}</em>
               </button>;
             })
           }
@@ -341,8 +341,8 @@ export default function MediaLibraryPanel({
             </div>
 
             {currentOverride?.source&&
-              <button className="secondary" disabled={busy} onClick={()=>void assign(null)}>
-                Revenir au visuel du MASTER / skin
+              <button className="secondary mediaResetButton" disabled={busy} onClick={()=>void assign(null)}>
+                Réinitialiser
               </button>
             }
           </div>
@@ -358,36 +358,53 @@ export default function MediaLibraryPanel({
           }
 
           <div className="mediaUpload">
-            <div>
-              <span className="micro">AJOUTER À LA BIBLIOTHÈQUE</span>
-              <strong>Nouvelle image</strong>
+            <div className="mediaUploadHead">
+              <div>
+                <span className="micro">AJOUTER UNE IMAGE</span>
+                <strong>Nouvel élément dans la bibliothèque</strong>
+              </div>
+              <small>JPG, PNG, WebP ou GIF · 5 Mo max.</small>
             </div>
 
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              onChange={e=>{
-                const file=e.target.files?.[0]??null;
-                setUploadFile(file);
-                if(file&&!uploadLabel)setUploadLabel(file.name.replace(/\.[^.]+$/,''));
-              }}
-            />
+            <div className="mediaUploadFields">
+              <label className="mediaField mediaFileField">
+                <span>Fichier</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={e=>{
+                    const file=e.target.files?.[0]??null;
+                    setUploadFile(file);
+                    if(file&&!uploadLabel)setUploadLabel(file.name.replace(/\.[^.]+$/,''));
+                  }}
+                />
+              </label>
 
-            <input
-              value={uploadLabel}
-              onChange={e=>setUploadLabel(e.target.value)}
-              placeholder="Nom de l’image"
-            />
+              <label className="mediaField">
+                <span>Nom</span>
+                <input
+                  value={uploadLabel}
+                  onChange={e=>setUploadLabel(e.target.value)}
+                  placeholder="Ex. Ruby Saint-Clair"
+                />
+              </label>
 
-            <input
-              value={uploadTags}
-              onChange={e=>setUploadTags(e.target.value)}
-              placeholder="Tags : hollywood, actrice, 1930…"
-            />
+              <label className="mediaField">
+                <span>Tags</span>
+                <input
+                  value={uploadTags}
+                  onChange={e=>setUploadTags(e.target.value)}
+                  placeholder="hollywood, actrice, 1930"
+                />
+              </label>
+            </div>
 
-            <button disabled={!uploadFile||busy} onClick={()=>void upload()}>
-              {busy?'Traitement…':'Ajouter à la bibliothèque'}
-            </button>
+            <div className="mediaUploadActions">
+              <span>{uploadFile?uploadFile.name:'Aucun fichier sélectionné'}</span>
+              <button className="mediaPrimaryAction" disabled={!uploadFile||busy} onClick={()=>void upload()}>
+                {busy?'Ajout…':'Ajouter l’image'}
+              </button>
+            </div>
           </div>
 
           <div className="mediaLibraryToolbar">
@@ -396,8 +413,8 @@ export default function MediaLibraryPanel({
               onChange={e=>setFilter(e.target.value)}
               placeholder="Filtrer par nom, tag, skin…"
             />
-            <button className="secondary" disabled={loading} onClick={()=>void load()}>
-              {loading?'Actualisation…':'Actualiser'}
+            <button className="secondary mediaRefreshButton" disabled={loading} onClick={()=>void load()}>
+              {loading?'…':'↻ Actualiser'}
             </button>
           </div>
 
@@ -410,8 +427,11 @@ export default function MediaLibraryPanel({
                   disabled={!selected||busy}
                   onClick={()=>void assign(asset.externalId)}
                 >
-                  <img src={asset.source} alt={asset.altText||asset.label}/>
-                  <span>
+                  <span className="mediaAssetVisual">
+                    <img src={asset.source} alt={asset.altText||asset.label}/>
+                    {currentOverride?.assetExternalId===asset.externalId&&<b className="mediaAssetSelectedBadge">✓ Utilisée</b>}
+                  </span>
+                  <span className="mediaAssetMeta">
                     <strong>{asset.label}</strong>
                     <small>{asset.tags||asset.category}</small>
                   </span>
