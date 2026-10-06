@@ -236,6 +236,7 @@ test('failed clandestine theft creates no grant but anonymously notifies victim'
 test('scan mode is explicit when present and backwards-compatible with secret_cible',()=>{
  assert.equal(interactionScanMode({targetType:'CHARACTER',scanMode:'DIRECT',targetSecret:true}),'DIRECT');
  assert.equal(interactionScanMode({targetType:'CHARACTER',scanMode:'DISCRET',targetSecret:false}),'DISCRET');
+ assert.equal(interactionScanMode({targetType:'CHARACTER',scanMode:'SELECT',targetSecret:false}),'SELECT');
  assert.equal(interactionScanMode({targetType:'CHARACTER',targetSecret:true}),'DISCRET');
  assert.equal(interactionScanMode({targetType:'CHARACTER',targetSecret:false}),'DIRECT');
  assert.equal(interactionScanMode({targetType:'LOCATION',scanMode:'DIRECT'}),null);
