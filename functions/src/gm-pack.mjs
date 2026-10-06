@@ -23,6 +23,7 @@ query GmPack($versionId: UUID!) {
     accentColor
     logoMediaExternalId
     backgroundMediaExternalId
+    mediaOverridesJson
 
     scenario {
       id
@@ -53,6 +54,8 @@ query GmPack($versionId: UUID!) {
     apparentMotive
     personalTimeline
     motto
+    portraitMediaId
+    portraitArchetypeCode
     playable
     active
   }
@@ -147,6 +150,8 @@ query GmPack($versionId: UUID!) {
     stealable
     consumable
     critical
+    mediaExternalId
+    visualArchetypeCode
     active
   }
 
@@ -271,6 +276,16 @@ async function read(operation, variables) {
 
 const active = rows => (rows ?? []).filter(x => x?.active !== false);
 
+function parseMediaOverrides(value){
+  if(!value)return {};
+  try{
+    const parsed=JSON.parse(value);
+    return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{};
+  }catch{
+    return {};
+  }
+}
+
 export function shapeGmPack(data) {
   const version = data?.scenarioVersion;
   if (!version) return null;
@@ -284,6 +299,34 @@ export function shapeGmPack(data) {
   const objects = active(data.gameObjects);
   const locations = active(data.gameLocations);
   const interactions = active(data.interactions);
+  const mediaOverrides=parseMediaOverrides(version.mediaOverridesJson);
+  const mediaMap=new Map(media.map(m=>[m.externalId,m]));
+
+  const mediaFor=(targetType,targetExternalId,fallbackExternalId=null)=>{
+    const override=
+      mediaOverrides[`${String(targetType??'').toUpperCase()}:${targetExternalId}`];
+
+    if(override?.source)return {
+      externalId:override.assetExternalId??null,
+      mediaType:override.mediaType??'IMAGE',
+      source:override.source,
+      altText:override.altText??override.label??null,
+      override:true,
+    };
+
+    if(fallbackExternalId){
+      const fallback=mediaMap.get(fallbackExternalId);
+      if(fallback)return {
+        externalId:fallback.externalId,
+        mediaType:fallback.mediaType,
+        source:fallback.source,
+        altText:fallback.altText??null,
+        override:false,
+      };
+    }
+
+    return null;
+  };
 
   const phases = active(data.gamePhaseDefinitions)
     .sort((a,b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0));
@@ -379,10 +422,14 @@ export function shapeGmPack(data) {
 
       return {
         ...character,
+        portrait:mediaFor('CHARACTER',character.externalId,character.portraitMediaId),
         objectives:sheetObjectives,
         relationships:sheetRelationships,
         startingDocuments,
-        startingObjects,
+        startingObjects:startingObjects.map(o=>({
+          ...o,
+          media:mediaFor('OBJECT',o.externalId,o.mediaExternalId),
+        })),
       };
     });
 
