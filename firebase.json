@@ -82,6 +82,55 @@
         }
       },
       {
+        "source": "/api/precast/list",
+        "function": {
+          "functionId": "listPrecastCampaignsView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/precast/detail",
+        "function": {
+          "functionId": "getPrecastCampaignView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/precast/create",
+        "function": {
+          "functionId": "createPrecastCampaignView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/precast/status",
+        "function": {
+          "functionId": "updatePrecastCampaignStatusView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/precast/create-session",
+        "function": {
+          "functionId": "createSessionFromPrecastView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/public/registration/campaign",
+        "function": {
+          "functionId": "getPublicPrecastCampaignView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/public/registration/submit",
+        "function": {
+          "functionId": "submitPublicPrecastRegistrationView",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/sessions/list",
         "function": {
           "functionId": "listSessions",
