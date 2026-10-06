@@ -82,6 +82,7 @@ query ScenarioVersionOverview($versionId: UUID!) {
     variantName
     genderProfile
     variantNotes
+    mediaOverridesJson
     templateVersion
     language
     status
@@ -98,13 +99,25 @@ query ScenarioVersionOverview($versionId: UUID!) {
     importedAt
     scenario { id title slug organization { id name slug } }
     characters_on_scenarioVersion(orderBy: {externalId: ASC}) {
-      externalId name publicRole gender importance intensity playable active
+      externalId name publicRole gender importance intensity portraitMediaId portraitArchetypeCode playable active
     }
     facts_on_scenarioVersion(orderBy: {externalId: ASC}) {
       externalId title nature importance isPublic active
     }
     clues_on_scenarioVersion(orderBy: {externalId: ASC}) {
       externalId playerName clueType support major active
+    }
+    gameObjects(
+      where: {scenarioVersionId: {eq: $versionId}}
+      orderBy: {externalId: ASC}
+    ) {
+      externalId
+      name
+      description
+      support
+      mediaExternalId
+      visualArchetypeCode
+      active
     }
   }
 }
@@ -202,6 +215,16 @@ query CharacterDetail($versionId: UUID!, $externalId: String!) {
   }
 }
 `;
+
+function parseMediaOverrides(value) {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 async function getAdminDataConnect() {
   const [{ initializeApp, getApps }, { getDataConnect }] = await Promise.all([
@@ -328,9 +351,12 @@ export async function getScenarioVersionOverview(versionId) {
     characters: version.characters_on_scenarioVersion ?? [],
     facts: version.facts_on_scenarioVersion ?? [],
     clues: version.clues_on_scenarioVersion ?? [],
+    objects: version.gameObjects ?? [],
+    mediaOverrides: parseMediaOverrides(version.mediaOverridesJson),
     characters_on_scenarioVersion: undefined,
     facts_on_scenarioVersion: undefined,
     clues_on_scenarioVersion: undefined,
+    gameObjects: undefined,
   };
 }
 
