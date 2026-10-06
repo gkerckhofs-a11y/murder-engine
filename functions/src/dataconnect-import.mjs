@@ -32,6 +32,8 @@ query ExistingEnrichment($scenarioVersionId: UUID!) {
   gameEventDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   voteDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   voteOptionDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
+  clues(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
+  clueFacts(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { clueExternalId factExternalId }
 }
 `;
 
@@ -54,16 +56,24 @@ mutation InsertScenarioSnapshot(
   $plots: [Plot_Data!]!
   $facts: [Fact_Data!]!
   $initialKnowledge: [InitialKnowledge_Data!]!
-  $clues: [Clue_Data!]!
-  $clueFacts: [ClueFact_Data!]!
 ) @transaction {
   scenarioVersion_insert(data: $scenarioVersion)
   character_insertMany(data: $characters)
   plot_insertMany(data: $plots)
   fact_insertMany(data: $facts)
   initialKnowledge_insertMany(data: $initialKnowledge)
-  clue_insertMany(data: $clues)
-  clueFact_insertMany(data: $clueFacts)
+}
+`;
+
+export const INSERT_CLUES_BATCH_MUTATION = `
+mutation InsertCluesBatch($data: [Clue_Data!]!) {
+  clue_insertMany(data: $data)
+}
+`;
+
+export const INSERT_CLUE_FACTS_BATCH_MUTATION = `
+mutation InsertClueFactsBatch($data: [ClueFact_Data!]!) {
+  clueFact_insertMany(data: $data)
 }
 `;
 
@@ -202,8 +212,6 @@ export function mutationVariablesFromPlan(plan, importReport) {
     plots: plan.plots,
     facts: plan.facts,
     initialKnowledge: plan.initialKnowledge,
-    clues: plan.clues,
-    clueFacts: plan.clueFacts,
   };
 }
 
@@ -219,6 +227,26 @@ function assertNoErrors(response, code) {
     throw err;
   }
   return response?.data ?? response;
+}
+
+async function insertBatches(rows, operation, run, {
+  batchSize = 100,
+  entityName = 'rows',
+} = {}) {
+  if (!rows?.length) return { count: 0, batches: 0 };
+
+  let completed = 0;
+  let batches = 0;
+
+  for (let start = 0; start < rows.length; start += batchSize) {
+    const batch = rows.slice(start, start + batchSize);
+    const response = await run(operation, { data: batch });
+    assertNoErrors(response, `DATACONNECT_${entityName.toUpperCase()}_BATCH_INSERT_FAILED`);
+    completed += batch.length;
+    batches += 1;
+  }
+
+  return { count: completed, batches };
 }
 
 async function insertRows(rows, operation, run, {
@@ -304,7 +332,12 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
   const existingEventDefinitions = new Set((enrichment.gameEventDefinitions ?? []).map(row => row.externalId));
   const existingVoteDefinitions = new Set((enrichment.voteDefinitions ?? []).map(row => row.externalId));
   const existingVoteOptionDefinitions = new Set((enrichment.voteOptionDefinitions ?? []).map(row => row.externalId));
+  const existingClues = new Set((enrichment.clues ?? []).map(row => row.externalId));
+  const clueFactKey = row => `${row.clueExternalId}\u0000${row.factExternalId}`;
+  const existingClueFacts = new Set((enrichment.clueFacts ?? []).map(clueFactKey));
 
+  const missingClues = (plan.clues ?? []).filter(row => !existingClues.has(row.externalId));
+  const missingClueFacts = (plan.clueFacts ?? []).filter(row => !existingClueFacts.has(clueFactKey(row)));
   const missingObjectives = plan.objectives.filter(row => !existingObjectives.has(row.externalId));
   const missingRelationships = plan.relationships.filter(row => !existingRelationships.has(row.externalId));
   const missingDocumentDefinitions = (plan.documents ?? []).filter(row => !existingDocumentDefinitions.has(row.externalId));
@@ -322,6 +355,20 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
   const missingEventDefinitions = plan.eventDefinitions.filter(row => !existingEventDefinitions.has(row.externalId));
   const missingVoteDefinitions = plan.voteDefinitions.filter(row => !existingVoteDefinitions.has(row.externalId));
   const missingVoteOptionDefinitions = plan.voteOptionDefinitions.filter(row => !existingVoteOptionDefinitions.has(row.externalId));
+
+  const clueResult = await insertBatches(
+    missingClues,
+    INSERT_CLUES_BATCH_MUTATION,
+    run,
+    { batchSize: 100, entityName: 'clues' },
+  );
+
+  const clueFactResult = await insertBatches(
+    missingClueFacts,
+    INSERT_CLUE_FACTS_BATCH_MUTATION,
+    run,
+    { batchSize: 100, entityName: 'clue_facts' },
+  );
 
   const objectiveResult = await insertRows(
     missingObjectives,
@@ -470,6 +517,8 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
     sourceHash: plan.sourceHash,
     baseInserted,
     imported: {
+      clues: clueResult.count,
+      clueFacts: clueFactResult.count,
       objectives: objectiveResult.count,
       relationships: relationshipResult.count,
       documents: documentDefinitionResult.count,
