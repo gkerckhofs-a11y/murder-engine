@@ -89,7 +89,7 @@ export function validateWorkbook(workbook) {
     if (r.cost_resource_id) ref('INTERACTIONS',r,'cost_resource_id','RESSOURCES');
     const targetType = String(r.target_type ?? '').toUpperCase();
     const scanMode = String(r.scan_mode ?? '').trim().toUpperCase();
-    if (scanMode && !['DIRECT','DISCRET'].includes(scanMode)) diagnostics.push(diag('ERROR','SCAN_MODE_INVALID','INTERACTIONS',r.interaction_id,`scan_mode non supporté : ${r.scan_mode}. Utiliser DIRECT ou DISCRET.`,'',true));
+    if (scanMode && !['DIRECT','DISCRET','SELECT'].includes(scanMode)) diagnostics.push(diag('ERROR','SCAN_MODE_INVALID','INTERACTIONS',r.interaction_id,`scan_mode non supporté : ${r.scan_mode}. Utiliser DIRECT, DISCRET ou SELECT.`,'',true));
     if (scanMode && !['PLAYER','CHARACTER'].includes(targetType)) diagnostics.push(diag('WARNING','SCAN_MODE_NON_CHARACTER','INTERACTIONS',r.interaction_id,'scan_mode est ignoré car la cible n’est pas un personnage.'));
     if (r.resolution === 'DICE' && [r.dice_count,r.dice_sides,r.difficulty].some(empty)) diagnostics.push(diag('ERROR','DICE_INCOMPLETE','INTERACTIONS',r.interaction_id,'Paramètres de jet incomplets.','',true));
     if (r.resolution === 'OPPOSED' && (empty(r.opposed_ability_id) || empty(r.tie_rule))) diagnostics.push(diag('ERROR','OPPOSED_INCOMPLETE','INTERACTIONS',r.interaction_id,'Paramètres de jet opposé incomplets.','',true));
