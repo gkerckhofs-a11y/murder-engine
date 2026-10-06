@@ -7,6 +7,7 @@ import { SKIN_OPTIONS, type SkinId, asSkinId, skinOptionFor, defaultAccentForSki
 import { PrecastManager, PublicRegistrationView } from './PrecastManager';
 import MediaLibraryPanel from './MediaLibraryPanel';
 import NarrativeText from './NarrativeText';
+import { organizerToken } from './admin-auth';
 
 const GM_PACK_VERSION_ID = new URLSearchParams(window.location.search).get('gmPack');
 const GM_PACK_SESSION_ID = new URLSearchParams(window.location.search).get('gmPackSession');
@@ -135,6 +136,20 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 const postJson = <T,>(url: string, body: unknown) => fetchJson<T>(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+
+async function organizerPostJson<T=any>(url:string,body:unknown):Promise<T>{
+  const token=await organizerToken(true);
+  if(!token)throw new Error('Connexion organisateur requise.');
+
+  return fetchJson<T>(url,{
+    method:'POST',
+    headers:{
+      'content-type':'application/json',
+      'authorization':`Bearer ${token}`,
+    },
+    body:JSON.stringify(body),
+  });
+}
 
 function isValidEmail(value:string){ const v=value.trim(); return v.length>3 && v.length<=254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 
@@ -404,7 +419,7 @@ export default function App() {
     if(typed!=='SUPPRIMER')return;
     setLibraryError('');
     try{
-      await postJson('/api/admin/purge/scenario',{scenarioId});
+      await organizerPostJson('/api/admin/purge/scenario',{scenarioId});
       if(version?.scenario?.id===scenarioId){setVersion(null);setCharacter(null);}
       await Promise.all([loadLibrary(),loadSessions()]);
     }catch(e){setLibraryError(e instanceof Error?e.message:String(e));}
@@ -414,7 +429,7 @@ export default function App() {
     if(!window.confirm(`Supprimer définitivement la session « ${name||'Session'} » ?\n\nMode ménage : runtime, journaux, votes et données de test seront également supprimés.`))return;
     setSessionError('');
     try{
-      await postJson('/api/admin/purge/session',{sessionId});
+      await organizerPostJson('/api/admin/purge/session',{sessionId});
       if(session?.id===sessionId){setSession(null);setRuntime(null);setLive(null);}
       await loadSessions();
     }catch(e){setSessionError(e instanceof Error?e.message:String(e));}
