@@ -97,6 +97,42 @@ test('no majority suggests second round with top two',()=>{
   assert.equal(out.majorityAbsolute,false); assert.equal(out.suggestSecondRound,true); assert.deepEqual(out.secondRoundOptionExternalIds,['OPT_A','OPT_B']);
 });
 
+test('second round keeps every candidate tied at the qualification cutoff',()=>{
+  const electorate=['A','B','C','D','E'];
+  const options=[
+    {externalId:'OPT_A',orderIndex:1,label:'A'},
+    {externalId:'OPT_B',orderIndex:2,label:'B'},
+    {externalId:'OPT_C',orderIndex:3,label:'C'},
+    {externalId:'OPT_D',orderIndex:4,label:'D'},
+    {externalId:'OPT_E',orderIndex:5,label:'E'},
+  ];
+  const definition={tieRule:'SECOND_ROUND',votesPerElector:1};
+
+  const allTied=tallyVote({
+    definition,options,electorate,
+    ballots:[
+      {electorCharacterExternalId:'A',selectedOptionExternalIds:'OPT_A',weight:1},
+      {electorCharacterExternalId:'B',selectedOptionExternalIds:'OPT_B',weight:1},
+      {electorCharacterExternalId:'C',selectedOptionExternalIds:'OPT_C',weight:1},
+      {electorCharacterExternalId:'D',selectedOptionExternalIds:'OPT_D',weight:1},
+      {electorCharacterExternalId:'E',selectedOptionExternalIds:'OPT_E',weight:1},
+    ]
+  });
+  assert.deepEqual(allTied.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C','OPT_D','OPT_E']);
+
+  const tiedForSecond=tallyVote({
+    definition,options,electorate,
+    ballots:[
+      {electorCharacterExternalId:'A',selectedOptionExternalIds:'OPT_A',weight:1},
+      {electorCharacterExternalId:'B',selectedOptionExternalIds:'OPT_A',weight:1},
+      {electorCharacterExternalId:'C',selectedOptionExternalIds:'OPT_B',weight:1},
+      {electorCharacterExternalId:'D',selectedOptionExternalIds:'OPT_C',weight:1},
+      {electorCharacterExternalId:'E',selectedOptionExternalIds:'OPT_D',weight:1},
+    ]
+  });
+  assert.deepEqual(tiedForSecond.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C','OPT_D']);
+});
+
 test('dashboard hides nothing from MJ but tracks who voted',()=>{
   const rt=runtime();rt.sessionVotes=[{voteExternalId:'VOTE_1',round:1,status:'OPEN',eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C'}];rt.sessionBallots=[{voteExternalId:'VOTE_1',round:1,electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:'OPT_A',weight:1}];
   const out=shapeVoteDashboard(session(),source(),rt);assert.equal(out.sourceReady,true);assert.equal(out.votes[0].voters[0].hasVoted,true);assert.equal(out.votes[0].voters[1].hasVoted,false);
