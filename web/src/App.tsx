@@ -1509,7 +1509,16 @@ function VotePanel({session,running,onMutated}:{session:SessionDetail;running:bo
     {!dashboard?.sourceReady&&<div className="runtimeWarning"><strong>Données de vote à enrichir</strong><p>Réimporte une fois le MASTER après la V0.9 pour charger les votes et leurs options.</p></div>}
     {error&&<p className="errorbox">{error}</p>}
     {(dashboard?.votes.length??0)===0?<p className="empty">Aucun vote structuré dans ce scénario.</p>:<div className="voteList">{dashboard?.votes.map(v=><article className="voteCard" key={v.externalId}><div className="voteHead"><div><strong>{v.title}</strong><p>{v.question}</p></div><span>{v.secret?'Secret':'Public'}</span></div>
-      {!v.activeRound&&<button disabled={!running||busy||!dashboard.sourceReady} onClick={()=>void open(v.externalId,false)}>Ouvrir le vote</button>}
+      {!v.activeRound&&<>
+        {v.scopeType==='VOTE_WINNERS'&&v.electorate.length===0&&
+          <p className="voteWaiting">En attente des résultats des votes qui composent cet électorat.</p>}
+        <button
+          disabled={!running||busy||!dashboard.sourceReady||(v.scopeType==='VOTE_WINNERS'&&v.electorate.length===0)}
+          onClick={()=>void open(v.externalId,false)}
+        >
+          Ouvrir le vote
+        </button>
+      </>}
       {v.activeRound?.status==='OPEN'&&<><div className="voteRound"><strong>Tour {v.activeRound.round}</strong><span>{v.voters.filter(x=>x.hasVoted).length}/{v.voters.length} bulletins</span></div><div className="voterList">{v.voters.map(e=><VoteVoterRow key={e.characterExternalId} vote={v} voter={e} disabled={!running||busy} onCast={(optionId)=>void cast(v.externalId,e.characterExternalId,optionId)}/>)}</div><button className="danger secondary" disabled={busy} onClick={()=>void close(v.externalId)}>Fermer et compter</button></>}
       {v.activeRound?.status==='CLOSED'&&v.result&&<div className="voteResult"><div className="voteResultSummary"><strong>{v.result.majorityAbsolute&&v.result.winnerOptionExternalId?'Majorité obtenue':'Pas de majorité absolue'}</strong><span>{v.result.ballotsCast}/{v.result.electorateCount} bulletins · {v.result.abstentions} abstention(s)</span></div><div className="voteRanking">{v.result.ranked.map((r,i)=><div key={r.optionExternalId}><span>{i+1}. {r.label}</span><strong>{r.votes}</strong></div>)}</div>{v.result.suggestSecondRound&&<button disabled={!running||busy} onClick={()=>void open(v.externalId,true)}>Ouvrir le second tour · top 2</button>}</div>}
     </article>)}</div>}
