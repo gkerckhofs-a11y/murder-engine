@@ -17,6 +17,7 @@ test('hard session cleanup deletes the whole test session through one transactio
   assert.equal(writes.length,1);
   assert.equal(writes[0].operation,__cleanupOps.SESSION_PURGE_MUTATION);
   assert.equal(writes[0].variables.sessionId,'S1');
+  assert.match(__cleanupOps.SESSION_PURGE_MUTATION,/precastRegistration_updateMany/);
   assert.match(__cleanupOps.SESSION_PURGE_MUTATION,/sessionParticipant_deleteMany/);
   assert.match(__cleanupOps.SESSION_PURGE_MUTATION,/sessionActionLog_deleteMany/);
   assert.match(__cleanupOps.SESSION_PURGE_MUTATION,/gameSession_delete/);
@@ -26,17 +27,18 @@ test('scenario cleanup removes sessions campaigns versions then the scenario fam
   const writes=[];
   const result=await purgeScenarioFamily('SC1',{
     reader:async(operation,variables)=>{
-      assert.equal(operation,__cleanupOps.SCENARIO_PURGE_QUERY);
-      assert.equal(variables.scenarioId,'SC1');
-      return {scenario:{
-        id:'SC1',
-        title:'Scenario test',
-        scenarioVersions_on_scenario:[
-          {id:'V1',gameSessions_on_scenarioVersion:[{id:'S1'},{id:'S2'}]},
-          {id:'V2',gameSessions_on_scenarioVersion:[]},
-        ],
-        precastCampaigns_on_scenario:[{id:'C1'}],
-      }};
+      if(operation===__cleanupOps.SCENARIO_PURGE_QUERY) assert.equal(variables.scenarioId,'SC1');
+      if(operation===__cleanupOps.SCENARIO_PURGE_QUERY){
+        return {
+          scenario:{id:'SC1',title:'Scenario test'},
+          scenarioVersions:[{id:'V1'},{id:'V2'}],
+          precastCampaigns:[{id:'C1'}],
+        };
+      }
+      if(operation===__cleanupOps.SESSIONS_FOR_VERSION_QUERY){
+        return {gameSessions:variables.versionId==='V1'?[{id:'S1'},{id:'S2'}]:[]};
+      }
+      assert.fail('Unexpected read operation');
     },
     executor:async(operation,variables)=>{writes.push({operation,variables});return{};},
   });
