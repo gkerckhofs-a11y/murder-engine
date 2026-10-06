@@ -46,7 +46,7 @@ query PlayerSource($versionId: UUID!) {
     externalId title text nature importance notebookCategory isPublic active
   }
   clues(where: {scenarioVersionId: {eq: $versionId}}) {
-    externalId playerName clueType playerText support presentationMode addToNotebook locationExternalId objectExternalId documentExternalId mediaExternalId major active
+    externalId playerName clueType playerText discoveryHook support presentationMode addToNotebook locationExternalId objectExternalId documentExternalId mediaExternalId major active
   }
   clueFacts(where: {scenarioVersionId: {eq: $versionId}}) { clueExternalId factExternalId }
   documentDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
@@ -490,6 +490,36 @@ function effectiveAbilities(source, characterExternalId) {
   }).filter(Boolean);
 }
 
+function rumorTargetCharacter(clue){
+  if(String(clue?.clueType??'').trim().toUpperCase()!=='RUMOR')return null;
+  const match=String(clue?.discoveryHook??'').trim().match(/^RUMOR_TARGET\s*:\s*(.+)$/i);
+  return match?String(match[1]).trim():null;
+}
+
+function isInformantInteraction(interaction){
+  const hay=normalizeSearchText(
+    `${interaction?.externalId??''} ${interaction?.name??''} ${interaction?.abilityExternalId??''} ${interaction?.category??''}`
+  );
+  return String(interaction?.abilityExternalId??'').trim().toUpperCase()==='ABILITY_INFORMANT'
+    || /(informant|rumor|rumeur)/.test(hay);
+}
+
+function availableRumorForTarget(source,runtime,actorCharacterExternalId,targetCharacterExternalId){
+  const discovered=new Set(
+    (runtime.sessionClueDiscoveries??[])
+      .filter(d=>d.characterExternalId===actorCharacterExternalId)
+      .map(d=>d.clueExternalId)
+  );
+
+  return (source.clues??[])
+    .filter(clue=>
+      clue.active!==false &&
+      rumorTargetCharacter(clue)===targetCharacterExternalId &&
+      !discovered.has(clue.externalId)
+    )
+    .sort((a,b)=>String(a.externalId).localeCompare(String(b.externalId)))[0]??null;
+}
+
 function playerInteractions(source,runtime,session,characterExternalId,resources,now=new Date()) {
   const abilities=effectiveAbilities(source,characterExternalId);
   const abilityMap=new Map(abilities.map(a=>[a.externalId,a]));
@@ -507,7 +537,17 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
     const costRow=resources.find(r=>r.resourceExternalId===i.costResourceExternalId);
     const targetType=String(i.targetType??'NONE').toUpperCase();
     let targets=[];
-    if(['PLAYER','CHARACTER'].includes(targetType)) targets=otherPlayers.map(p=>({id:p.characterExternalId,label:charMap.get(p.characterExternalId)?.name??p.displayName,subtitle:charMap.get(p.characterExternalId)?.publicRole??p.displayName}));
+    if(['PLAYER','CHARACTER'].includes(targetType)){
+      const targetRows=isInformantInteraction(i)
+        ? otherPlayers.filter(p=>availableRumorForTarget(source,runtime,characterExternalId,p.characterExternalId))
+        : otherPlayers;
+
+      targets=targetRows.map(p=>({
+        id:p.characterExternalId,
+        label:charMap.get(p.characterExternalId)?.name??p.displayName,
+        subtitle:charMap.get(p.characterExternalId)?.publicRole??p.displayName
+      }));
+    }
     else if(targetType==='LOCATION') targets=(source.gameLocations??[]).filter(x=>x.active!==false).map(x=>({id:x.externalId,label:x.name,subtitle:null}));
     else if(targetType==='OBJECT'&&!i.targetSecret) targets=inPlayObjects.map(o=>({id:o.objectExternalId,label:objectMap.get(o.objectExternalId)?.name??o.objectExternalId,subtitle:null}));
     const clandestineKind=clandestineInteractionKind(i);
@@ -515,8 +555,15 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
     const characterTarget=['PLAYER','CHARACTER'].includes(targetType);
     const requiresGm=String(i.resolution).toUpperCase()==='GM'||String(i.validation??'').toUpperCase()==='GM'||(Boolean(i.targetSecret)&&!characterTarget&&!clandestineKind);
     const running=session.status==='LIVE';
-    const directEnabled=running&&!requiresGm;
-    const blockedReason=!running?'Disponible pendant le live':requiresGm?'À demander au MJ':null;
+    const noRumorTarget=isInformantInteraction(i)&&targets.length===0;
+    const directEnabled=running&&!requiresGm&&!noRumorTarget;
+    const blockedReason=!running
+      ? 'Disponible pendant le live'
+      : requiresGm
+        ? 'À demander au MJ'
+        : noRumorTarget
+          ? 'Aucune nouvelle rumeur disponible'
+          : null;
     return {externalId:i.externalId,name:i.name,category:i.category,targetType:i.targetType,scanMode,resolution:i.resolution,directEnabled,blockedReason,clandestineKind,ability,costResourceExternalId:i.costResourceExternalId,costValue:i.costValue,currentCostResourceValue:costRow?.currentValue??null,diceCount:i.diceCount,diceSides:i.diceSides,difficulty:i.difficulty,usesCount:uses.length,maxUses,limitPerTarget:i.limitPerTarget??null,cooldownMinutes,cooldownRemainingSeconds,targets};
   });
 }
@@ -868,7 +915,7 @@ export async function sendPlayerNotification(sessionId,input,{reader=defaultRead
   const detail=await getGameSession(sessionId,{reader});if(!detail)throw new Error('SESSION_NOT_FOUND');const characterExternalId=String(input?.characterExternalId??'').trim();if(!detail.participants.some(p=>p.active!==false&&p.characterExternalId===characterExternalId))throw new Error('TARGET_CHARACTER_NOT_IN_SESSION');const title=String(input?.title??'').trim().slice(0,120);const body=String(input?.body??'').trim().slice(0,1200);if(!title||!body)throw new Error('NOTIFICATION_CONTENT_REQUIRED');const data={gameSessionId:sessionId,characterExternalId,kind:String(input?.kind??'GM').trim().slice(0,40)||'GM',title,body,priority:String(input?.priority??'NORMAL').trim().toUpperCase(),refExternalId:String(input?.refExternalId??'').trim()||null,createdAt:nowIso(now),readAt:null};await executor(INSERT_NOTIFICATION_MUTATION,{data});return{sent:true,characterExternalId,title};
 }
 
-export async function executePlayerInteraction(token,input,{reader=defaultReader,executor=defaultExecutor,interactionExecutor=executeInteraction,now=new Date()}={}) {
+export async function executePlayerInteraction(token,input,{reader=defaultReader,executor=defaultExecutor,interactionExecutor=executeInteraction,clueReveal=revealClueToCharacter,now=new Date()}={}) {
   const loaded=await loadPlayerData(token,reader);
   if(loaded.session.status!=='LIVE')throw new Error('PLAYER_ACTIONS_NOT_LIVE');
   const actor=loaded.participant.characterExternalId;
@@ -882,6 +929,16 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
     if(targetExternalId===actor) throw new Error('PLAYER_INTERACTION_SELF_TARGET_FORBIDDEN');
     if(!(loaded.session.sessionParticipants_on_gameSession??[]).some(p=>p.active!==false&&p.characterExternalId===targetExternalId)) throw new Error('TARGET_CHARACTER_NOT_IN_SESSION');
   }
+
+  const rumorInteraction=isInformantInteraction(interaction);
+  const rumorClue=
+    rumorInteraction&&targetExternalId
+      ? availableRumorForTarget(loaded.source,loaded.runtime,actor,targetExternalId)
+      : null;
+
+  if(rumorInteraction&&!rumorClue)
+    throw new Error('RUMOR_NOT_AVAILABLE_FOR_TARGET');
+
   const characterTarget=['PLAYER','CHARACTER'].includes(targetType);
   const requiresGm=String(interaction.resolution).toUpperCase()==='GM'||String(interaction.validation??'').toUpperCase()==='GM'||(Boolean(interaction.targetSecret)&&!characterTarget);
   if(requiresGm){
@@ -889,15 +946,85 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
     await executor(INSERT_PLAYER_ACTION_LOG_MUTATION,{data:{gameSessionId:loaded.session.id,actionType:'PLAYER_INTERACTION_REQUEST',characterExternalId:actor,refExternalId:id,beforeValue:null,afterValue:targetExternalId,deltaValue:null,note:`Demande joueur : ${interaction.name}`,createdAt:nowIso(now)}});
     return {requested:true,interactionExternalId:id,interactionName:interaction.name,targetExternalId,scanMode:interactionScanMode(interaction)};
   }
-  const result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId:id,targetExternalId,note:`Action joueur · scan ${interactionScanMode(interaction)??'N/A'}`});
+
+  const result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId:id,targetExternalId,note:`Action joueur · ciblage ${interactionScanMode(interaction)??'N/A'}`});
   const createdAt=nowIso(now);
-  const data={gameSessionId:loaded.session.id,characterExternalId:actor,kind:'INTERACTION',title:result.interactionName||interaction.name,body:result.success?'Action réussie.':'Action échouée.',priority:'NORMAL',refExternalId:id,createdAt,readAt:null};
-  await executor(INSERT_NOTIFICATION_MUTATION,{data});
+  const targetCharacter=(loaded.source.characters??[]).find(c=>c.externalId===targetExternalId);
+  let rumor=null;
+
+  if(result.success&&rumorClue){
+    await clueReveal(loaded.session.id,{
+      characterExternalId:actor,
+      clueExternalId:rumorClue.externalId,
+      sourceInteractionExternalId:id,
+      sourceRef:targetExternalId,
+      note:`Rumeur obtenue sur ${targetExternalId}`,
+    });
+
+    rumor={
+      clueExternalId:rumorClue.externalId,
+      name:rumorClue.playerName,
+      text:rumorClue.playerText,
+      targetCharacterExternalId:targetExternalId,
+      targetName:targetCharacter?.name??targetExternalId,
+    };
+  }
+
+  const actorNotification=rumor
+    ? {
+        gameSessionId:loaded.session.id,
+        characterExternalId:actor,
+        kind:'RUMOR',
+        title:`Rumeur — ${rumor.targetName}`,
+        body:rumor.text,
+        priority:'NORMAL',
+        refExternalId:rumor.clueExternalId,
+        createdAt,
+        readAt:null,
+      }
+    : {
+        gameSessionId:loaded.session.id,
+        characterExternalId:actor,
+        kind:'INTERACTION',
+        title:result.interactionName||interaction.name,
+        body:result.success?'Action réussie.':'Action échouée.',
+        priority:'NORMAL',
+        refExternalId:id,
+        createdAt,
+        readAt:null,
+      };
+
+  await executor(INSERT_NOTIFICATION_MUTATION,{data:actorNotification});
+
   if(characterTarget&&targetExternalId){
-    const targetData={gameSessionId:loaded.session.id,characterExternalId:targetExternalId,kind:'INTERACTION_TARGET',title:'Action sur votre personnage',body:`Une action « ${interaction.name} » vient d’être exercée sur votre personnage. ${result.success?'Elle a réussi.':'Elle a échoué.'} Murder Engine ne révèle pas son auteur.`,priority:'NORMAL',refExternalId:id,createdAt,readAt:null};
+    const targetData=rumor
+      ? {
+          gameSessionId:loaded.session.id,
+          characterExternalId:targetExternalId,
+          kind:'INTERACTION_TARGET',
+          title:'Une rumeur circule…',
+          body:'Quelqu’un vient d’obtenir une rumeur à votre sujet par son réseau d’informateurs. Murder Engine ne révèle pas son identité.',
+          priority:'NORMAL',
+          refExternalId:id,
+          createdAt,
+          readAt:null,
+        }
+      : {
+          gameSessionId:loaded.session.id,
+          characterExternalId:targetExternalId,
+          kind:'INTERACTION_TARGET',
+          title:'Action sur votre personnage',
+          body:`Une action « ${interaction.name} » vient d’être exercée sur votre personnage. ${result.success?'Elle a réussi.':'Elle a échoué.'} Murder Engine ne révèle pas son auteur.`,
+          priority:'NORMAL',
+          refExternalId:id,
+          createdAt,
+          readAt:null,
+        };
+
     await executor(INSERT_NOTIFICATION_MUTATION,{data:targetData});
   }
-  return {...result,scanMode:interactionScanMode(interaction)};
+
+  return {...result,scanMode:interactionScanMode(interaction),rumor};
 }
 
 export async function transferPlayerObject(token,input,{reader=defaultReader,executor=defaultExecutor,objectTransfer=transferSessionObject,clueReveal=revealClueToCharacter,now=new Date()}={}) {
