@@ -44,6 +44,39 @@ test('VOTE_WINNERS electorate resolves character winners from prior closed votes
   );
 });
 
+test('VOTE_WINNERS remains locked until every referenced jury seat has a winner',()=>{
+  const def={
+    externalId:'VOTE_FINAL',
+    scopeType:'VOTE_WINNERS',
+    scopeRef:'VOTE_SEAT_A;VOTE_SEAT_B',
+  };
+
+  const src=source();
+  src.voteOptionDefinitions.push(
+    {externalId:'SEAT_A_OPT',voteExternalId:'VOTE_SEAT_A',orderIndex:1,label:'Alice',characterExternalId:'CHAR_A',active:true},
+    {externalId:'SEAT_B_OPT',voteExternalId:'VOTE_SEAT_B',orderIndex:1,label:'Bob',characterExternalId:'CHAR_B',active:true},
+  );
+
+  const rt=runtime();
+  rt.sessionVotes=[
+    {voteExternalId:'VOTE_SEAT_A',round:1,status:'CLOSED',resultJson:JSON.stringify({winnerOptionExternalId:'SEAT_A_OPT'})},
+  ];
+
+  assert.deepEqual(
+    resolveElectorate(def,session().sessionParticipants_on_gameSession,rt,src),
+    []
+  );
+
+  rt.sessionVotes.push(
+    {voteExternalId:'VOTE_SEAT_B',round:1,status:'CLOSED',resultJson:JSON.stringify({winnerOptionExternalId:null})},
+  );
+
+  assert.deepEqual(
+    resolveElectorate(def,session().sessionParticipants_on_gameSession,rt,src),
+    []
+  );
+});
+
 test('tally detects absolute majority',()=>{
   const out=tallyVote({definition:source().voteDefinitions[0],options:source().voteOptionDefinitions,electorate:['CHAR_A','CHAR_B','CHAR_C'],ballots:[
     {electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:'OPT_A',weight:1},
