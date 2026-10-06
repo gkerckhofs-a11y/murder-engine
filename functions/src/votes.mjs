@@ -159,6 +159,23 @@ export function tallyVote({ definition, options, electorate, ballots }) {
   const majorityAbsolute = winner ? winner.votes > totalWeight / 2 : false;
   const tieForLead = ranked.length > 1 && ranked[0].votes === ranked[1].votes;
   const suggestSecondRound = definition.tieRule === 'SECOND_ROUND' && !majorityAbsolute && ranked.length > 2;
+
+  let secondRoundOptionExternalIds=[];
+  if(suggestSecondRound&&ranked.length>=2){
+    const leadVotes=ranked[0].votes;
+    const leadGroup=ranked.filter(x=>x.votes===leadVotes);
+
+    if(leadGroup.length>=2){
+      secondRoundOptionExternalIds=leadGroup.map(x=>x.optionExternalId);
+    }else{
+      const secondVotes=ranked[1].votes;
+      secondRoundOptionExternalIds=[
+        ranked[0].optionExternalId,
+        ...ranked.filter((x,index)=>index>0&&x.votes===secondVotes).map(x=>x.optionExternalId),
+      ];
+    }
+  }
+
   return {
     electorateCount: electorSet.size,
     ballotsCast: (ballots ?? []).filter(b=>electorSet.has(b.electorCharacterExternalId)).length,
@@ -170,7 +187,7 @@ export function tallyVote({ definition, options, electorate, ballots }) {
     winnerOptionExternalId: majorityAbsolute && !tieForLead ? winner?.optionExternalId ?? null : null,
     ranked,
     suggestSecondRound,
-    secondRoundOptionExternalIds: suggestSecondRound ? ranked.slice(0,2).map(x=>x.optionExternalId) : [],
+    secondRoundOptionExternalIds,
   };
 }
 
