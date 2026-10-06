@@ -11095,3 +11095,286 @@ button.skinGalleryCard:disabled{
     line-height:1.45;
   }
 }
+
+
+/* ==========================================================
+   SKIN — HOLLYWOOD 1930
+   Studios · Art déco · Talking pictures
+   ========================================================== */
+
+.skin-hollywood-1930{
+  --hollywood-gold:var(--skin-accent,#D4AF63);
+  --hollywood-ink:#1c1714;
+  --hollywood-paper:#f1e7d0;
+  --hollywood-paper-2:#e7d4ad;
+  --hollywood-burgundy:#682e36;
+
+  min-height:100vh;
+  color:#f4ecdd;
+  background:
+    radial-gradient(circle at 18% -8%,rgba(212,175,99,.18),transparent 27%),
+    radial-gradient(circle at 82% 2%,rgba(133,45,52,.16),transparent 25%),
+    repeating-linear-gradient(135deg,rgba(255,255,255,.018) 0 1px,transparent 1px 18px),
+    linear-gradient(180deg,#201a18 0,#100e0d 52%,#080707 100%);
+  font-family:"Trebuchet MS","Avenir Next",Arial,sans-serif;
+}
+
+.skin-hollywood-1930 .playerHero{
+  position:relative;
+  overflow:hidden;
+  border:1px solid rgba(212,175,99,.42);
+  border-top:5px solid var(--hollywood-gold);
+  border-radius:3px;
+  margin-top:12px;
+  background:
+    linear-gradient(90deg,transparent 0 18%,rgba(212,175,99,.06) 18% 19%,transparent 19% 81%,rgba(212,175,99,.06) 81% 82%,transparent 82%),
+    radial-gradient(circle at 50% 120%,rgba(230,195,119,.15),transparent 42%),
+    linear-gradient(180deg,#33251f,#171210);
+  box-shadow:0 20px 48px rgba(0,0,0,.3);
+}
+
+.skin-hollywood-1930 .playerHero::before,
+.skin-hollywood-1930 .playerHero::after{
+  content:"";
+  position:absolute;
+  width:96px;
+  height:96px;
+  border:1px solid rgba(212,175,99,.42);
+  transform:rotate(45deg);
+  pointer-events:none;
+}
+
+.skin-hollywood-1930 .playerHero::before{left:-62px;top:-62px}
+.skin-hollywood-1930 .playerHero::after{right:-62px;bottom:-62px}
+
+.skin-hollywood-1930 .playerHero .eyebrow,
+.skin-hollywood-1930 .playerSectionKicker{
+  color:var(--hollywood-gold);
+  letter-spacing:.18em;
+}
+
+.skin-hollywood-1930 .playerHero h1{
+  color:#fff3d3;
+  font-family:Georgia,"Times New Roman",serif;
+  font-weight:500;
+  letter-spacing:.035em;
+  text-shadow:0 2px 16px #000;
+}
+
+.skin-hollywood-1930 .playerRole{color:#dbcba8}
+
+.skin-hollywood-1930 .playerSessionMeta span,
+.skin-hollywood-1930 .playerStates span{
+  border-color:rgba(212,175,99,.3);
+  background:rgba(12,9,8,.62);
+  color:#eadbb9;
+}
+
+.skin-hollywood-1930 .playerStatusBar{
+  border:1px solid rgba(212,175,99,.23);
+  border-radius:3px;
+  background:#171210;
+}
+
+.skin-hollywood-1930 .paPill{
+  border:1px solid var(--hollywood-gold);
+  background:#2a211b;
+  color:#f6df9c;
+}
+
+.skin-hollywood-1930 .playerCard{
+  position:relative;
+  overflow:hidden;
+  border:1px solid #b39661;
+  border-radius:3px;
+  background:
+    linear-gradient(135deg,rgba(98,59,40,.035) 25%,transparent 25%) 0 0/26px 26px,
+    linear-gradient(145deg,var(--hollywood-paper),var(--hollywood-paper-2));
+  color:var(--hollywood-ink);
+  box-shadow:
+    0 16px 36px rgba(0,0,0,.24),
+    inset 0 0 0 3px rgba(255,255,255,.15);
+}
+
+.skin-hollywood-1930 .playerCard::before{
+  content:"";
+  position:absolute;
+  top:7px;
+  left:14px;
+  right:14px;
+  height:1px;
+  background:linear-gradient(90deg,transparent,var(--hollywood-gold),transparent);
+}
+
+.skin-hollywood-1930 .playerCard h2,
+.skin-hollywood-1930 .playerCard h3{
+  color:#241b17;
+  font-family:Georgia,"Times New Roman",serif;
+}
+
+.skin-hollywood-1930 .playerSecret{
+  border:1px solid #9c6262;
+  border-radius:2px;
+  background:linear-gradient(135deg,#71323a,#411c23);
+  color:#fff0dc;
+}
+
+.skin-hollywood-1930 .playerSecret h3{color:#ffdda0}
+
+.skin-hollywood-1930 .playerQuote{
+  border:1px solid rgba(212,175,99,.36);
+  border-left:4px solid var(--hollywood-gold);
+  border-radius:2px;
+  background:#211815;
+  color:#f0dfbc;
+  font-family:Georgia,"Times New Roman",serif;
+}
+
+.skin-hollywood-1930 .playerObjective,
+.skin-hollywood-1930 .playerRelation,
+.skin-hollywood-1930 .playerKnowledge,
+.skin-hollywood-1930 .playerClue,
+.skin-hollywood-1930 .playerObject,
+.skin-hollywood-1930 .playerVote,
+.skin-hollywood-1930 .bagDocument{
+  border-color:rgba(72,50,34,.18);
+}
+
+.skin-hollywood-1930 .playerRelation small,
+.skin-hollywood-1930 .playerKnowledge small,
+.skin-hollywood-1930 .playerClue small{
+  color:#725d43;
+}
+
+.skin-hollywood-1930 .playerPrimary{
+  border:1px solid #f1d28c;
+  border-radius:3px;
+  background:linear-gradient(180deg,#e0bd75,var(--hollywood-gold));
+  color:#23170d;
+  font-weight:900;
+  letter-spacing:.03em;
+}
+
+.skin-hollywood-1930 .playerSecondary{
+  border:1px solid #8d714a;
+  border-radius:3px;
+  background:#2a211b;
+  color:#f0dfbc;
+}
+
+.skin-hollywood-1930 select,
+.skin-hollywood-1930 input,
+.skin-hollywood-1930 textarea{
+  border:1px solid #9e8257;
+  border-radius:3px;
+  background:#f8eed8;
+  color:#261c17;
+}
+
+.skin-hollywood-1930 .playerBottomNav{
+  border-top:1px solid rgba(212,175,99,.34);
+  background:#120e0d;
+}
+
+.skin-hollywood-1930 .playerBottomNav button{color:#bca982}
+.skin-hollywood-1930 .playerBottomNav button.active{
+  color:#ffe7a9;
+  background:rgba(212,175,99,.08);
+}
+
+.skin-hollywood-1930 .playerCharacterQr{
+  border:3px double #aa8b56;
+  border-radius:3px;
+  background:#f4e5c6;
+  color:#241a15;
+}
+
+.skin-hollywood-1930 .qrScannerPanel{
+  border:1px solid #8c724e;
+  border-top:5px solid var(--hollywood-gold);
+  border-radius:3px;
+  background:#211916;
+  color:#f4ead9;
+}
+
+.skin-hollywood-1930 .qrScannerPanel::before{
+  content:"MONARCH PICTURES · CONFIDENTIAL";
+  display:block;
+  margin-bottom:8px;
+  color:var(--hollywood-gold);
+  font-size:.62rem;
+  font-weight:900;
+  letter-spacing:.17em;
+}
+
+.skin-hollywood-1930 .playerCharacterPortrait{
+  border:2px solid #c9a765;
+  border-radius:4px;
+  filter:sepia(.08) contrast(1.03);
+}
+
+.gmPackShell.skin-hollywood-1930{
+  color:#f4ead9;
+  background:
+    radial-gradient(circle at 50% 0,rgba(212,175,99,.14),transparent 35%),
+    linear-gradient(#2b201b,#100d0c);
+}
+
+.gmPackShell.skin-hollywood-1930 .gmPackHero{
+  border:1px solid #8a704b;
+  border-top:5px solid var(--hollywood-gold);
+  border-radius:3px;
+  background:#2a201b;
+}
+
+.gmPackShell.skin-hollywood-1930 .gmPackHero h1{
+  color:#ffedc3;
+  font-family:Georgia,"Times New Roman",serif;
+}
+
+.gmPackShell.skin-hollywood-1930 .gmPackPaper{
+  border:1px solid #b59866;
+  border-radius:3px;
+  background:#f0e2c3;
+  color:#261c17;
+}
+
+.gmPrintRoot.skin-hollywood-1930 .gmPrintPage,
+.gmPrintRoot.skin-hollywood-1930 .gmPrintLabelsPage{
+  background:#fff;
+  color:#111;
+}
+
+.gmPrintRoot.skin-hollywood-1930 .gmPrintHeader{
+  border-bottom:4px double #222;
+}
+
+.gmPrintRoot.skin-hollywood-1930 .gmPrintHeader h1{
+  font-family:Georgia,"Times New Roman",serif;
+}
+
+.skinVisual-hollywood-1930 .skinVisualAtmosphere{
+  background:
+    radial-gradient(circle at 25% 10%,rgba(212,175,99,.2),transparent 28%),
+    radial-gradient(circle at 80% 8%,rgba(120,38,47,.22),transparent 27%),
+    linear-gradient(#32231d,#130f0d);
+}
+
+.skinVisual-hollywood-1930 .skinVisualHero{
+  border:1px solid #8f7044;
+  border-top:3px solid var(--preview-accent);
+  border-left:1px solid #8f7044;
+  border-radius:1px;
+  background:rgba(22,16,13,.93);
+  font-family:Georgia,"Times New Roman",serif;
+}
+
+.skinVisual-hollywood-1930 .skinVisualPaper{
+  border:1px solid #bd9c63;
+  border-radius:1px;
+  background:#f0e2c4;
+}
+
+.skinVisual-hollywood-1930 .skinVisualSecret{
+  background:#6a2f37;
+}
