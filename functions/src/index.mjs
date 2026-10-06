@@ -136,6 +136,48 @@ export const commitImport = onRequest({ region: 'europe-west1', cors: true, maxI
 });
 
 
+async function requireOrganizerAuth(req,res){
+  const authorization=String(req.header('authorization')??'').trim();
+  const match=authorization.match(/^Bearer\s+(.+)$/i);
+
+  if(!match){
+    res.status(401).json({error:'ORGANIZER_AUTH_REQUIRED'});
+    return null;
+  }
+
+  try{
+    const [{initializeApp,getApps},{getAuth}]=await Promise.all([
+      import('firebase-admin/app'),
+      import('firebase-admin/auth'),
+    ]);
+
+    if(!getApps().length)initializeApp();
+
+    const decoded=await getAuth().verifyIdToken(match[1],true);
+    const email=String(decoded?.email??'').trim().toLowerCase();
+
+    const allowedEmails=new Set(
+      String(process.env.ORGANIZER_EMAILS??'gkerckhofs@gmail.com')
+        .split(',')
+        .map(v=>v.trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    if(!decoded?.email_verified || !allowedEmails.has(email)){
+      res.status(403).json({error:'ORGANIZER_NOT_ALLOWED'});
+      return null;
+    }
+
+    return decoded;
+  }catch(error){
+    logger.warn('Organizer auth rejected',{
+      message:error instanceof Error?error.message:String(error),
+    });
+    res.status(401).json({error:'ORGANIZER_AUTH_INVALID'});
+    return null;
+  }
+}
+
 function requireGet(req, res) {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
@@ -148,6 +190,7 @@ export const getMediaLibraryView = onRequest(
   { region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 },
   async (req,res)=>{
     if (!requireGet(req,res)) return;
+    if(!await requireOrganizerAuth(req,res)) return;
 
     const versionId=String(req.query.versionId??'').trim();
     if(!versionId)
@@ -178,6 +221,7 @@ export const uploadMediaLibraryAssetView = onRequest(
   async (req,res)=>{
     if(req.method!=='POST')
       return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
+    if(!await requireOrganizerAuth(req,res)) return;
 
     const versionId=String(req.header('x-version-id')??'').trim();
     if(!versionId)
@@ -219,6 +263,7 @@ export const setScenarioMediaOverrideView = onRequest(
   async (req,res)=>{
     if(req.method!=='POST')
       return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
+    if(!await requireOrganizerAuth(req,res)) return;
 
     const versionId=String(req.body?.versionId??'').trim();
     if(!versionId)
