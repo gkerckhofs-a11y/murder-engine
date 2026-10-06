@@ -4,6 +4,7 @@ import LocationScan from './LocationScan';
 import GmPackView from './GmPackView';
 import { QRCodeSVG } from 'qrcode.react';
 import { SKIN_OPTIONS, type SkinId, asSkinId, skinOptionFor, defaultAccentForSkin } from './skin-registry';
+import { PrecastManager, PublicRegistrationView } from './PrecastManager';
 
 const GM_PACK_VERSION_ID = new URLSearchParams(window.location.search).get('gmPack');
 const GM_PACK_SESSION_ID = new URLSearchParams(window.location.search).get('gmPackSession');
@@ -194,10 +195,12 @@ function versionGenderCompatible(v:VersionSummary,count:number,women:number|null
 export default function App() {
   const params = new URLSearchParams(window.location.search);
   const publicPrecastToken = params.get('precast');
+  const publicRegistrationToken = params.get('register');
   const publicPlayerToken = params.get('player');
   const scanMatch = window.location.pathname.match(/^\/scan\/([^/]+)\/?$/);
   const scanLocationExternalId = scanMatch ? decodeURIComponent(scanMatch[1]) : null;
-  const [view, setView] = useState<'library' | 'sessions' | 'import'>('library');
+  const [view, setView] = useState<'library' | 'registrations' | 'sessions' | 'import'>('library');
+  const [registrationScenarioId,setRegistrationScenarioId]=useState<string|null>(null);
   const [scenarios, setScenarios] = useState<ScenarioLibraryItem[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryError, setLibraryError] = useState('');
@@ -227,7 +230,7 @@ export default function App() {
   const [selectedAccentColor,setSelectedAccentColor]=useState('#49677A');
   const filtered = useMemo(() => data?.diagnostics.filter(d => filter === 'ALL' || d.severity === filter) ?? [], [data, filter]);
 
-  useEffect(() => { if (!publicPrecastToken && !publicPlayerToken && !scanLocationExternalId) { void loadLibrary(); void loadSessions(); } }, [publicPrecastToken, publicPlayerToken, scanLocationExternalId]);
+  useEffect(() => { if (!publicPrecastToken && !publicRegistrationToken && !publicPlayerToken && !scanLocationExternalId) { void loadLibrary(); void loadSessions(); } }, [publicPrecastToken, publicRegistrationToken, publicPlayerToken, scanLocationExternalId]);
 
   async function loadLibrary() {
     setLibraryLoading(true); setLibraryError('');
@@ -357,12 +360,6 @@ export default function App() {
       setSession(null); setRuntime(null); await loadSessions();
     } catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); }
   }
-  async function configurePrecast(enabled:boolean) {
-    if (!session) return;
-    setSessionError('');
-    try { await postJson('/api/sessions/precast/configure',{sessionId:session.id,enabled}); await openSession(session.id); await loadSessions(); }
-    catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); }
-  }
   async function initializeRuntime() {
     if (!session) return;
     setRuntimeLoading(true); setSessionError('');
@@ -437,6 +434,7 @@ export default function App() {
   if (GM_PACK_VERSION_ID)
     return <GmPackView versionId={GM_PACK_VERSION_ID}/>;
   if (scanLocationExternalId) return <LocationScan locationExternalId={scanLocationExternalId}/>;
+  if (publicRegistrationToken) return <PublicRegistrationView token={publicRegistrationToken}/>;
   if (publicPrecastToken) return <PublicPrecastView token={publicPrecastToken}/>;
   if (publicPlayerToken) return <PlayerPortal token={publicPlayerToken}/>;
 
@@ -445,6 +443,7 @@ export default function App() {
       <div><p className="eyebrow">LUDIFICATEUR</p><h1>Murder Engine</h1><p className="subtitle">Scénarios, sessions & casting assisté — V1.6.1</p></div>
       <nav className="mainnav" aria-label="Navigation principale">
         <button className={view==='library'?'active':''} onClick={()=>setView('library')}>Scénarios</button>
+        <button className={view==='registrations'?'active':''} onClick={()=>{setRegistrationScenarioId(null);setView('registrations');}}>Inscriptions</button>
         <button className={view==='sessions'?'active':''} onClick={()=>{setView('sessions');void loadSessions();}}>Sessions</button>
         <button className={view==='import'?'active':''} onClick={()=>{setImportTargetScenario(null);choose(null);setView('import');}}>Importer</button>
       </nav>
@@ -452,15 +451,17 @@ export default function App() {
 
     {view === 'library' && version && <div className="gmPackShortcut"><button onClick={()=>window.open(`/?gmPack=${encodeURIComponent(version.id)}`,'_blank')}>📦 Ouvrir le Pack MJ</button></div>}
 
-    {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{setImportTargetScenario(scenario);choose(null);setView('import');}} onOpenVersion={id=>void openVersion(id)} onArchiveVersion={(id,archived)=>void archiveScenarioVersion(id,archived)} onBack={()=>{setVersion(null);setCharacter(null);}} onOpenCharacter={id=>void openCharacter(id)} onCreateSession={createSession} />}
+    {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{setImportTargetScenario(scenario);choose(null);setView('import');}} onOpenVersion={id=>void openVersion(id)} onArchiveVersion={(id,archived)=>void archiveScenarioVersion(id,archived)} onBack={()=>{setVersion(null);setCharacter(null);}} onOpenCharacter={id=>void openCharacter(id)} onCreateSession={createSession} onRegistrations={scenarioId=>{setRegistrationScenarioId(scenarioId);setView('registrations');}} />}
 
-    {view === 'sessions' && <SessionsView sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onDelete={()=>void deleteCurrentSession()} onPrecast={enabled=>void configurePrecast(enabled)} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onInteractionMutation={()=>void interactionMutation()} />}
+    {view === 'registrations' && <PrecastManager scenarios={scenarios} initialScenarioId={registrationScenarioId} onOpenSession={sessionId=>{setRegistrationScenarioId(null);setView('sessions');void loadSessions();void openSession(sessionId);}} />}
+
+    {view === 'sessions' && <SessionsView sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onDelete={()=>void deleteCurrentSession()} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onInteractionMutation={()=>void interactionMutation()} />}
 
     {view === 'import' && <ImportView targetScenario={importTargetScenario} skinId={asSkinId(importTargetScenario?.skinId??selectedSkinId)} accentColor={importTargetScenario?.accentColor||selectedAccentColor||defaultAccentForSkin(asSkinId(importTargetScenario?.skinId??selectedSkinId))} skinLocked={Boolean(importTargetScenario)} onSkinChange={(id,accent)=>{setSelectedSkinId(id);setSelectedAccentColor(accent);}} onAccentChange={setSelectedAccentColor} file={file} data={data} commit={commit} loading={loading} committing={committing} error={error} filter={filter} filtered={filtered} onChoose={choose} onValidate={()=>void validate()} onCommit={()=>void commitImport()} onFilter={setFilter} onOpenImported={()=>commit && void openVersion(commit.scenarioVersionId).then(()=>setView('library'))} />}
   </main>;
 }
 
-function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;error:string;version:ScenarioVersionDetail|null;versionLoading:boolean;character:CharacterDetail|null;characterLoading:boolean;onReload:()=>void;onImport:()=>void;onImportVersion:(scenario:ScenarioLibraryItem)=>void;onOpenVersion:(id:string)=>void;onArchiveVersion:(id:string,archived:boolean)=>void;onBack:()=>void;onOpenCharacter:(id:string)=>void;onCreateSession:(input:{name:string;scheduledAt?:string;venue?:string;language?:string;notes?:string})=>Promise<void>}) {
+function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;error:string;version:ScenarioVersionDetail|null;versionLoading:boolean;character:CharacterDetail|null;characterLoading:boolean;onReload:()=>void;onImport:()=>void;onImportVersion:(scenario:ScenarioLibraryItem)=>void;onOpenVersion:(id:string)=>void;onArchiveVersion:(id:string,archived:boolean)=>void;onBack:()=>void;onOpenCharacter:(id:string)=>void;onCreateSession:(input:{name:string;scheduledAt?:string;venue?:string;language?:string;notes?:string})=>Promise<void>;onRegistrations:(scenarioId:string)=>void}) {
   const [pickerScenarioId,setPickerScenarioId]=useState<string|null>(null);
   const [showArchivedVariants,setShowArchivedVariants]=useState(false);
   const [playerCount,setPlayerCount]=useState(15);
@@ -521,6 +522,7 @@ function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;erro
         </div>
 
         <div className="familyActions">
+          <button onClick={()=>props.onRegistrations(s.id)}>📝 Inscriptions</button>
           <button onClick={()=>{
             setPickerScenarioId(pickerOpen?null:s.id);
             const first=s.versions[0];
@@ -587,11 +589,11 @@ function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;erro
 
 function CreateSessionForm({version,onCreate}:{version:ScenarioVersionDetail;onCreate:(input:{name:string;scheduledAt?:string;venue?:string;language?:string;notes?:string})=>Promise<void>}) {
   const [open,setOpen]=useState(false); const [name,setName]=useState(`${version.scenario.title} — session`); const [scheduledAt,setScheduledAt]=useState(''); const [venue,setVenue]=useState(''); const [language,setLanguage]=useState(String(version.language||'FR').toUpperCase()==='EN'?'EN':'FR'); const [busy,setBusy]=useState(false);
-  if(!open) return <section className="sessionCta card"><div><p className="eyebrow">EXPLOITATION</p><h3>Préparer une partie</h3><p>Crée une session indépendante de ce snapshot pour inscrire les joueurs et faire le casting.</p></div><button onClick={()=>setOpen(true)}>Créer une session</button></section>;
+  if(!open) return <section className="sessionCta card"><div><p className="eyebrow">EXPLOITATION</p><h3>Préparer une partie</h3><p>Crée directement une session si ton groupe est déjà connu. Pour collecter les inscriptions d’abord, utilise l’onglet « Inscriptions » du scénario.</p></div><button onClick={()=>setOpen(true)}>Créer une session</button></section>;
   return <section className="sessionCta card sessionForm"><div><p className="eyebrow">NOUVELLE SESSION</p><h3>{version.scenario.title} · {version.variantName||`V${version.versionLabel}`}</h3><p>{version.genderComposition.label} · {genderProfileLabel(version.genderProfile)}</p></div><div className="formGrid"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label><label>Langue joueurs<select value={language} onChange={e=>setLanguage(e.target.value)}><option value="FR">Français</option><option value="EN">English</option></select></label></div><div className="formActions"><button className="secondary" onClick={()=>setOpen(false)}>Annuler</button><button disabled={!name.trim()||busy} onClick={async()=>{setBusy(true);try{await onCreate({name,scheduledAt,venue,language});}finally{setBusy(false);}}}>{busy?'Création…':'Créer et ouvrir'}</button></div></section>;
 }
 
-function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onDelete:()=>void;onPrecast:(enabled:boolean)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
+function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onDelete:()=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
   const [showArchived,setShowArchived]=useState(false);
   const listedSessions=showArchived?props.sessions:props.sessions.filter(s=>s.status!=='ARCHIVED');
 
@@ -626,8 +628,7 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
     </section>
 
     <section className="card sessionLifecycle"><div><p className="eyebrow">GESTION DE LA SESSION</p><h3>{archived?'Session archivée':'Conserver ou supprimer'}</h3><p>{archived?'Elle est masquée de la liste active. Tu peux la réactiver en brouillon.':'Archive-la pour la conserver sans l’encombrer dans la liste active. La suppression définitive est réservée aux sessions sans runtime.'}</p></div><div className="lifecycleButtons">{archived?<button className="secondary" onClick={()=>props.onArchive(false)}>Réactiver en brouillon</button>:<button className="secondary" onClick={()=>props.onArchive(true)}>Archiver la session</button>}<button className="danger" disabled={deleteLocked} title={deleteLocked?'Une session avec runtime ou historique de live doit être archivée, pas supprimée.':''} onClick={props.onDelete}>Supprimer définitivement</button></div></section>
-    {!archived&&['DRAFT','CASTING','READY'].includes(s.status)&&<><section className="card sessionState"><div><p className="eyebrow">ÉTAT PRÉ-LIVE</p><h3>{statusLabel(s.status)}</h3><p>DRAFT = préparation · CASTING = attribution en cours · READY = distribution verrouillée et prête pour le briefing.</p></div><div className="statusButtons">{['DRAFT','CASTING','READY'].map(st=><button key={st} disabled={Boolean(s.runtimeInitializedAt)&&st!=='READY'} className={s.status===st?'active':''} onClick={()=>props.onStatus(st)}>{statusLabel(st)}</button>)}</div></section>
-    <PrecastPanel session={s} onToggle={props.onPrecast}/></>}
+    {!archived&&['DRAFT','CASTING','READY'].includes(s.status)&&<section className="card sessionState"><div><p className="eyebrow">ÉTAT PRÉ-LIVE</p><h3>{statusLabel(s.status)}</h3><p>DRAFT = préparation · CASTING = attribution en cours · READY = distribution verrouillée et prête pour le briefing.</p></div><div className="statusButtons">{['DRAFT','CASTING','READY'].map(st=><button key={st} disabled={Boolean(s.runtimeInitializedAt)&&st!=='READY'} className={s.status===st?'active':''} onClick={()=>props.onStatus(st)}>{statusLabel(st)}</button>)}</div></section>}
     <section className="sessionPackShortcut card">
       <div>
         <p className="eyebrow">
@@ -1469,13 +1470,6 @@ function StateControl({character,definitions,disabled,onState}:{character:LiveCh
   const [selected,setSelected]=useState(definitions[0]?.externalId||'');
   useEffect(()=>{if(!selected&&definitions[0])setSelected(definitions[0].externalId)},[definitions,selected]);
   return <div className="stateControl"><div className="activeStates">{character.states.length===0?<small>Aucun état actif</small>:character.states.map(s=><span key={s.stateExternalId}>{s.name}<button disabled={disabled} title="Retirer" onClick={()=>onState(character.characterExternalId,s.stateExternalId,'REMOVE')}>×</button></span>)}</div><div className="stateApply"><select disabled={disabled||definitions.length===0} value={selected} onChange={e=>setSelected(e.target.value)}>{definitions.map(d=><option value={d.externalId} key={d.externalId}>{d.name}</option>)}</select><button className="secondary" disabled={disabled||!selected} onClick={()=>onState(character.characterExternalId,selected,'APPLY')}>Appliquer</button></div></div>;
-}
-
-function PrecastPanel({session,onToggle}:{session:SessionDetail;onToggle:(enabled:boolean)=>void}) {
-  const [copied,setCopied]=useState(false);
-  const link=session.precastToken?`${window.location.origin}/?precast=${encodeURIComponent(session.precastToken)}`:'';
-  const canEnable=session.status==='DRAFT'||session.status==='CASTING';
-  return <section className="card precastPanel"><div className="precastHead"><div><p className="eyebrow">PRÉ-CASTING PARTICIPANT</p><h3>{session.precastEnabled?'Lien ouvert':'Lien désactivé'}</h3><p>Les joueurs peuvent encoder eux-mêmes leurs préférences avant l’attribution des rôles.</p></div><button className={session.precastEnabled?'danger secondary':''} disabled={!session.precastEnabled&&!canEnable} onClick={()=>onToggle(!session.precastEnabled)}>{session.precastEnabled?'Désactiver':'Activer le lien'}</button></div><div className="precastStats"><div><span>Ouvertures</span><strong>{session.precastOpenCount??0}</strong></div><div><span>Formulaires reçus</span><strong>{session.precastSubmissionCount??0}</strong></div><div><span>Participants pré-castés</span><strong>{session.counts.precastParticipants??0}</strong></div></div>{session.precastEnabled&&link&&<div className="shareLink"><input readOnly value={link}/><button className="secondary" onClick={async()=>{await navigator.clipboard.writeText(link);setCopied(true);setTimeout(()=>setCopied(false),1600);}}>{copied?'Copié ✓':'Copier le lien'}</button><a className="buttonLink" href={link} target="_blank" rel="noreferrer">Tester</a></div>}{!canEnable&&!session.precastEnabled&&<p className="microNote">Le pré-casting est fermé dès que la session passe à « Prête ».</p>}</section>;
 }
 
 function PublicPrecastView({token}:{token:string}) {
