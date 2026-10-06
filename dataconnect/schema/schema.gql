@@ -55,6 +55,10 @@ type ScenarioVersion @table {
   logoMediaExternalId: String
   backgroundMediaExternalId: String
 
+  # Presentation overrides selected from the reusable organization media library.
+  # JSON map keyed by "CHARACTER:<externalId>", "OBJECT:<externalId>", etc.
+  mediaOverridesJson: String
+
   locked: Boolean! @default(value: false)
   importedAt: Timestamp! @default(expr: "request.time")
 }
@@ -82,6 +86,7 @@ type Character @table(key: ["scenarioVersion", "externalId"]) {
   personalTimeline: String
   motto: String
   portraitMediaId: String
+  portraitArchetypeCode: String
   playable: Boolean! @default(value: true)
   active: Boolean! @default(value: true)
 }
@@ -186,6 +191,23 @@ type MediaAsset @table(key: ["scenarioVersion", "externalId"]) {
   active: Boolean! @default(value: true)
 }
 
+# Reusable media library shared by all scenarios in one organization.
+# The binary file lives in Firebase Storage; this table stores its public source and metadata.
+type OrganizationMediaAsset @table(key: ["organization", "externalId"]) {
+  organization: Organization!
+  externalId: String!
+  label: String!
+  category: String!
+  mediaType: String!
+  source: String!
+  altText: String
+  tags: String
+  skinId: String
+  active: Boolean! @default(value: true)
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
 type DocumentDefinition @table(key: ["scenarioVersion", "externalId"]) {
   scenarioVersion: ScenarioVersion!
   externalId: String!
@@ -224,6 +246,8 @@ type GameObject @table(key: ["scenarioVersion", "externalId"]) {
   identification1: String
   identification2: String
   identification3: String
+  mediaExternalId: String
+  visualArchetypeCode: String
   active: Boolean! @default(value: true)
 }
 
