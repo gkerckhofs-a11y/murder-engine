@@ -373,7 +373,7 @@ export async function getPublicPrecastCampaign(token,{reader=defaultReader,execu
     });
   }
   const versions=(campaign.scenario?.scenarioVersions_on_scenario??[]).filter(v=>v.status!=='ARCHIVED');
-  const representative=versions[0]??null;
+  const representative=versions.find(v=>String(v.language??'').toUpperCase()===String(campaign.language??'').toUpperCase())??versions[0]??null;
   return {
     name:campaign.name,
     plannedAt:campaign.plannedAt??null,
