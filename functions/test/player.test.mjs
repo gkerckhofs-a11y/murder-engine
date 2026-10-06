@@ -242,6 +242,29 @@ test('scan mode is explicit when present and backwards-compatible with secret_ci
  assert.equal(interactionScanMode({targetType:'LOCATION',scanMode:'DIRECT'}),null);
 });
 
+test('Informant SELECT action reveals a prepared target rumor without GM approval',async()=>{
+ const src=source();
+ src.abilities.push({externalId:'ABILITY_INFORMANT',name:'Rumour Network',description:'Get rumour',category:'INFORMATION',defaultLevel:1,secret:false,active:true});
+ src.abilityAssignments.push({externalId:'AA_RUMOR',ownerType:'CHARACTER',ownerExternalId:'CHAR_A',abilityExternalId:'ABILITY_INFORMANT',level:1,flatBonus:0,active:true});
+ src.interactions.push({externalId:'ACT_INFORMANT',name:'Get a Rumour',category:'INFORMATION',targetType:'CHARACTER',scanMode:'SELECT',abilityExternalId:'ABILITY_INFORMANT',resolution:'AUTO',validation:'AUTO',costResourceExternalId:'RES_PA',costValue:1,limitPerTarget:1,targetSecret:false,active:true});
+ src.clues.push({externalId:'RUMOR_1',playerName:'Rumour about Bob',clueType:'RUMOR',playerText:'Bob may be hiding a contract.',discoveryHook:'RUMOR_TARGET:CHAR_B',addToNotebook:true,active:true});
+
+ const rt=runtime();
+ const shaped=shapePlayerPortal(participant(),session(),src,rt,new Date('2026-09-21T18:05:00Z'));
+ const action=shaped.interactions.find(x=>x.externalId==='ACT_INFORMANT');
+ assert.equal(action.scanMode,'SELECT');
+ assert.deepEqual(action.targets.map(x=>x.id),['CHAR_B']);
+
+ const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;throw new Error('bad op')};
+ const revealed=[];const writes=[];
+ const out=await executePlayerInteraction(participant().playerAccessToken,{interactionExternalId:'ACT_INFORMANT',targetExternalId:'CHAR_B'},{reader,executor:async(op,vars)=>{writes.push({op,vars});return{};},interactionExecutor:async()=>({interactionName:'Get a Rumour',success:true}),clueReveal:async(sid,input)=>{revealed.push(input);return{};}});
+ assert.equal(out.scanMode,'SELECT');
+ assert.equal(out.rumor.text,'Bob may be hiding a contract.');
+ assert.equal(revealed[0].clueExternalId,'RUMOR_1');
+ const target=writes.map(x=>x.vars?.data).find(x=>x?.characterExternalId==='CHAR_B');
+ assert.match(target.body,/rumeur|rumor/i);
+});
+
 test('direct character action notifies target without revealing actor',async()=>{
  const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();throw new Error('bad op')};
  const writes=[];
