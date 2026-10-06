@@ -199,8 +199,18 @@ export function buildImportPlan(workbook, {
   }));
 
   const documentObjectId = documentExternalId => `DOC_OBJ_${documentExternalId}`;
+  const documentById = new Map(documents.map(d=>[d.externalId,d]));
+  const documentCreatesObject = document => (
+    document &&
+    document.active !== false &&
+    String(document.support ?? '').trim().toUpperCase() !== 'DIGITAL'
+  );
 
-  const clues = (workbook.sheets.INDICES ?? []).map(r => ({
+  const clues = (workbook.sheets.INDICES ?? []).map(r => {
+    const documentExternalId=textOrNull(r.document_id);
+    const linkedDocument=documentExternalId?documentById.get(documentExternalId):null;
+
+    return ({
     scenarioVersionId,
     externalId: String(r.clue_id),
     internalName: String(r.nom_interne),
@@ -211,8 +221,12 @@ export function buildImportPlan(workbook, {
     discoveryHook: textOrNull(r.accroche_decouverte),
     plotExternalId: textOrNull(r.plot_id),
     locationExternalId: textOrNull(r.location_id),
-    objectExternalId: textOrNull(r.object_id) ?? (textOrNull(r.document_id) ? documentObjectId(String(r.document_id)) : null),
-    documentExternalId: textOrNull(r.document_id),
+    objectExternalId:
+      textOrNull(r.object_id) ??
+      (documentCreatesObject(linkedDocument)
+        ? documentObjectId(documentExternalId)
+        : null),
+    documentExternalId,
     support: String(r.support),
     presentationMode: String(r.presentation_mode),
     shareable: truthy(r.partageable, true),
@@ -223,7 +237,8 @@ export function buildImportPlan(workbook, {
     mediaExternalId: textOrNull(r.media_id),
     addToNotebook: truthy(r.ajouter_au_carnet, true),
     active: truthy(r.actif, true),
-  }));
+  });
+  });
 
   const clueFacts = [];
   for (const r of workbook.sheets.INDICES ?? []) {
@@ -261,7 +276,10 @@ export function buildImportPlan(workbook, {
   const explicitObjectIds = new Set(gameObjects.map(o=>o.externalId));
   for (const d of documents) {
     const externalId=documentObjectId(d.externalId);
-    if (explicitObjectIds.has(externalId) || d.active === false) continue;
+    if (
+      explicitObjectIds.has(externalId) ||
+      !documentCreatesObject(d)
+    ) continue;
     gameObjects.push({
       scenarioVersionId, externalId, name:d.title, description:d.textContent || d.title, support:'DOCUMENT',
       propRequirementExternalId:d.propRequirementExternalId, ownerInitialType:d.ownerInitialType, ownerInitialExternalId:d.ownerInitialExternalId,
