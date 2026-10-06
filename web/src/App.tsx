@@ -405,6 +405,27 @@ export default function App() {
   }
 
 
+  async function purgeScenario(scenarioId:string,title:string){
+    const typed=window.prompt(`Supprimer définitivement le scénario « ${title} » ?\n\nCela supprimera aussi ses variantes, inscriptions et sessions liées.\n\nTape SUPPRIMER pour confirmer.`);
+    if(typed!=='SUPPRIMER')return;
+    setLibraryError('');
+    try{
+      await postJson('/api/admin/purge/scenario',{scenarioId});
+      if(version?.scenario?.id===scenarioId){setVersion(null);setCharacter(null);}
+      await Promise.all([loadLibrary(),loadSessions()]);
+    }catch(e){setLibraryError(e instanceof Error?e.message:String(e));}
+  }
+
+  async function purgeSession(sessionId:string,name:string){
+    if(!window.confirm(`Supprimer définitivement la session « ${name||'Session'} » ?\n\nMode ménage : runtime, journaux, votes et données de test seront également supprimés.`))return;
+    setSessionError('');
+    try{
+      await postJson('/api/admin/purge/session',{sessionId});
+      if(session?.id===sessionId){setSession(null);setRuntime(null);setLive(null);}
+      await loadSessions();
+    }catch(e){setSessionError(e instanceof Error?e.message:String(e));}
+  }
+
   function choose(next: File | null) { setFile(next); setData(null); setCommit(null); setError(''); }
   async function validate() {
     if (!file) return; setLoading(true); setError(''); setData(null); setCommit(null);
@@ -451,17 +472,17 @@ export default function App() {
 
     {view === 'library' && version && <div className="gmPackShortcut"><button onClick={()=>window.open(`/?gmPack=${encodeURIComponent(version.id)}`,'_blank')}>📦 Ouvrir le Pack MJ</button></div>}
 
-    {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{setImportTargetScenario(scenario);choose(null);setView('import');}} onOpenVersion={id=>void openVersion(id)} onArchiveVersion={(id,archived)=>void archiveScenarioVersion(id,archived)} onBack={()=>{setVersion(null);setCharacter(null);}} onOpenCharacter={id=>void openCharacter(id)} onCreateSession={createSession} onRegistrations={scenarioId=>{setRegistrationScenarioId(scenarioId);setView('registrations');}} />}
+    {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{setImportTargetScenario(scenario);choose(null);setView('import');}} onOpenVersion={id=>void openVersion(id)} onArchiveVersion={(id,archived)=>void archiveScenarioVersion(id,archived)} onBack={()=>{setVersion(null);setCharacter(null);}} onOpenCharacter={id=>void openCharacter(id)} onCreateSession={createSession} onRegistrations={scenarioId=>{setRegistrationScenarioId(scenarioId);setView('registrations');}} onDeleteScenario={(id,title)=>void purgeScenario(id,title)} />}
 
     {view === 'registrations' && <PrecastManager scenarios={scenarios} initialScenarioId={registrationScenarioId} onOpenSession={sessionId=>{setRegistrationScenarioId(null);setView('sessions');void loadSessions();void openSession(sessionId);}} />}
 
-    {view === 'sessions' && <SessionsView sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onDelete={()=>void deleteCurrentSession()} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onInteractionMutation={()=>void interactionMutation()} />}
+    {view === 'sessions' && <SessionsView sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onDelete={()=>void deleteCurrentSession()} onPurge={(id,name)=>void purgeSession(id,name)} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onInteractionMutation={()=>void interactionMutation()} />}
 
     {view === 'import' && <ImportView targetScenario={importTargetScenario} skinId={asSkinId(importTargetScenario?.skinId??selectedSkinId)} accentColor={importTargetScenario?.accentColor||selectedAccentColor||defaultAccentForSkin(asSkinId(importTargetScenario?.skinId??selectedSkinId))} skinLocked={Boolean(importTargetScenario)} onSkinChange={(id,accent)=>{setSelectedSkinId(id);setSelectedAccentColor(accent);}} onAccentChange={setSelectedAccentColor} file={file} data={data} commit={commit} loading={loading} committing={committing} error={error} filter={filter} filtered={filtered} onChoose={choose} onValidate={()=>void validate()} onCommit={()=>void commitImport()} onFilter={setFilter} onOpenImported={()=>commit && void openVersion(commit.scenarioVersionId).then(()=>setView('library'))} />}
   </main>;
 }
 
-function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;error:string;version:ScenarioVersionDetail|null;versionLoading:boolean;character:CharacterDetail|null;characterLoading:boolean;onReload:()=>void;onImport:()=>void;onImportVersion:(scenario:ScenarioLibraryItem)=>void;onOpenVersion:(id:string)=>void;onArchiveVersion:(id:string,archived:boolean)=>void;onBack:()=>void;onOpenCharacter:(id:string)=>void;onCreateSession:(input:{name:string;scheduledAt?:string;venue?:string;language?:string;notes?:string})=>Promise<void>;onRegistrations:(scenarioId:string)=>void}) {
+function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;error:string;version:ScenarioVersionDetail|null;versionLoading:boolean;character:CharacterDetail|null;characterLoading:boolean;onReload:()=>void;onImport:()=>void;onImportVersion:(scenario:ScenarioLibraryItem)=>void;onOpenVersion:(id:string)=>void;onArchiveVersion:(id:string,archived:boolean)=>void;onBack:()=>void;onOpenCharacter:(id:string)=>void;onCreateSession:(input:{name:string;scheduledAt?:string;venue?:string;language?:string;notes?:string})=>Promise<void>;onRegistrations:(scenarioId:string)=>void;onDeleteScenario:(scenarioId:string,title:string)=>void}) {
   const [pickerScenarioId,setPickerScenarioId]=useState<string|null>(null);
   const [showArchivedVariants,setShowArchivedVariants]=useState(false);
   const [playerCount,setPlayerCount]=useState(15);
@@ -469,92 +490,73 @@ function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;erro
   const [men,setMen]=useState<string>('');
   if (!props.version) return <section>
     {props.error && <p className="errorbox standalone">{props.error}</p>}
-    <div className="sectionhead"><div><p className="eyebrow">BIBLIOTHÈQUE</p><h2>Scénarios & variantes</h2><p>Un scénario regroupe plusieurs MASTER variants. Chaque variante est une configuration complète et prête à jouer.</p></div><div className="sessionListActions"><button onClick={props.onImport}>+ Nouveau scénario</button><button className="secondary" onClick={props.onReload}>{props.loading?'Actualisation…':'Actualiser'}</button></div></div>
+    <div className="sectionhead">
+      <div><p className="eyebrow">BIBLIOTHÈQUE</p><h2>Scénarios</h2><p>Une carte par univers. Ouvre seulement les variantes quand tu en as besoin.</p></div>
+      <div className="sessionListActions"><button onClick={props.onImport}>+ Nouveau scénario</button><button className="secondary" onClick={props.onReload}>{props.loading?'Actualisation…':'Actualiser'}</button></div>
+    </div>
     {props.loading && props.scenarios.length===0 && <section className="card emptyState">Chargement…</section>}
     {!props.loading && props.scenarios.length===0 && <section className="card emptyState"><strong>Aucun scénario importé.</strong><button onClick={props.onImport}>Importer un scénario</button></section>}
-    <div className="scenarioVersionGrid">{props.scenarios.map(s=>{
+    <div className="scenarioFamilyList">{props.scenarios.map(s=>{
       const pickerOpen=pickerScenarioId===s.id;
       const wc=women===''?null:Number(women), mc=men===''?null:Number(men);
       const activeVersions=s.versions.filter(v=>v.status!=='ARCHIVED');
       const archivedVersions=s.versions.filter(v=>v.status==='ARCHIVED');
       const visibleVersions=showArchivedVariants?s.versions:activeVersions;
       const candidates=activeVersions.filter(v=>versionCountCompatible(v,playerCount)&&versionGenderCompatible(v,playerCount,wc,mc));
-      return <article className="scenarioCard scenarioFamilyCard" key={s.id}>
-        <div className="scenarioTitleRow"><div><span className="micro">{s.organization?.name??'Organisation'}</span><h3>{s.title}</h3><small className="familyHint">scenario_id : {s.versions[0]?.sourceScenarioId||'—'}</small></div><span className="versionCount">{activeVersions.length} active{activeVersions.length>1?'s':''}{archivedVersions.length?` · ${archivedVersions.length} archivée${archivedVersions.length>1?'s':''}`:''}</span></div>
-        <div className="variantCatalog">
-          {visibleVersions.map(v=><article className={`variantCatalogCard ${v.status==='ARCHIVED'?'archived':''}`} key={v.id}>
-            <div className="variantCatalogHead">
-              <div>
-                <span className="micro">{v.status==='ARCHIVED'?'VARIANTE ARCHIVÉE':'VARIANTE JOUABLE'}</span>
-                <strong>{v.variantName||`${v.counts.playableCharacters} joueurs`}</strong>
+      const playableCounts=activeVersions.map(v=>v.counts.playableCharacters).filter(Number.isFinite);
+      const playerRange=playableCounts.length
+        ? (Math.min(...playableCounts)===Math.max(...playableCounts)?String(playableCounts[0]):`${Math.min(...playableCounts)}–${Math.max(...playableCounts)}`)
+        : '—';
+
+      return <article className="card scenarioFamilyCompact" key={s.id}>
+        <div className="scenarioCompactHead">
+          <div>
+            <span className="micro">{s.organization?.name??'Organisation'}</span>
+            <h3>{s.title}</h3>
+            <p>{activeVersions.length} variante{activeVersions.length>1?'s':''} active{activeVersions.length>1?'s':''} · {playerRange} joueurs</p>
+          </div>
+          <div className="scenarioCompactActions">
+            <button onClick={()=>props.onRegistrations(s.id)}>📝 Inscriptions</button>
+            <button className="secondary" onClick={()=>props.onImportVersion(s)}>+ Variante</button>
+            <button className="danger secondary" onClick={()=>props.onDeleteScenario(s.id,s.title)}>🗑 Supprimer</button>
+          </div>
+        </div>
+
+        <details className="scenarioVariantsDetails">
+          <summary>Voir les variantes <span>{s.versions.length}</span></summary>
+          <div className="compactVersionList">
+            {visibleVersions.map(v=><article className={`compactVersionRow ${v.status==='ARCHIVED'?'archived':''}`} key={v.id}>
+              <button className="compactVersionMain" onClick={()=>props.onOpenVersion(v.id)}>
+                <span><strong>{v.variantName||`${v.counts.playableCharacters} joueurs`}</strong><small>{v.subtitle||v.universe||`Révision V${v.versionLabel}`}</small></span>
+                <span><b>{v.counts.playableCharacters} PJ</b><small>{v.genderComposition.label}</small></span>
+                <span><b>V{v.versionLabel}</b><small>{v.language} · {v.status}</small></span>
+              </button>
+              <div className="compactVersionActions">
+                <button className="secondary" onClick={()=>window.open(`/?gmPack=${encodeURIComponent(v.id)}`,'_blank')}>📦 Pack MJ</button>
+                <button className={v.status==='ARCHIVED'?'secondary':'danger secondary'} onClick={()=>props.onArchiveVersion(v.id,v.status!=='ARCHIVED')}>{v.status==='ARCHIVED'?'Réactiver':'Archiver'}</button>
               </div>
-              <span className="variantPlayers">{v.counts.playableCharacters} PJ</span>
-            </div>
+            </article>)}
+          </div>
 
-            <div className="variantCatalogMeta">
-              <span>{v.genderComposition.label}</span>
-              {v.importedAt&&<span>Importée le {new Intl.DateTimeFormat('fr-BE',{dateStyle:'short'}).format(new Date(v.importedAt))}</span>}
-            </div>
+          <div className="familyTools">
+            <button className="secondary" onClick={()=>{
+              setPickerScenarioId(pickerOpen?null:s.id);
+              const first=s.versions[0];
+              setPlayerCount(first?.minPlayers??first?.counts.playableCharacters??1);
+              setWomen('');
+              setMen('');
+            }}>{pickerOpen?'Fermer le filtre':'Trouver une variante pour mon groupe'}</button>
+            {archivedVersions.length>0&&<button className="secondary" onClick={()=>setShowArchivedVariants(v=>!v)}>{showArchivedVariants?'Masquer les archivées':`Voir les archivées (${archivedVersions.length})`}</button>}
+          </div>
 
-            {v.variantNotes&&<p className="variantCatalogNotes">{v.variantNotes}</p>}
-
-            <div className="variantCatalogActions">
-              <button onClick={()=>props.onOpenVersion(v.id)}>
-                {v.status==='ARCHIVED'?'Consulter':'Ouvrir / créer une session'}
-              </button>
-              <button
-                className={v.status==='ARCHIVED'?'secondary':'danger secondary'}
-                onClick={()=>props.onArchiveVersion(v.id,v.status!=='ARCHIVED')}
-              >
-                {v.status==='ARCHIVED'?'Réactiver':'Archiver'}
-              </button>
-
-              <button
-                className="secondary"
-                onClick={()=>window.open(`/?gmPack=${encodeURIComponent(v.id)}`,'_blank')}
-              >
-                📦 Pack MJ
-              </button>
-            </div>
-
-            {v.sourceFilename&&<small className="variantSource">{v.sourceFilename}</small>}
-          </article>)}
-        </div>
-
-        <div className="familyActions">
-          <button onClick={()=>props.onRegistrations(s.id)}>📝 Inscriptions</button>
-          <button onClick={()=>{
-            setPickerScenarioId(pickerOpen?null:s.id);
-            const first=s.versions[0];
-            setPlayerCount(first?.minPlayers??first?.counts.playableCharacters??1);
-            setWomen('');
-            setMen('');
-          }}>
-            Trouver une variante pour mon groupe
-          </button>
-          {archivedVersions.length>0&&
-            <button
-              className="secondary"
-              onClick={()=>setShowArchivedVariants(v=>!v)}
-            >
-              {showArchivedVariants
-                ? 'Masquer les variantes archivées'
-                : `Voir les archivées (${archivedVersions.length})`}
-            </button>
-          }
-
-          <button className="secondary" onClick={()=>props.onImportVersion(s)}>
-            + Importer un MASTER variant
-          </button>
-        </div>
-        {pickerOpen&&<section className="variantPicker">
-          <div><p className="eyebrow">COMPATIBILITÉ</p><h4>Quel groupe vas-tu accueillir ?</h4><p>Le nombre de joueurs filtre toujours. La composition F/H est facultative : laisse-la vide si elle ne doit pas contraindre le casting.</p></div>
-          <div className="variantPickerInputs"><label>Joueurs<input type="number" min="1" value={playerCount} onChange={e=>setPlayerCount(Math.max(1,Number(e.target.value)||1))}/></label><label>Femmes <span>(optionnel)</span><input type="number" min="0" value={women} onChange={e=>setWomen(e.target.value)}/></label><label>Hommes <span>(optionnel)</span><input type="number" min="0" value={men} onChange={e=>setMen(e.target.value)}/></label></div>
-          <div className="compatibilityList">{candidates.length===0?<p className="empty">Aucune variante compatible avec ces critères. Il faut créer une nouvelle version Excel.</p>:candidates.map(v=><button key={v.id} className="compatibilityRow" onClick={()=>props.onOpenVersion(v.id)}><span><strong>{v.variantName||`${v.counts.playableCharacters} joueurs`}</strong><small>{genderProfileLabel(v.genderProfile)} · {v.genderComposition.label}</small></span><span><small>Révision</small><b>V{v.versionLabel}</b></span></button>)}</div>
-        </section>}
-        <div className="variantTableHead"><span>Variante</span><span>Joueurs</span><span>Genre</span><span>Révision</span><span>État</span></div>
-        <div className="versionList">{visibleVersions.map(v=><button key={v.id} className="versionRow versionManagerRow" onClick={()=>props.onOpenVersion(v.id)}><span><strong>{v.variantName||`${v.counts.playableCharacters} joueurs`}</strong><small>{v.subtitle||v.universe||'Variante importée'}</small></span><span className="versionCell">{v.minPlayers===v.maxPlayers?(v.minPlayers??v.counts.playableCharacters):`${v.minPlayers??'—'}–${v.maxPlayers??'—'}`}</span><span className="versionCell"><b>{v.genderComposition.label}</b><small>{genderProfileLabel(v.genderProfile)}</small></span><span className="versionCell"><b>V{v.versionLabel}</b><small>{niceDate(v.importedAt)}</small></span><span className="versionCell"><b>{v.status}</b><small>{v.language}</small></span></button>)}</div>
-      </article>})}</div>
+          {pickerOpen&&<section className="variantPicker compactPicker">
+            <div><p className="eyebrow">COMPATIBILITÉ</p><h4>Quel groupe vas-tu accueillir ?</h4></div>
+            <div className="variantPickerInputs"><label>Joueurs<input type="number" min="1" value={playerCount} onChange={e=>setPlayerCount(Math.max(1,Number(e.target.value)||1))}/></label><label>Femmes <span>(optionnel)</span><input type="number" min="0" value={women} onChange={e=>setWomen(e.target.value)}/></label><label>Hommes <span>(optionnel)</span><input type="number" min="0" value={men} onChange={e=>setMen(e.target.value)}/></label></div>
+            <div className="compatibilityList">{candidates.length===0?<p className="empty">Aucune variante compatible.</p>:candidates.map(v=><button key={v.id} className="compatibilityRow" onClick={()=>props.onOpenVersion(v.id)}><span><strong>{v.variantName||`${v.counts.playableCharacters} joueurs`}</strong><small>{genderProfileLabel(v.genderProfile)} · {v.genderComposition.label}</small></span><span><small>Révision</small><b>V{v.versionLabel}</b></span></button>)}</div>
+          </section>}
+        </details>
+      </article>;
+    })}</div>
   </section>;
 
   const v=props.version;
@@ -593,14 +595,28 @@ function CreateSessionForm({version,onCreate}:{version:ScenarioVersionDetail;onC
   return <section className="sessionCta card sessionForm"><div><p className="eyebrow">NOUVELLE SESSION</p><h3>{version.scenario.title} · {version.variantName||`V${version.versionLabel}`}</h3><p>{version.genderComposition.label} · {genderProfileLabel(version.genderProfile)}</p></div><div className="formGrid"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label><label>Langue joueurs<select value={language} onChange={e=>setLanguage(e.target.value)}><option value="FR">Français</option><option value="EN">English</option></select></label></div><div className="formActions"><button className="secondary" onClick={()=>setOpen(false)}>Annuler</button><button disabled={!name.trim()||busy} onClick={async()=>{setBusy(true);try{await onCreate({name,scheduledAt,venue,language});}finally{setBusy(false);}}}>{busy?'Création…':'Créer et ouvrir'}</button></div></section>;
 }
 
-function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onDelete:()=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
+function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onDelete:()=>void;onPurge:(sessionId:string,name:string)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
   const [showArchived,setShowArchived]=useState(false);
   const listedSessions=showArchived?props.sessions:props.sessions.filter(s=>s.status!=='ARCHIVED');
 
-  if(!props.session) return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}<div className="sectionhead"><div><p className="eyebrow">EXPLOITATION</p><h2>Sessions</h2><p>La date est mise en avant pour identifier rapidement chaque prestation.</p></div><div className="sessionListActions"><button className={showArchived?'active secondary':'secondary'} onClick={()=>setShowArchived(v=>!v)}>{showArchived?'Masquer les archivées':'Voir les archivées'}</button><button className="secondary" onClick={props.onReload}>Actualiser</button></div></div>{listedSessions.length===0?<section className="card emptyState"><strong>{showArchived?'Aucune session.':'Aucune session active.'}</strong><p>Crée-la depuis une version de scénario.</p></section>:<div className="scenarioGrid">{listedSessions.map(s=><article className={`scenarioCard sessionCard ${s.status==='ARCHIVED'?'archived':''}`} key={s.id}><div className="sessionCardDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="scenarioTitleRow"><div><span className="micro">{s.scenarioVersion?.scenario?.title??'Scénario'}</span><h3>{s.name||'Session'}</h3></div><span className={`sessionStatus ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></div><p className="sessionMeta">{s.venue||'Lieu à définir'}</p><div className="sessionProgress"><span>{s.counts.assigned}/{s.counts.participants} castés</span><progress max={Math.max(1,s.counts.participants)} value={s.counts.assigned}/></div><button className="wide secondary" onClick={()=>props.onOpen(s.id)}>Ouvrir la préparation</button></article>)}</div>}</section>;
+  if(!props.session) return <section>
+    {props.error&&<p className="errorbox standalone">{props.error}</p>}
+    <div className="sectionhead">
+      <div><p className="eyebrow">EXPLOITATION</p><h2>Sessions</h2><p>Une ligne par partie : date, scénario, état et casting.</p></div>
+      <div className="sessionListActions"><button className={showArchived?'active secondary':'secondary'} onClick={()=>setShowArchived(v=>!v)}>{showArchived?'Masquer les archivées':'Voir les archivées'}</button><button className="secondary" onClick={props.onReload}>Actualiser</button></div>
+    </div>
+    {listedSessions.length===0
+      ? <section className="card emptyState"><strong>{showArchived?'Aucune session.':'Aucune session active.'}</strong><p>Crée-la depuis les inscriptions ou directement depuis un scénario.</p></section>
+      : <div className="sessionCompactList">{listedSessions.map(s=><article className={`sessionCompactRow ${s.status==='ARCHIVED'?'archived':''}`} key={s.id}>
+          <div className="sessionCompactDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><small>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</small></div>
+          <div className="sessionCompactIdentity"><span>{s.scenarioVersion?.scenario?.title??'Scénario'}</span><strong>{s.name||'Session'}</strong><small>{s.venue||'Lieu à définir'} · {s.language}</small></div>
+          <div className="sessionCompactProgress"><span className={`sessionStatus ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span><small>{s.counts.assigned}/{s.counts.participants} castés</small></div>
+          <div className="sessionCompactActions"><button onClick={()=>props.onOpen(s.id)}>Ouvrir</button><button className="danger secondary" onClick={()=>props.onPurge(s.id,s.name||'Session')}>🗑</button></div>
+        </article>)}</div>
+    }
+  </section>;
 
   const s=props.session; const archived=s.status==='ARCHIVED'; const assigned=new Map(s.participants.filter(p=>p.characterExternalId).map(p=>[p.characterExternalId!,p.id]));
-  const deleteLocked=Boolean(s.runtimeInitializedAt||s.startedAt||s.finishedAt);
   return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}<button className="backlink" onClick={props.onBack}>← Sessions</button>{props.loading?<section className="card emptyState">Chargement…</section>:<>
     <section className={`sessionHero ${archived?'archived':''}`}><div className="sessionHeroDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="sessionHeroMain"><p className="eyebrow">{s.scenarioVersion.scenario?.title} · V{s.scenarioVersion.versionLabel}</p><h2>{s.name||'Session'}</h2><p>{s.venue||'Lieu à définir'} · {s.language}</p></div><span className={`sessionStatus large ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></section>
     {!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
@@ -627,7 +643,7 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
       </div>
     </section>
 
-    <section className="card sessionLifecycle"><div><p className="eyebrow">GESTION DE LA SESSION</p><h3>{archived?'Session archivée':'Conserver ou supprimer'}</h3><p>{archived?'Elle est masquée de la liste active. Tu peux la réactiver en brouillon.':'Archive-la pour la conserver sans l’encombrer dans la liste active. La suppression définitive est réservée aux sessions sans runtime.'}</p></div><div className="lifecycleButtons">{archived?<button className="secondary" onClick={()=>props.onArchive(false)}>Réactiver en brouillon</button>:<button className="secondary" onClick={()=>props.onArchive(true)}>Archiver la session</button>}<button className="danger" disabled={deleteLocked} title={deleteLocked?'Une session avec runtime ou historique de live doit être archivée, pas supprimée.':''} onClick={props.onDelete}>Supprimer définitivement</button></div></section>
+    <section className="card sessionLifecycle"><div><p className="eyebrow">GESTION DE LA SESSION</p><h3>{archived?'Session archivée':'Conserver ou supprimer'}</h3><p>{archived?'Elle est masquée de la liste active. Tu peux la réactiver en brouillon.':'Archive-la pour la conserver sans l’encombrer dans la liste active. La suppression définitive est réservée aux sessions sans runtime.'}</p></div><div className="lifecycleButtons">{archived?<button className="secondary" onClick={()=>props.onArchive(false)}>Réactiver en brouillon</button>:<button className="secondary" onClick={()=>props.onArchive(true)}>Archiver la session</button>}<button className="danger" onClick={()=>props.onPurge(s.id,s.name||'Session')}>Supprimer définitivement (tests)</button></div></section>
     {!archived&&['DRAFT','CASTING','READY'].includes(s.status)&&<section className="card sessionState"><div><p className="eyebrow">ÉTAT PRÉ-LIVE</p><h3>{statusLabel(s.status)}</h3><p>DRAFT = préparation · CASTING = attribution en cours · READY = distribution verrouillée et prête pour le briefing.</p></div><div className="statusButtons">{['DRAFT','CASTING','READY'].map(st=><button key={st} disabled={Boolean(s.runtimeInitializedAt)&&st!=='READY'} className={s.status===st?'active':''} onClick={()=>props.onStatus(st)}>{statusLabel(st)}</button>)}</div></section>}
     <section className="sessionPackShortcut card">
       <div>
