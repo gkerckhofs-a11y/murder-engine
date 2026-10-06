@@ -88,6 +88,7 @@ export function buildImportPlan(workbook, {
     personalTimeline: textOrNull(r.chronologie_personnelle),
     motto: textOrNull(r.devise),
     portraitMediaId: textOrNull(r.portrait_media_id),
+    portraitArchetypeCode: textOrNull(r.portrait_archetype_code),
     playable: truthy(r.jouable, true),
     active: truthy(r.actif, true),
   }));
@@ -250,7 +251,8 @@ export function buildImportPlan(workbook, {
       scenarioVersionId, externalId, name:d.title, description:d.textContent || d.title, support:'DOCUMENT',
       propRequirementExternalId:d.propRequirementExternalId, ownerInitialType:d.ownerInitialType, ownerInitialExternalId:d.ownerInitialExternalId,
       transferable:d.transferable, stealable:d.stealable, consumable:d.consumable, initialCharges:1, critical:false,
-      identification0:d.title, identification1:null, identification2:null, identification3:null, active:true,
+      identification0:d.title, identification1:null, identification2:null, identification3:null,
+      mediaExternalId:d.mediaExternalIds?.split(';')?.[0] ?? null, visualArchetypeCode:'LETTER', active:true,
     });
   }
 
