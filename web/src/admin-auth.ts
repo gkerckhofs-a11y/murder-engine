@@ -11,20 +11,13 @@ function wait(ms:number){
 }
 
 async function firebaseAuth(){
-  for(let attempt=0;attempt<40;attempt++){
+  for(let attempt=0;attempt<60;attempt++){
     const firebase=window.firebase;
 
-    if(firebase?.auth){
-      if(!firebase.apps?.length){
-        const response=await fetch('/__/firebase/init.json');
-        if(!response.ok)
-          throw new Error('FIREBASE_CONFIG_UNAVAILABLE');
-
-        firebase.initializeApp(await response.json());
-      }
-
+    // /__/firebase/init.js initializes the default app for the
+    // Firebase project attached to the current Hosting site.
+    if(firebase?.auth && firebase.apps?.length)
       return firebase.auth();
-    }
 
     await wait(75);
   }
