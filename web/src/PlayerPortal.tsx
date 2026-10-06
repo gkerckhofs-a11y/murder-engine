@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import QrLocationScanner from './QrLocationScanner';
 import QrCharacterScanner from './QrCharacterScanner';
 import ImmersiveDocument from './ImmersiveDocument';
+import NarrativeText from './NarrativeText';
 import { asSkinId, skinClassFor, defaultAccentForSkin } from './skin-registry';
 
 type Portal = any;
@@ -218,14 +219,14 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
         <img src={c.portrait.source} alt={c.portrait.altText||`Portrait de ${c.name}`}/>
         <figcaption><strong>{c.name}</strong>{c.publicRole&&<span>{c.publicRole}</span>}</figcaption>
       </figure>}
-      <p>{c.biography}</p>
-      {c.secretIntro&&<div className="playerSecret"><h3>{tr(portal,'Ce que vous seul savez','What only you know')}</h3><p>{c.secretIntro}</p></div>}
-      {c.apparentMotive&&<><h3>{tr(portal,'Ma position','My position')}</h3><p>{c.apparentMotive}</p></>}
+      <NarrativeText text={c.biography} className="playerNarrativeText"/>
+      {c.secretIntro&&<div className="playerSecret"><h3>{tr(portal,'Ce que vous seul savez','What only you know')}</h3><NarrativeText text={c.secretIntro} className="playerNarrativeText compact"/></div>}
+      {c.apparentMotive&&<><h3>{tr(portal,'Ma position','My position')}</h3><NarrativeText text={c.apparentMotive} className="playerNarrativeText compact"/></>}
       <div className="sheetSubsection">
         <p className="playerSectionKicker">{tr(portal,'MON ALIBI / MA CHRONOLOGIE','MY ALIBI / TIMELINE')}</p>
         <h3>{tr(portal,'Ce que j’ai fait le soir du meurtre','What I did on the night of the murder')}</h3>
         {c.personalTimeline
-          ? <p>{c.personalTimeline}</p>
+          ? <NarrativeText text={c.personalTimeline} className="playerNarrativeText"/>
           : <p className="playerMuted">{tr(portal,'Aucune chronologie particulière n’est renseignée pour ce personnage.','No specific timeline is provided for this character.')}</p>}
       </div>
     </section>}
@@ -243,11 +244,11 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
     {tab==='roleplay'&&(c.interpretationNotes||c.appearanceNotes)&&<section className="playerCard playerRoleplayCard">
       <p className="playerSectionKicker">{tr(portal,'INCARNER MON PERSONNAGE','PLAYING MY CHARACTER')}</p>
       <h2>{tr(portal,'Comment me la jouer','How to play my character')}</h2>
-      {c.interpretationNotes&&<p>{c.interpretationNotes}</p>}
+      {c.interpretationNotes&&<NarrativeText text={c.interpretationNotes} className="playerNarrativeText"/>}
       {c.appearanceNotes&&<div className="sheetSubsection">
         <p className="playerSectionKicker">{tr(portal,'STYLE & DÉGUISEMENT','STYLE & COSTUME')}</p>
         <h3>{tr(portal,'Mon apparence','My appearance')}</h3>
-        <p>{c.appearanceNotes}</p>
+        <NarrativeText text={c.appearanceNotes} className="playerNarrativeText"/>
       </div>}
     </section>}
 
