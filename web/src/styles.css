@@ -11759,3 +11759,12 @@ button.skinGalleryCard:disabled{
     font-size:1.7rem;
   }
 }
+
+
+/* V1.7 — inscriptions avant session */
+.registrationRow{grid-template-columns:32px minmax(0,1fr) auto;cursor:pointer}
+.registrationRow>input[type="checkbox"]{width:20px;height:20px;accent-color:var(--accent);justify-self:center}
+.registrationRow.archived{opacity:.58;cursor:default}
+.registrationRow .participantBadges{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.registrationRow .participantBadges>span{border:1px solid var(--line);border-radius:999px;padding:3px 7px;font-size:.68rem;color:var(--muted)}
+@media(max-width:850px){.registrationRow{grid-template-columns:32px 1fr}.registrationRow .castDot{display:none}}
