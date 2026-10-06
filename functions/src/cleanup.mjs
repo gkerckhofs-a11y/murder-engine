@@ -1,7 +1,7 @@
 const SESSION_PURGE_MUTATION = `
-mutation PurgeSession($sessionId: UUID!) @transaction {
+mutation PurgeSession($sessionId: UUID!, $sessionIdText: String!) @transaction {
   precastRegistration_updateMany(
-    where:{transferredSessionId:{eq:$sessionId}}
+    where:{transferredSessionId:{eq:$sessionIdText}}
     data:{status:"REGISTERED",transferredSessionId:null}
   )
   sessionPlayerNotification_deleteMany(where:{gameSessionId:{eq:$sessionId}})
@@ -127,7 +127,7 @@ export async function purgeGameSession(sessionId,{reader=defaultReader,executor=
   const data=await reader(SESSION_LOOKUP_QUERY,{sessionId:id});
   const session=data?.gameSession;
   if(!session)throw new Error('SESSION_NOT_FOUND');
-  await executor(SESSION_PURGE_MUTATION,{sessionId:id});
+  await executor(SESSION_PURGE_MUTATION,{sessionId:id,sessionIdText:id});
   return {
     deleted:true,
     sessionId:id,
@@ -152,7 +152,7 @@ export async function purgeScenarioFamily(scenarioId,{reader=defaultReader,execu
   }
 
   for(const session of sessions){
-    await executor(SESSION_PURGE_MUTATION,{sessionId:session.id});
+    await executor(SESSION_PURGE_MUTATION,{sessionId:session.id,sessionIdText:String(session.id)});
   }
   for(const campaign of campaigns){
     await executor(CAMPAIGN_PURGE_MUTATION,{campaignId:campaign.id});
