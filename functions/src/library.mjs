@@ -107,15 +107,18 @@ query ScenarioVersionOverview($versionId: UUID!) {
     clues_on_scenarioVersion(orderBy: {externalId: ASC}) {
       externalId playerName clueType support major active
     }
-    gameObjects_on_scenarioVersion(orderBy: {externalId: ASC}) {
-      externalId
-      name
-      description
-      support
-      mediaExternalId
-      visualArchetypeCode
-      active
-    }
+  }
+  gameObjects(
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {externalId: ASC}
+  ) {
+    externalId
+    name
+    description
+    support
+    mediaExternalId
+    visualArchetypeCode
+    active
   }
 }
 `;
@@ -349,12 +352,12 @@ export async function getScenarioVersionOverview(versionId) {
     characters: version.characters_on_scenarioVersion ?? [],
     facts: version.facts_on_scenarioVersion ?? [],
     clues: version.clues_on_scenarioVersion ?? [],
-    objects: version.gameObjects_on_scenarioVersion ?? [],
+    objects: data?.gameObjects ?? [],
     mediaOverrides: parseMediaOverrides(version.mediaOverridesJson),
     characters_on_scenarioVersion: undefined,
     facts_on_scenarioVersion: undefined,
     clues_on_scenarioVersion: undefined,
-    gameObjects_on_scenarioVersion: undefined,
+    gameObjects: undefined,
   };
 }
 
