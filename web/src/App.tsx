@@ -431,15 +431,38 @@ export default function App() {
     const expectedSourceId=importTargetScenario?.versions?.[0]?.sourceScenarioId;
     if(expectedSourceId&&String(data.summary.scenarioId??'')!==expectedSourceId){setError(`Ce fichier appartient au scénario ${String(data.summary.scenarioId||'inconnu')}, pas à ${expectedSourceId}. Corrige scenario_id pour l'ajouter à « ${importTargetScenario?.title} ».`);return;}
     const effectiveSkinId =
-      asSkinId(importTargetScenario?.skinId ?? selectedSkinId);
+      asSkinId(selectedSkinId);
 
     const effectiveAccentColor =
-      importTargetScenario?.accentColor ||
       selectedAccentColor ||
       defaultAccentForSkin(effectiveSkinId);
 
     setCommitting(true); setError(''); setCommit(null);
-    try { const result = await fetchJson<CommitResponse>('/api/import/commit',{ method:'POST', headers:{'content-type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','x-file-name':file.name,'x-organization-slug':'ludificateur','x-organization-name':'Le Ludificateur','x-skin-id':effectiveSkinId,'x-accent-color':effectiveAccentColor}, body:await file.arrayBuffer() }); setCommit(result); await loadLibrary(); }
+    try {
+      const result = await fetchJson<CommitResponse>('/api/import/commit',{
+        method:'POST',
+        headers:{
+          'content-type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'x-file-name':file.name,
+          'x-organization-slug':'ludificateur',
+          'x-organization-name':'Le Ludificateur',
+          'x-skin-id':effectiveSkinId,
+          'x-accent-color':effectiveAccentColor
+        },
+        body:await file.arrayBuffer()
+      });
+
+      if(importTargetScenario){
+        await postJson('/api/library/appearance',{
+          scenarioId:importTargetScenario.id,
+          skinId:effectiveSkinId,
+          accentColor:effectiveAccentColor,
+        });
+      }
+
+      setCommit(result);
+      await loadLibrary();
+    }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setCommitting(false); }
   }
 
@@ -466,13 +489,20 @@ export default function App() {
 
     {view === 'library' && version && <div className="gmPackShortcut"><button onClick={()=>window.open(`/?gmPack=${encodeURIComponent(version.id)}`,'_blank')}>📦 Ouvrir le Pack MJ</button></div>}
 
-    {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{setImportTargetScenario(scenario);choose(null);setView('import');}} onOpenVersion={id=>void openVersion(id)} onArchiveVersion={(id,archived)=>void archiveScenarioVersion(id,archived)} onBack={()=>{setVersion(null);setCharacter(null);}} onOpenCharacter={id=>void openCharacter(id)} onCreateSession={createSession} onRegistrations={scenarioId=>{setRegistrationScenarioId(scenarioId);setView('registrations');}} onDeleteScenario={(id,title)=>void purgeScenario(id,title)} />}
+    {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{
+      const id=asSkinId(scenario.skinId??'CONTEMPORARY_1980_2000');
+      setSelectedSkinId(id);
+      setSelectedAccentColor(scenario.accentColor||defaultAccentForSkin(id));
+      setImportTargetScenario(scenario);
+      choose(null);
+      setView('import');
+    }} onOpenVersion={id=>void openVersion(id)} onArchiveVersion={(id,archived)=>void archiveScenarioVersion(id,archived)} onBack={()=>{setVersion(null);setCharacter(null);}} onOpenCharacter={id=>void openCharacter(id)} onCreateSession={createSession} onRegistrations={scenarioId=>{setRegistrationScenarioId(scenarioId);setView('registrations');}} onDeleteScenario={(id,title)=>void purgeScenario(id,title)} />}
 
     {view === 'registrations' && <PrecastManager scenarios={scenarios} initialScenarioId={registrationScenarioId} onOpenSession={sessionId=>{setRegistrationScenarioId(null);setView('sessions');void loadSessions();void openSession(sessionId);}} />}
 
     {view === 'sessions' && <SessionsView sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onPurge={(id,name)=>void purgeSession(id,name)} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onInteractionMutation={()=>void interactionMutation()} />}
 
-    {view === 'import' && <ImportView targetScenario={importTargetScenario} skinId={asSkinId(importTargetScenario?.skinId??selectedSkinId)} accentColor={importTargetScenario?.accentColor||selectedAccentColor||defaultAccentForSkin(asSkinId(importTargetScenario?.skinId??selectedSkinId))} skinLocked={Boolean(importTargetScenario)} onSkinChange={(id,accent)=>{setSelectedSkinId(id);setSelectedAccentColor(accent);}} onAccentChange={setSelectedAccentColor} file={file} data={data} commit={commit} loading={loading} committing={committing} error={error} filter={filter} filtered={filtered} onChoose={choose} onValidate={()=>void validate()} onCommit={()=>void commitImport()} onFilter={setFilter} onOpenImported={()=>commit && void openVersion(commit.scenarioVersionId).then(()=>setView('library'))} />}
+    {view === 'import' && <ImportView targetScenario={importTargetScenario} skinId={asSkinId(selectedSkinId)} accentColor={selectedAccentColor||defaultAccentForSkin(asSkinId(selectedSkinId))} skinLocked={false} onSkinChange={(id,accent)=>{setSelectedSkinId(id);setSelectedAccentColor(accent);}} onAccentChange={setSelectedAccentColor} file={file} data={data} commit={commit} loading={loading} committing={committing} error={error} filter={filter} filtered={filtered} onChoose={choose} onValidate={()=>void validate()} onCommit={()=>void commitImport()} onFilter={setFilter} onOpenImported={()=>commit && void openVersion(commit.scenarioVersionId).then(()=>setView('library'))} />}
   </main>;
 }
 
@@ -1589,8 +1619,10 @@ function SkinPicker(props:{
 
         <p>
           {props.locked
-            ? `Cette variante hérite de l’apparence de « ${props.scenarioName||'ce scénario'} ».`
-            : 'La skin détermine l’ambiance des fiches joueurs, scans QR et du Pack MJ.'}
+            ? `L’apparence est commune à « ${props.scenarioName||'ce scénario'} ».`
+            : props.scenarioName
+              ? `Changer cette skin mettra à jour toutes les variantes de « ${props.scenarioName} ».`
+              : 'La skin détermine l’ambiance des fiches joueurs, scans QR et du Pack MJ.'}
         </p>
       </div>
 
