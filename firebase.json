@@ -453,6 +453,27 @@
         }
       },
       {
+        "source": "/api/media/library",
+        "function": {
+          "functionId": "getMediaLibraryView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/media/upload",
+        "function": {
+          "functionId": "uploadMediaLibraryAssetView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/media/assign",
+        "function": {
+          "functionId": "setScenarioMediaOverrideView",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
