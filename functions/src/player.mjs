@@ -1154,8 +1154,52 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
       }
     );
   }
-  const body=!result.success?'Action échouée.':reward.kind==='CLUE_OBJECT'?`Vous découvrez ${reward.clue.name} et récupérez ${reward.object.name}.`:reward.kind==='CLUE'?`Vous découvrez : ${reward.clue.name}.`:reward.kind==='OBJECT'?`Vous récupérez : ${reward.object.name}.`:'Vous ne trouvez rien de nouveau.';
-  await executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:actor,kind:'LOCATION',title:location.name,body,priority:'NORMAL',refExternalId:locationExternalId,createdAt:nowIso(now),readAt:null}});
+  const language=String(loaded.session?.language??'FR').trim().toUpperCase();
+  const english=language==='EN';
+  const physicalPickup=Boolean(
+    reward?.object?.physicalPickupRequired &&
+    reward?.object?.logisticsCode
+  );
+
+  let body;
+  if(!result.success){
+    body=english?'Action failed.':'Action échouée.';
+  }else if(physicalPickup){
+    const discovery=
+      reward.kind==='CLUE_OBJECT'
+        ? (english
+            ? `You discover ${reward.clue.name}. `
+            : `Vous découvrez ${reward.clue.name}. `)
+        : '';
+
+    body=
+      discovery +
+      (english
+        ? `Physical evidence unlocked: ${reward.object.name}. Show pickup code ${reward.object.logisticsCode} to the Game Master to receive the physical prop.`
+        : `Objet physique débloqué : ${reward.object.name}. Présentez le code ${reward.object.logisticsCode} au Maître du Jeu pour recevoir l'accessoire physique.`);
+  }else if(reward.kind==='CLUE_OBJECT'){
+    body=english
+      ? `You discover ${reward.clue.name} and receive ${reward.object.name}.`
+      : `Vous découvrez ${reward.clue.name} et récupérez ${reward.object.name}.`;
+  }else if(reward.kind==='CLUE'){
+    body=english
+      ? `You discover: ${reward.clue.name}.`
+      : `Vous découvrez : ${reward.clue.name}.`;
+  }else if(reward.kind==='OBJECT'){
+    body=english
+      ? `You receive: ${reward.object.name}.`
+      : `Vous récupérez : ${reward.object.name}.`;
+  }else{
+    body=english
+      ? 'You find nothing new.'
+      : 'Vous ne trouvez rien de nouveau.';
+  }
+
+  const notificationTitle=physicalPickup
+    ? (english?'Physical prop ready':'Objet physique à retirer')
+    : location.name;
+
+  await executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:actor,kind:physicalPickup?'PHYSICAL_PICKUP':'LOCATION',title:notificationTitle,body,priority:physicalPickup?'IMPORTANT':'NORMAL',refExternalId:physicalPickup?reward.object.externalId:locationExternalId,createdAt:nowIso(now),readAt:null}});
   return {result,reward,location:{externalId:location.externalId,name:location.name}};
 }
 
