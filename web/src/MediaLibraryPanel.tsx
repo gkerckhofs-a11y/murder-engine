@@ -282,7 +282,7 @@ export default function MediaLibraryPanel({
               setBusy(false);
             }
           }}>
-            Se connecter avec ${ORGANIZER_EMAIL}
+            Se connecter avec {ORGANIZER_EMAIL}
           </button>
         </div>
       }
