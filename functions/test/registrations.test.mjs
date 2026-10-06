@@ -161,6 +161,7 @@ test('selected registrations create a session and are then marked transferred', 
   assert.equal(result.transferred,2);
   assert.equal(createdParticipants.length,2);
   assert.equal(createdParticipants[0].input.email,'a@example.com');
+  assert.equal(createdParticipants[0].input.source,'PRECAST');
   assert.equal(writes.length,2);
   assert.ok(writes.every(x=>x.operation===__precastOps.MARK_REGISTRATION_TRANSFERRED_MUTATION));
   assert.ok(writes.every(x=>x.variables.sessionId==='S1'));
