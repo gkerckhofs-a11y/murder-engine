@@ -13294,3 +13294,219 @@ button.skinGalleryCard:disabled{
   color:#fff3c7;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
 }
+
+
+/* PLAYER SHEET V1.13 — Hollywood tabs, object visuals and printable character sheet */
+.skin-hollywood-1930 .sheetTabs button,
+.skin-hollywood-1930 .notebookTabs button{
+  border:1px solid #9d7c4d;
+  border-radius:3px;
+  background:#ead9b8;
+  color:#2b2018;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.24);
+}
+
+.skin-hollywood-1930 .sheetTabs button.active,
+.skin-hollywood-1930 .notebookTabs button.active{
+  border-color:#c6a25c;
+  background:#2a211b;
+  color:#fff0cc;
+  box-shadow:inset 0 -2px 0 #c6a25c;
+}
+
+.skin-hollywood-1930 .notebookTabs button em{
+  background:#382d25;
+  color:#ffe9b3;
+}
+
+.playerSheetPdfButton{
+  width:auto;
+  justify-self:start;
+  margin:0 0 2px;
+}
+
+.skin-hollywood-1930 .playerSheetPdfButton{
+  border-color:#8d714a;
+  background:#2a211b;
+  color:#f6e4bd;
+}
+
+.discoverableClueList{
+  display:grid;
+  gap:8px;
+}
+.discoverableClueList article{
+  padding:10px 12px;
+  border:1px solid color-mix(in srgb,currentColor 16%,transparent);
+  border-radius:10px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+}
+.discoverableClueList article strong{
+  display:block;
+  margin-bottom:4px;
+}
+.discoverableClueList article p{
+  margin:0;
+}
+
+.bagLinkedObjectVisual{
+  display:grid;
+  grid-template-columns:86px minmax(0,1fr);
+  gap:12px;
+  align-items:center;
+  padding:10px;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:12px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+}
+.bagLinkedObjectVisual img{
+  width:86px;
+  height:86px;
+  object-fit:contain;
+  border-radius:9px;
+  background:rgba(0,0,0,.08);
+}
+.bagLinkedObjectVisual span{
+  display:grid;
+  gap:3px;
+}
+.bagLinkedObjectVisual small{
+  font-size:.67rem;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  opacity:.65;
+}
+.bagLinkedObjectVisual strong{
+  font-size:1rem;
+}
+
+/* Safe printable view generated from the connected player's own portal data. */
+.playerPdfRoot{
+  min-height:100vh;
+  padding:18px;
+  background:#ece7df;
+  color:#201c18;
+}
+.playerPdfControls{
+  width:min(820px,100%);
+  margin:0 auto 14px;
+  display:flex;
+  gap:8px;
+}
+.playerPdfControls button{
+  width:auto;
+}
+.playerPdfSheet{
+  width:min(820px,100%);
+  margin:0 auto;
+  padding:36px 42px 30px;
+  background:#fffdf8;
+  color:#201c18;
+  box-shadow:0 8px 30px rgba(0,0,0,.12);
+  font-family:Georgia,"Times New Roman",serif;
+}
+.playerPdfHeader{
+  text-align:center;
+  border-bottom:3px double #4d4339;
+  padding-bottom:18px;
+  margin-bottom:22px;
+}
+.playerPdfHeader p{
+  margin:0 0 10px;
+  font-size:.78rem;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+}
+.playerPdfHeader img{
+  display:block;
+  width:120px;
+  height:160px;
+  object-fit:contain;
+  object-position:center bottom;
+  margin:0 auto 12px;
+}
+.playerPdfHeader h1{
+  margin:0;
+  font-size:2rem;
+}
+.playerPdfHeader h2{
+  margin:5px 0;
+  font-size:1.05rem;
+  font-weight:400;
+}
+.playerPdfSheet section{
+  margin:20px 0;
+}
+.playerPdfSheet section h3{
+  margin:0 0 8px;
+  border-bottom:1px solid #b9ad9c;
+  padding-bottom:4px;
+}
+.playerPdfSheet blockquote{
+  margin:18px 0;
+  padding:12px 16px;
+  border-left:4px solid #7e6540;
+  background:#f4eee3;
+}
+.playerPdfSecret{
+  padding:14px 16px;
+  border:1px solid #7c4b4b;
+  background:#f5e7e4;
+}
+.playerPdfSheet li{
+  margin-bottom:8px;
+}
+.playerPdfSheet li p,
+.playerPdfRelation p{
+  margin:.25rem 0 0;
+}
+.playerPdfRelation{
+  margin:10px 0;
+}
+.playerPdfSheet footer{
+  margin-top:28px;
+  padding-top:10px;
+  border-top:1px solid #b9ad9c;
+  text-align:center;
+  font-size:.72rem;
+  opacity:.7;
+}
+
+@media print{
+  @page{
+    size:A4;
+    margin:12mm;
+  }
+  .playerPdfRoot{
+    padding:0;
+    background:#fff;
+  }
+  .playerPdfControls{
+    display:none!important;
+  }
+  .playerPdfSheet{
+    width:auto;
+    margin:0;
+    padding:0;
+    box-shadow:none;
+    background:#fff;
+  }
+  .playerPdfSheet section,
+  .playerPdfRelation,
+  .discoverableClueList article{
+    break-inside:avoid;
+  }
+}
+
+@media(max-width:520px){
+  .bagLinkedObjectVisual{
+    grid-template-columns:72px minmax(0,1fr);
+  }
+  .bagLinkedObjectVisual img{
+    width:72px;
+    height:72px;
+  }
+  .playerPdfSheet{
+    padding:24px 20px;
+  }
+}
