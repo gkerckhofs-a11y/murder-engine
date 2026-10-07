@@ -1107,12 +1107,32 @@ function playerObjectView(session,source,mediaMap,objectMap,row){
       session,
       'OBJECT',
       row.objectExternalId
+    ) ??
+    (
+      def?.logisticsCode &&
+      String(def.logisticsCode)!==String(row.objectExternalId)
+        ? mediaOverrideVisual(
+            session,
+            'OBJECT',
+            def.logisticsCode
+          )
+        : null
     );
 
   const dedicatedMedia=
     visualMedia(mediaMap,def?.mediaExternalId) ??
     visualMedia(mediaMap,`OBJ_${row.objectExternalId}`) ??
     visualMedia(mediaMap,`OBJECT_${row.objectExternalId}`);
+
+  const linkedClueMedia=
+    (source.clues??[])
+      .filter(clue=>
+        clue.active!==false &&
+        clue.objectExternalId===row.objectExternalId
+      )
+      .map(clue=>visualMedia(mediaMap,clue.mediaExternalId))
+      .find(Boolean) ??
+    null;
 
   const archetypeMedia=
     skinVisualMedia(
@@ -1136,6 +1156,7 @@ function playerObjectView(session,source,mediaMap,objectMap,row){
     visualMedia:
       overrideMedia ??
       dedicatedMedia ??
+      linkedClueMedia ??
       archetypeMedia ??
       null,
   };
