@@ -379,6 +379,55 @@ test('QR room search is normalized to automatic 1 PA and grants one reward',asyn
  assert.ok(writes.length>=2);
 });
 
+test('location discovery returns Media Library override for the physical object',async()=>{
+ const src=source();
+ src.interactions=[];
+ const sess=session();
+ sess.scenarioVersion={
+   ...sess.scenarioVersion,
+   mediaOverridesJson:JSON.stringify({
+     'OBJECT:ITEM2':{
+       assetExternalId:'MEDIA_CUSTOM_TONIC',
+       source:'https://example.test/vocal-tonic.png',
+       altText:'Vocal Tonic bottle',
+       mediaType:'IMAGE'
+     }
+   })
+ };
+
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:sess}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();
+   throw new Error('bad op');
+ };
+
+ const out=await executePlayerLocationAction(
+   participant().playerAccessToken,
+   {
+     interactionExternalId:'SYSTEM_LOCATION_SEARCH',
+     locationExternalId:'LOC1'
+   },
+   {
+     reader,
+     executor:async()=>({}),
+     clueReveal:async()=>({}),
+     objectTransfer:async()=>({}),
+     now:new Date('2026-09-21T18:20:00Z')
+   }
+ );
+
+ assert.equal(
+   out.reward.object.visualMedia.source,
+   'https://example.test/vocal-tonic.png'
+ );
+ assert.equal(
+   out.reward.object.visualMedia.altText,
+   'Vocal Tonic bottle'
+ );
+});
+
 test('QR location provides standard 1 PA fallback when no explicit automatic action exists',async()=>{
  const src=source();src.interactions=[];
  const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();throw new Error('bad op')};
