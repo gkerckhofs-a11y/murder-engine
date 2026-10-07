@@ -1165,6 +1165,128 @@ test('Police Intimidation takes one transferable proof directly and identifies t
  assert.match(claimVars.notification.body,/Portefeuille/);
 });
 
+test('Business Deal creates a formal proposal that the target may accept',async()=>{
+ const src=source();
+ src.abilities.push({
+   externalId:'ABILITY_BUSINESS_DEAL',
+   name:'Business Deal',
+   description:'Formal deal',
+   category:'SOCIAL',
+   defaultLevel:1,
+   defaultCooldownMinutes:60,
+   secret:false,
+   active:true
+ });
+ src.abilityAssignments.push({
+   externalId:'AA_DEAL',
+   ownerType:'CHARACTER',
+   ownerExternalId:'CHAR_A',
+   abilityExternalId:'ABILITY_BUSINESS_DEAL',
+   level:1,
+   active:true
+ });
+ src.interactions.push({
+   externalId:'ACT_BUSINESS_DEAL',
+   name:'Formalize a Deal',
+   category:'SOCIAL',
+   targetType:'CHARACTER',
+   scanMode:'DIRECT',
+   abilityExternalId:'ABILITY_BUSINESS_DEAL',
+   actorScope:'ABILITY_HOLDER',
+   resolution:'GM',
+   validation:'GM',
+   costResourceExternalId:'RES_PA',
+   costValue:1,
+   costTiming:'BEFORE',
+   cooldownMinutes:60,
+   targetSecret:false,
+   active:true
+ });
+
+ const rt=runtime();
+ rt.businessDealProposals=[];
+ rt.businessDealAccepted=[];
+ rt.businessDealDeclined=[];
+ rt.businessDealOfficial=[];
+
+ const readerA=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+
+ const writes=[];
+ const out=await executePlayerInteraction(
+   participant().playerAccessToken,
+   {
+     interactionExternalId:'ACT_BUSINESS_DEAL',
+     targetExternalId:'CHAR_B',
+     businessDealTerms:'Je finance ton prochain film contre 10 % des bénéfices.'
+   },
+   {
+     reader:readerA,
+     executor:async(op,vars)=>{writes.push({op,vars});return{};},
+     interactionExecutor:async()=>({
+       interactionName:'Formalize a Deal',
+       success:true
+     }),
+     now:new Date('2026-09-21T18:05:00Z')
+   }
+ );
+
+ assert.equal(out.pending,true);
+ assert.equal(out.specialKind,'BUSINESS_DEAL');
+
+ const proposal=writes
+   .map(x=>x.vars?.data)
+   .find(x=>x?.actionType==='BUSINESS_DEAL_PROPOSED');
+ assert.ok(proposal);
+ assert.match(proposal.note,/10 % des bénéfices/);
+
+ const grant=writes
+   .map(x=>x.vars?.data)
+   .find(x=>x?.kind==='BUSINESS_DEAL'&&x?.grantToken);
+ assert.ok(grant);
+
+ rt.sessionStealGrants.push(grant);
+ rt.businessDealProposals.push(proposal);
+
+ const bob={
+   id:'P2',
+   displayName:'Bob',
+   active:true,
+   characterExternalId:'CHAR_B',
+   briefingStatus:'READ',
+   playerAccessToken:'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+   playerAccessEnabled:true,
+   playerOpenCount:1
+ };
+ const readerB=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...bob,gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+
+ let acceptedWrite=null;
+ const accepted=await executePlayerInteraction(
+   bob.playerAccessToken,
+   {grantToken:grant.grantToken,decision:'ACCEPT'},
+   {
+     reader:readerB,
+     executor:async(op,vars)=>{acceptedWrite={op,vars};return{};},
+     now:new Date('2026-09-21T18:06:00Z')
+   }
+ );
+
+ assert.equal(accepted.kind,'BUSINESS_DEAL');
+ assert.equal(accepted.status,'ACCEPTED');
+ assert.equal(acceptedWrite.log.actionType,'BUSINESS_DEAL_ACCEPTED');
+});
+
 test('scan mode is explicit when present and backwards-compatible with secret_cible',()=>{
  assert.equal(interactionScanMode({targetType:'CHARACTER',scanMode:'DIRECT',targetSecret:true}),'DIRECT');
  assert.equal(interactionScanMode({targetType:'CHARACTER',scanMode:'DISCRET',targetSecret:false}),'DISCRET');
