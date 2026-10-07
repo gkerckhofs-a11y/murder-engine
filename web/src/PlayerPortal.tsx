@@ -664,7 +664,7 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
           )}
           {cash&&portal.otherCharacters.length>0&&
             <button className="playerSecondary bagCashTransferButton" disabled={busy||cashValue<=0||portal.session?.status!=='LIVE'} onClick={()=>setCashScannerOpen(true)}>
-              💸 Virer
+              💸 {tr(portal,'Virer','Send')}
             </button>}
         </div>}
 
@@ -706,7 +706,7 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
                 <div className="bagPossessionType">{tr(portal,'Objet','Item')}</div>
                 <strong>{o.name}</strong>
                 <p>{o.identification}</p>
-                {o.charges!=null&&<small>Charges : {o.charges}</small>}
+                {o.charges!=null&&<small>{tr(portal,'Charges','Charges')} : {o.charges}</small>}
               </div>
               {o.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow objectVisualAction">
                 <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(o)}>📷 {tr(portal,'Donner','Give')}</button>
@@ -717,17 +717,18 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
     </section>
 
     {scanObject&&<QrCharacterScanner
-      title={`Donner ${scanObject.name}`}
+      title={isEnglish(portal)?`Give ${scanObject.name}`:`Donner ${scanObject.name}`}
       mode="DIRECT"
       targets={portal.otherCharacters}
+      language={portal.session?.language}
       onClose={()=>setScanObject(null)}
       onSelect={(target:any)=>{setPending({object:scanObject,target});setScanObject(null);}}
     />}
 
-    {pending&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer le don">
+    {pending&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Confirmer le don','Confirm gift')}>
       <div className="qrScannerPanel giveConfirmPanel">
         <p className="eyebrow">{tr(portal,'DON · QR VALIDÉ','GIFT · QR VALIDATED')}</p>
-        <h2>Donner {pending.object.name} ?</h2>
+        <h2>{tr(portal,'Donner','Give')} {pending.object.name} ?</h2>
         <p>{tr(portal,'Destinataire :','Recipient:')} <strong>{pending.target.name}</strong>{pending.target.publicRole?` · ${pending.target.publicRole}`:''}</p>
         <div className="giveConfirmActions">
           <button className="playerSecondary" disabled={busy} onClick={()=>setPending(null)}>{tr(portal,'Annuler','Cancel')}</button>
@@ -737,14 +738,15 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
     </div>}
 
     {cashScannerOpen&&<QrCharacterScanner
-      title="Virer de l’argent"
+      title={tr(portal,'Virer de l’argent','Send money')}
       mode="DIRECT"
       targets={portal.otherCharacters}
+      language={portal.session?.language}
       onClose={()=>setCashScannerOpen(false)}
       onSelect={(target:any)=>{setCashTarget(target);setCashScannerOpen(false);setCashAmount('');setCashError('');}}
     />}
 
-    {cashTarget&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer le virement">
+    {cashTarget&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Confirmer le virement','Confirm transfer')}>
       <div className="qrScannerPanel cashTransferPanel">
         <p className="eyebrow">{tr(portal,'VIREMENT','TRANSFER')}</p>
         <h2>{tr(portal,'Envoyer de l’argent','Send money')}</h2>
@@ -771,12 +773,12 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
       </div>
     </div>}
 
-    {cashConfirmation&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Virement effectué">
+    {cashConfirmation&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Virement effectué','Transfer completed')}>
       <div className="qrScannerPanel cashTransferPanel">
         <p className="eyebrow">{tr(portal,'VIREMENT','TRANSFER')}</p>
         <h2>✓ {tr(portal,'Argent envoyé','Money sent')}</h2>
         <p>{cashConfirmation}</p>
-        <button className="playerPrimary" onClick={()=>setCashConfirmation('')}>Continuer</button>
+        <button className="playerPrimary" onClick={()=>setCashConfirmation('')}>{tr(portal,'Continuer','Continue')}</button>
       </div>
     </div>}
   </div>;
