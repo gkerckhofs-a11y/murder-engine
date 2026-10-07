@@ -90,6 +90,7 @@ export default function MediaLibraryPanel({
   const [uploadFile,setUploadFile]=useState<File|null>(null);
   const [uploadLabel,setUploadLabel]=useState('');
   const [uploadTags,setUploadTags]=useState('');
+  const [showUpload,setShowUpload]=useState(false);
 
   useEffect(()=>{
     setOverrides(version?.mediaOverrides??{});
@@ -348,11 +349,21 @@ export default function MediaLibraryPanel({
               <small>{selected?.externalId}</small>
             </div>
 
-            {currentOverride?.source&&
-              <button className="secondary mediaResetButton" disabled={busy} onClick={()=>void assign(null)}>
-                Réinitialiser
+            <div className="mediaSelectedActions">
+              <button
+                className="mediaAddButton"
+                disabled={busy}
+                onClick={()=>setShowUpload(v=>!v)}
+              >
+                {showUpload?'Masquer l’ajout':'+ Ajouter une image'}
               </button>
-            }
+
+              {currentOverride?.source&&
+                <button className="secondary mediaResetButton" disabled={busy} onClick={()=>void assign(null)}>
+                  Réinitialiser
+                </button>
+              }
+            </div>
           </div>
 
           {currentOverride?.source&&
@@ -365,7 +376,7 @@ export default function MediaLibraryPanel({
             </div>
           }
 
-          <div className="mediaUpload">
+          {showUpload&&<div className="mediaUpload">
             <div className="mediaUploadHead">
               <div>
                 <span className="micro">OU IMPORTER UNE NOUVELLE IMAGE</span>
@@ -413,7 +424,7 @@ export default function MediaLibraryPanel({
                 {busy?'Ajout…':'Ajouter l’image'}
               </button>
             </div>
-          </div>
+          </div>}
 
           <div className="mediaExistingHead">
             <div>
