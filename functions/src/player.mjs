@@ -978,11 +978,11 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
   const requiresGm=String(interaction.resolution).toUpperCase()==='GM'||String(interaction.validation??'').toUpperCase()==='GM'||(Boolean(interaction.targetSecret)&&!characterTarget);
   if(requiresGm){
     if(!input?.requestOnly)throw new Error('PLAYER_INTERACTION_REQUIRES_GM');
-    await executor(INSERT_PLAYER_ACTION_LOG_MUTATION,{data:{gameSessionId:loaded.session.id,actionType:'PLAYER_INTERACTION_REQUEST',characterExternalId:actor,refExternalId:id,beforeValue:null,afterValue:targetExternalId,deltaValue:null,note:`Demande joueur : ${interaction.name}`,createdAt:nowIso(now)}});
+    await executor(INSERT_PLAYER_ACTION_LOG_MUTATION,{data:{gameSessionId:loaded.session.id,actionType:'PLAYER_INTERACTION_REQUEST',characterExternalId:actor,refExternalId:id,beforeValue:null,afterValue:targetExternalId,deltaValue:null,note:sessionText(loaded.session,`Demande joueur : ${interaction.name}`,`Player request: ${interaction.name}`),createdAt:nowIso(now)}});
     return {requested:true,interactionExternalId:id,interactionName:interaction.name,targetExternalId,scanMode:interactionScanMode(interaction)};
   }
 
-  const result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId:id,targetExternalId,note:`Action joueur · ciblage ${interactionScanMode(interaction)??'N/A'}`});
+  const result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId:id,targetExternalId,note:sessionText(loaded.session,`Action joueur · ciblage ${interactionScanMode(interaction)??'N/A'}`,`Player action · targeting ${interactionScanMode(interaction)??'N/A'}`)});
   const createdAt=nowIso(now);
   const targetCharacter=(loaded.source.characters??[]).find(c=>c.externalId===targetExternalId);
   let rumor=null;
@@ -993,7 +993,7 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
       clueExternalId:rumorClue.externalId,
       sourceInteractionExternalId:id,
       sourceRef:targetExternalId,
-      note:`Rumeur obtenue sur ${targetExternalId}`,
+      note:sessionText(loaded.session,`Rumeur obtenue sur ${targetExternalId}`,`Rumour obtained about ${targetExternalId}`),
     });
 
     rumor={
@@ -1075,9 +1075,9 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
 export async function transferPlayerObject(token,input,{reader=defaultReader,executor=defaultExecutor,objectTransfer=transferSessionObject,clueReveal=revealClueToCharacter,now=new Date()}={}) {
   const loaded=await loadPlayerData(token,reader);if(loaded.session.status!=='LIVE')throw new Error('PLAYER_ACTIONS_NOT_LIVE');const actor=loaded.participant.characterExternalId;const objectExternalId=String(input?.objectExternalId??'').trim();const targetCharacterExternalId=String(input?.targetCharacterExternalId??'').trim();if(!targetCharacterExternalId||targetCharacterExternalId===actor)throw new Error('INVALID_OBJECT_TARGET');const row=(loaded.runtime.sessionObjects??[]).find(o=>o.objectExternalId===objectExternalId&&o.inPlay!==false&&o.holderType==='CHARACTER'&&o.holderExternalId===actor);if(!row)throw new Error('OBJECT_NOT_OWNED_BY_PLAYER');const def=(loaded.source.gameObjects??[]).find(o=>o.externalId===objectExternalId&&o.active!==false);if(!def?.transferable)throw new Error('OBJECT_NOT_TRANSFERABLE');if(!(loaded.session.sessionParticipants_on_gameSession??[]).some(p=>p.active!==false&&p.characterExternalId===targetCharacterExternalId))throw new Error('OBJECT_TARGET_CHARACTER_NOT_FOUND');
   const linkedClues=(loaded.source.clues??[]).filter(c=>c.active!==false&&c.objectExternalId===objectExternalId&&c.addToNotebook!==false);
-  for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:`Document consulté : ${def.name}`});}
-  const result=await objectTransfer(loaded.session.id,{objectExternalId,holderType:'CHARACTER',holderExternalId:targetCharacterExternalId,note:`Don de ${actor}`});
-  for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:targetCharacterExternalId,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:`Document reçu : ${def.name}`});}
+  for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:sessionText(loaded.session,`Document consulté : ${def.name}`,`Document reviewed: ${def.name}`)});}
+  const result=await objectTransfer(loaded.session.id,{objectExternalId,holderType:'CHARACTER',holderExternalId:targetCharacterExternalId,note:sessionText(loaded.session,`Don de ${actor}`,`Given by ${actor}`)});
+  for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:targetCharacterExternalId,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:sessionText(loaded.session,`Document reçu : ${def.name}`,`Document received: ${def.name}`)});}
   const createdAt=nowIso(now);
   await executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:targetCharacterExternalId,kind:'OBJECT',title:sessionText(loaded.session,'Objet reçu','Item received'),body:sessionText(loaded.session,`Vous recevez : ${def.name}.`,`You receive: ${def.name}.`),priority:'NORMAL',refExternalId:objectExternalId,createdAt,readAt:null}});
   await executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:actor,kind:'ACTION',title:sessionText(loaded.session,'Objet donné','Item given'),body:sessionText(loaded.session,`Vous avez donné : ${def.name}.`,`You gave: ${def.name}.`),priority:'NORMAL',refExternalId:objectExternalId,createdAt,readAt:null}});
@@ -1151,7 +1151,7 @@ export async function transferPlayerCash(token,input,{reader=defaultReader,execu
     beforeValue:String(senderBefore),
     afterValue:String(senderAfter),
     deltaValue:-amount,
-    note:`Virement de ${amount} à ${targetName}`,
+    note:sessionText(loaded.session,`Virement de ${amount} à ${targetName}`,`Transfer of ${amount} to ${targetName}`),
     createdAt
   };
 
@@ -1163,7 +1163,7 @@ export async function transferPlayerCash(token,input,{reader=defaultReader,execu
     beforeValue:String(targetBefore),
     afterValue:String(targetAfter),
     deltaValue:amount,
-    note:`Virement reçu : ${amount}`,
+    note:sessionText(loaded.session,`Virement reçu : ${amount}`,`Transfer received: ${amount}`),
     createdAt
   };
 
@@ -1194,10 +1194,10 @@ async function executeSystemLocationSearch(loaded, locationExternalId, {executor
   if(!pa) throw new Error('INTERACTION_COST_RESOURCE_NOT_FOUND');
   if(Number(pa.currentValue??0)<1) throw new Error('INTERACTION_INSUFFICIENT_RESOURCE');
   const after=Number(pa.currentValue)-1; const createdAt=nowIso(now);
-  const use={gameSessionId:loaded.session.id,interactionExternalId:'SYSTEM_LOCATION_SEARCH',actorCharacterExternalId:actor,targetType:'LOCATION',targetExternalId:locationExternalId,resolution:'AUTO',success:true,abilityLevel:0,actorRollJson:null,targetRollJson:null,costResourceExternalId:'RES_PA',costValue:1,note:'Fouille QR automatique',createdAt};
-  const log={gameSessionId:loaded.session.id,actionType:'INTERACTION_EXECUTE',characterExternalId:actor,refExternalId:'SYSTEM_LOCATION_SEARCH',beforeValue:null,afterValue:'SUCCESS',deltaValue:-1,note:`Fouille QR → ${locationExternalId}`,createdAt};
+  const use={gameSessionId:loaded.session.id,interactionExternalId:'SYSTEM_LOCATION_SEARCH',actorCharacterExternalId:actor,targetType:'LOCATION',targetExternalId:locationExternalId,resolution:'AUTO',success:true,abilityLevel:0,actorRollJson:null,targetRollJson:null,costResourceExternalId:'RES_PA',costValue:1,note:sessionText(loaded.session,'Fouille QR automatique','Automatic QR search'),createdAt};
+  const log={gameSessionId:loaded.session.id,actionType:'INTERACTION_EXECUTE',characterExternalId:actor,refExternalId:'SYSTEM_LOCATION_SEARCH',beforeValue:null,afterValue:'SUCCESS',deltaValue:-1,note:sessionText(loaded.session,`Fouille QR → ${locationExternalId}`,`QR search → ${locationExternalId}`),createdAt};
   await executor(SYSTEM_LOCATION_SEARCH_MUTATION,{sessionId:loaded.session.id,characterExternalId:actor,currentValue:after,updatedAt:createdAt,use,log});
-  return {interactionExternalId:'SYSTEM_LOCATION_SEARCH',interactionName:'Fouiller',actorCharacterExternalId:actor,targetType:'LOCATION',targetExternalId:locationExternalId,success:true,resolution:'AUTO',actorRoll:null,targetRoll:null,actorTotal:null,targetTotal:null,abilityLevel:0,cost:{resourceExternalId:'RES_PA',value:1,remaining:after}};
+  return {interactionExternalId:'SYSTEM_LOCATION_SEARCH',interactionName:sessionText(loaded.session,'Fouiller','Search'),actorCharacterExternalId:actor,targetType:'LOCATION',targetExternalId:locationExternalId,success:true,resolution:'AUTO',actorRoll:null,targetRoll:null,actorTotal:null,targetTotal:null,abilityLevel:0,cost:{resourceExternalId:'RES_PA',value:1,remaining:after}};
 }
 
 async function grantAutomaticLocationReward(loaded, locationExternalId, interactionExternalId, {clueReveal=revealClueToCharacter,objectTransfer=transferSessionObject}={}) {
@@ -1297,7 +1297,7 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
   else {
     const sourceInteraction=(loaded.source.interactions??[]).find(i=>i.externalId===interactionExternalId&&i.active!==false); if(!sourceInteraction||!isAutonomousLocationInteraction(sourceInteraction)) throw new Error('LOCATION_ACTION_NOT_AUTONOMOUS');
     const gmOutcome=String(sourceInteraction.resolution).toUpperCase()==='GM'?'SUCCESS':null;
-    result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId,targetExternalId:locationExternalId,gmOutcome,note:'Action QR joueur'});
+    result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId,targetExternalId:locationExternalId,gmOutcome,note:sessionText(loaded.session,'Action QR joueur','Player QR action')});
   }
   const reward=result.success?await grantAutomaticLocationReward(loaded,locationExternalId,result.interactionExternalId,{clueReveal,objectTransfer}):{kind:'NONE',clue:null,object:null};
 
@@ -1321,7 +1321,7 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
           beforeValue:'1',
           afterValue:'0',
           deltaValue:-1,
-          note:`Lieu vide : ${location.name}. Le MJ peut barrer ou retirer son QR.`,
+          note:sessionText(loaded.session,`Lieu vide : ${location.name}. Le MJ peut barrer ou retirer son QR.`,`Location cleared: ${location.name}. The GM can cross out or remove its QR code.`),
           createdAt:nowIso(now)
         }
       }
@@ -1399,7 +1399,7 @@ export async function attemptPlayerClandestineAction(token,input,{reader=default
   if(!(loaded.session.sessionParticipants_on_gameSession??[]).some(p=>p.active!==false&&p.characterExternalId===targetCharacterExternalId)) throw new Error('TARGET_CHARACTER_NOT_IN_SESSION');
   if(String(interaction.resolution).toUpperCase()==='GM'||String(interaction.validation??'').toUpperCase()==='GM') throw new Error('CLANDESTINE_INTERACTION_REQUIRES_AUTOMATION');
   const scanMode=interactionScanMode(interaction);
-  const result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId,targetExternalId:targetCharacterExternalId,note:`Action joueur · scan ${scanMode??'DISCRET'}`});
+  const result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId,targetExternalId:targetCharacterExternalId,note:sessionText(loaded.session,`Action joueur · scan ${scanMode??'DISCRET'}`,`Player action · ${scanMode??'DISCREET'} scan`)});
   const notifyTarget=async(body,title=sessionText(loaded.session,'Action sur votre personnage','Action targeting your character'))=>executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:targetCharacterExternalId,kind:'INTERACTION_TARGET',title,body,priority:'NORMAL',refExternalId:interactionExternalId,createdAt:nowIso(now),readAt:null}});
   if(!result.success){
     await notifyTarget(sessionText(
@@ -1448,12 +1448,12 @@ export async function claimPlayerStolenObject(token,input,{reader=defaultReader,
   const def=(loaded.source.gameObjects??[]).find(o=>o.externalId===objectExternalId&&o.active!==false);
   if(!def?.stealable) throw new Error('OBJECT_NOT_STEALABLE');
   const linkedClues=(loaded.source.clues??[]).filter(c=>c.active!==false&&c.objectExternalId===objectExternalId&&c.addToNotebook!==false);
-  for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:grant.targetCharacterExternalId,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:`Document possédé avant vol : ${def.name}`});}
+  for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:grant.targetCharacterExternalId,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:sessionText(loaded.session,`Document possédé avant vol : ${def.name}`,`Document owned before theft: ${def.name}`)});}
   const usedAt=nowIso(nowDate);
   const notification={gameSessionId:loaded.session.id,characterExternalId:grant.targetCharacterExternalId,kind:'THEFT',title:sessionText(loaded.session,'Quelque chose vous manque…','Something is missing…'),body:sessionText(loaded.session,'Vous venez de constater qu’un objet a disparu de vos affaires. Murder Engine ne révèle pas l’auteur du vol.','You have just noticed that an item has disappeared from your belongings. Murder Engine does not reveal who took it.'),priority:'IMPORTANT',refExternalId:null,createdAt:usedAt,readAt:null};
-  const log={gameSessionId:loaded.session.id,actionType:'OBJECT_STOLEN',characterExternalId:actor,refExternalId:objectExternalId,beforeValue:grant.targetCharacterExternalId,afterValue:actor,deltaValue:null,note:`Vol clandestin réussi sur ${grant.targetCharacterExternalId}`,createdAt:usedAt};
+  const log={gameSessionId:loaded.session.id,actionType:'OBJECT_STOLEN',characterExternalId:actor,refExternalId:objectExternalId,beforeValue:grant.targetCharacterExternalId,afterValue:actor,deltaValue:null,note:sessionText(loaded.session,`Vol clandestin réussi sur ${grant.targetCharacterExternalId}`,`Successful clandestine theft from ${grant.targetCharacterExternalId}`),createdAt:usedAt};
   await executor(CLAIM_STEAL_MUTATION,{sessionId:loaded.session.id,grantToken,objectExternalId,actorCharacterExternalId:actor,usedAt,notification,log});
-  for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:`Document volé : ${def.name}`});}
+  for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:sessionText(loaded.session,`Document volé : ${def.name}`,`Stolen document: ${def.name}`)});}
   return {stolen:true,object:{objectExternalId,name:def.name,description:def.description??null},targetCharacterExternalId:grant.targetCharacterExternalId};
 }
 
