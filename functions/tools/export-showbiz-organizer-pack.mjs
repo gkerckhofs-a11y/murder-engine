@@ -2,7 +2,8 @@ import { initializeApp, getApps } from 'firebase-admin/app';
 import { getDataConnect } from 'firebase-admin/data-connect';
 import { getScenarioVersionOverview, getCharacterDetail } from '../src/library.mjs';
 import { getGameSession } from '../src/sessions.mjs';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
+import path from 'node:path';
 
 if(!getApps().length) initializeApp();
 
@@ -93,6 +94,34 @@ const output={
 };
 
 await writeFile('showbiz-organizer-pack-data.json',JSON.stringify(output,null,2),'utf8');
+
+const assetsDir='showbiz-organizer-pack-assets';
+await mkdir(assetsDir,{recursive:true});
+
+const playable=(extra.characters??[])
+  .filter(x=>x.active!==false&&x.playable!==false);
+
+for(const character of playable){
+  const override=overview.mediaOverrides?.['CHARACTER:'+character.externalId];
+  if(!override?.source)continue;
+
+  const ext=String(override.source)
+    .split('?')[0]
+    .match(/\.(png|jpe?g|webp|gif)$/i)?.[1]
+    ?.toLowerCase() || 'png';
+
+  const safeName=character.externalId.replace(/[^A-Za-z0-9_-]+/g,'_');
+  const filePath=path.join(assetsDir,safeName+'.'+ext);
+
+  const response=await fetch(override.source);
+  if(!response.ok)
+    throw new Error('IMAGE_DOWNLOAD_FAILED_'+character.externalId);
+
+  await writeFile(
+    filePath,
+    Buffer.from(await response.arrayBuffer())
+  );
+}
 
 console.log(JSON.stringify({
   versionId:overview.id,
