@@ -288,7 +288,7 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
 
     {tab==='qr'&&<section className="playerCard playerUtilityDetails">
       <p className="playerSectionKicker">{tr(portal,'MON IDENTIFIANT DE JEU','MY GAME ID')}</p>
-      <h2>Mon QR</h2>
+      <h2>{tr(portal,'Mon QR','My QR')}</h2>
       <p className="playerHelp">{tr(portal,'C’est l’unique QR de votre personnage. Pour une interaction DIRECTE, vous le présentez au joueur qui agit sur vous. Le MJ peut conserver une copie du même QR pour les interactions DISCRÈTES.','This is your character’s unique QR code. For a DIRECT interaction, show it to the player acting on you. The GM may keep a copy of the same QR code for DISCREET interactions.')}</p>
       <div className="playerCharacterQr">
         <QRCodeSVG value={`${window.location.origin}/scan/character/${encodeURIComponent(c.externalId)}`} size={180} level="M" includeMargin/>
