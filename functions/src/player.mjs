@@ -76,7 +76,7 @@ query PlayerSource($versionId: UUID!) {
   }
   gameLocations(where: {scenarioVersionId: {eq: $versionId}}) { externalId name description qrCode permanent lockExternalId active }
   voteDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
-    externalId title question scopeType scopeRef choicesMode secret votesPerElector weighted abstention modifiable active
+    externalId title question scopeType scopeRef choicesMode secret votesPerElector weighted abstention modifiable resultVisibility active
   }
   voteOptionDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
     externalId voteExternalId orderIndex label description characterExternalId active
@@ -834,23 +834,173 @@ function locationActionShape(source,runtime,session,characterExternalId,location
 
 function playerVotes(source,runtime,session,characterExternalId) {
   const optionsByVote=new Map();
-  for(const o of source.voteOptionDefinitions??[]){if(o.active===false)continue;if(!optionsByVote.has(o.voteExternalId))optionsByVote.set(o.voteExternalId,[]);optionsByVote.get(o.voteExternalId).push(o);}
-  const cast=(session.sessionParticipants_on_gameSession??[]).filter(p=>p.active!==false&&p.characterExternalId).map(p=>p.characterExternalId);
-  return (source.voteDefinitions??[]).filter(v=>v.active!==false).flatMap(v=>{
-    const electorate=resolveElectorate(
-      v,
-      session.sessionParticipants_on_gameSession??[],
-      runtime,
-      source
+
+  for(const o of source.voteOptionDefinitions??[]){
+    if(o.active===false)continue;
+    if(!optionsByVote.has(o.voteExternalId))
+      optionsByVote.set(o.voteExternalId,[]);
+    optionsByVote.get(o.voteExternalId).push(o);
+  }
+
+  return (source.voteDefinitions??[])
+    .filter(v=>v.active!==false)
+    .flatMap(v=>{
+      const electorate=resolveElectorate(
+        v,
+        session.sessionParticipants_on_gameSession??[],
+        runtime,
+        source
+      );
+
+      if(!electorate.includes(characterExternalId))
+        return [];
+
+      const openRounds=(runtime.sessionVotes??[])
+        .filter(r=>
+          r.voteExternalId===v.externalId &&
+          r.status==='OPEN'
+        )
+        .sort((a,b)=>b.round-a.round);
+
+      const round=openRounds[0];
+      if(!round)return [];
+
+      const ballot=(runtime.sessionBallots??[])
+        .find(b=>
+          b.voteExternalId===v.externalId &&
+          b.round===round.round &&
+          b.electorCharacterExternalId===characterExternalId
+        );
+
+      // Once the player has voted, the ballot leaves the Play tab.
+      if(ballot)return [];
+
+      const eligible=round.eligibleOptionExternalIds
+        ? splitIds(round.eligibleOptionExternalIds)
+        : null;
+
+      const options=(optionsByVote.get(v.externalId)??[])
+        .filter(o=>!eligible||eligible.includes(o.externalId))
+        .sort((a,b)=>(a.orderIndex??0)-(b.orderIndex??0))
+        .map(o=>({
+          externalId:o.externalId,
+          label:o.label,
+          description:o.description??null
+        }));
+
+      return [{
+        externalId:v.externalId,
+        title:v.title,
+        question:v.question,
+        round:round.round,
+        secret:Boolean(v.secret),
+        modifiable:Boolean(v.modifiable),
+        abstention:Boolean(v.abstention),
+        options,
+        selectedOptionExternalIds:[],
+        hasVoted:false
+      }];
+    });
+}
+
+function playerVoteResults(source,runtime,session,characterExternalId) {
+  const cast=new Set(
+    (session.sessionParticipants_on_gameSession??[])
+      .filter(p=>p.active!==false&&p.characterExternalId)
+      .map(p=>p.characterExternalId)
+  );
+
+  if(!cast.has(characterExternalId))
+    return [];
+
+  const charMap=byId(source.characters??[]);
+  const optionMap=byId(
+    (source.voteOptionDefinitions??[])
+      .filter(o=>o.active!==false)
+  );
+
+  return (source.voteDefinitions??[])
+    .filter(v=>v.active!==false)
+    .flatMap(v=>{
+      const visibility=String(
+        v.resultVisibility??'AFTER_CLOSE'
+      ).trim().toUpperCase();
+
+      if([
+        'GM',
+        'MJ',
+        'GM_ONLY',
+        'MJ_ONLY',
+        'HIDDEN',
+        'NONE',
+      ].includes(visibility))
+        return [];
+
+      if(['ELECTORATE','VOTERS'].includes(visibility)){
+        const electorate=resolveElectorate(
+          v,
+          session.sessionParticipants_on_gameSession??[],
+          runtime,
+          source
+        );
+
+        if(!electorate.includes(characterExternalId))
+          return [];
+      }
+
+      const closed=(runtime.sessionVotes??[])
+        .filter(row=>
+          row.voteExternalId===v.externalId &&
+          row.status==='CLOSED' &&
+          row.resultJson
+        )
+        .sort((a,b)=>Number(b.round??0)-Number(a.round??0))[0];
+
+      if(!closed)return [];
+
+      let result=null;
+      try{result=JSON.parse(closed.resultJson)}catch{}
+      if(!result)return [];
+
+      const resolveLabel=optionExternalId=>{
+        const option=optionMap.get(optionExternalId);
+        if(!option)return optionExternalId??null;
+
+        if(option.characterExternalId){
+          const character=charMap.get(option.characterExternalId);
+          return character?.name??option.label??optionExternalId;
+        }
+
+        return option.label??optionExternalId;
+      };
+
+      const winnerOptionExternalId=
+        result.winnerOptionExternalId??null;
+
+      return [{
+        externalId:v.externalId,
+        title:v.title,
+        question:v.question,
+        round:closed.round,
+        closedAt:closed.closedAt??null,
+        winnerOptionExternalId,
+        winnerLabel:winnerOptionExternalId
+          ? resolveLabel(winnerOptionExternalId)
+          : null,
+        tieForLead:Boolean(result.tieForLead),
+        suggestSecondRound:Boolean(result.suggestSecondRound),
+        ranked:(result.ranked??[])
+          .slice(0,3)
+          .map(row=>({
+            optionExternalId:row.optionExternalId,
+            label:resolveLabel(row.optionExternalId)
+          }))
+      }];
+    })
+    .sort((a,b)=>
+      new Date(b.closedAt??0).getTime()-
+      new Date(a.closedAt??0).getTime()
     );
-    if(!electorate.includes(characterExternalId))return [];
-    const openRounds=(runtime.sessionVotes??[]).filter(r=>r.voteExternalId===v.externalId&&r.status==='OPEN').sort((a,b)=>b.round-a.round);
-    const round=openRounds[0]; if(!round)return [];
-    const eligible=round.eligibleOptionExternalIds?splitIds(round.eligibleOptionExternalIds):null;
-    const options=(optionsByVote.get(v.externalId)??[]).filter(o=>!eligible||eligible.includes(o.externalId)).sort((a,b)=>(a.orderIndex??0)-(b.orderIndex??0)).map(o=>({externalId:o.externalId,label:o.label,description:o.description??null}));
-    const ballot=(runtime.sessionBallots??[]).find(b=>b.voteExternalId===v.externalId&&b.round===round.round&&b.electorCharacterExternalId===characterExternalId);
-    return [{externalId:v.externalId,title:v.title,question:v.question,round:round.round,secret:Boolean(v.secret),modifiable:Boolean(v.modifiable),abstention:Boolean(v.abstention),options,selectedOptionExternalIds:splitIds(ballot?.selectedOptionExternalIds),hasVoted:Boolean(ballot)}];
-  });
 }
 
 function immersiveMediaSource(source){
@@ -1165,13 +1315,20 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
   const notifications=(runtime.sessionPlayerNotifications??[]).filter(n=>n.characterExternalId===characterExternalId).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
   const interactions=playerInteractions(source,runtime,session,characterExternalId,resources,now);
   const votes=playerVotes(source,runtime,session,characterExternalId);
+  const voteResults=playerVoteResults(
+    source,
+    runtime,
+    session,
+    characterExternalId
+  );
+
   return {
     presentation:scenarioPresentation(session,source),
     participant:{id:participant.id,displayName:participant.displayName,briefingStatus:participant.briefingStatus,briefingReadAt:participant.briefingReadAt??null,playerOpenCount:Number(participant.playerOpenCount??0)},
     session:{id:session.id,name:session.name,scheduledAt:session.scheduledAt,venue:session.venue,language:session.language??'FR',status:session.status,startedAt:session.startedAt,pausedAt:session.pausedAt,finishedAt:session.finishedAt,scenarioTitle:session.scenarioVersion?.scenario?.title??'Murder Party',playerSummary:session.scenarioVersion?.playerSummary??''},
     character:{externalId:character.externalId,name:character.name,publicRole:character.publicRole,biography:character.biography,secretIntro:character.secretIntro,interpretationNotes:character.interpretationNotes,appearanceNotes:character.appearanceNotes,apparentMotive:character.apparentMotive,personalTimeline:character.personalTimeline,motto:character.motto,narrativeAge:character.narrativeAge,portrait:mediaOverrideVisual(session,'CHARACTER',character.externalId)??visualMedia(mediaMap,character.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',character.portraitArchetypeCode)},
     otherCharacters:(session.sessionParticipants_on_gameSession??[]).filter(p=>p.active!==false&&p.characterExternalId&&p.characterExternalId!==characterExternalId).map(p=>{const c=charMap.get(p.characterExternalId);return{characterExternalId:p.characterExternalId,name:c?.name??p.characterExternalId,publicRole:c?.publicRole??null,participantName:p.displayName,portrait:mediaOverrideVisual(session,'CHARACTER',p.characterExternalId)??visualMedia(mediaMap,c?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',c?.portraitArchetypeCode)};}),
-    objectives,relationships,resources,knowledge,discoveries,documentEntries,inventory,discoverableAboutMe,states,abilities:effectiveAbilities(source,characterExternalId).filter(a=>!a.secret),interactions,votes,notifications,actionLogs,unreadNotificationCount:notifications.filter(n=>!n.readAt).length,searchCooldownRemainingSeconds:globalLocationSearchCooldownRemaining(source,runtime,characterExternalId,now),
+    objectives,relationships,resources,knowledge,discoveries,documentEntries,inventory,discoverableAboutMe,states,abilities:effectiveAbilities(source,characterExternalId).filter(a=>!a.secret),interactions,votes,voteResults,notifications,actionLogs,unreadNotificationCount:notifications.filter(n=>!n.readAt).length,searchCooldownRemainingSeconds:globalLocationSearchCooldownRemaining(source,runtime,characterExternalId,now),
   };
 }
 
