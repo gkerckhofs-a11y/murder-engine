@@ -1008,6 +1008,163 @@ test('failed clandestine theft creates no grant but anonymously notifies victim'
  assert.equal(out.success,false);assert.equal(writes,1);assert.equal(out.items.length,0);
 });
 
+
+test('Charm is automatic, costs through interaction engine, and asks target to choose unknown information',async()=>{
+ const src=source();
+ src.facts.push({externalId:'F2',title:'Secret de Bob',text:'Bob connaît un secret.',nature:'FACT',importance:'NORMAL',notebookCategory:'Relations',active:true});
+ src.abilities.push({externalId:'ABILITY_CHARM',name:'Charm',description:'Obtenir une information',category:'SOCIAL',defaultLevel:1,defaultCooldownMinutes:60,secret:false,active:true});
+ src.abilityAssignments.push({externalId:'AA_CHARM',ownerType:'CHARACTER',ownerExternalId:'CHAR_A',abilityExternalId:'ABILITY_CHARM',level:1,flatBonus:0,cooldownOverrideMinutes:60,active:true});
+ src.interactions.push({externalId:'ACT_CHARM',name:'Charm',category:'SOCIAL',targetType:'CHARACTER',scanMode:'DIRECT',abilityExternalId:'ABILITY_CHARM',actorScope:'ABILITY_HOLDER',resolution:'GM',validation:'GM',costResourceExternalId:'RES_PA',costValue:1,costTiming:'BEFORE',limitPerTarget:1,cooldownMinutes:60,targetSecret:false,active:true});
+ const rt=runtime();
+ rt.sessionKnowledges.push({characterExternalId:'CHAR_B',factExternalId:'F2',sourceType:'INITIAL',learnedAt:'2026-09-21T18:00:00Z'});
+
+ const shaped=shapePlayerPortal(participant(),session(),src,rt,new Date('2026-09-21T18:05:00Z'));
+ const action=shaped.interactions.find(x=>x.externalId==='ACT_CHARM');
+ assert.equal(action.directEnabled,true);
+ assert.equal(action.cooldownMinutes,0);
+ assert.deepEqual(action.targets.map(x=>x.id),['CHAR_B']);
+
+ const writes=[];let executionInput=null;
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+ const out=await executePlayerInteraction(
+   participant().playerAccessToken,
+   {interactionExternalId:'ACT_CHARM',targetExternalId:'CHAR_B'},
+   {
+     reader,
+     executor:async(op,vars)=>{writes.push({op,vars});return{};},
+     interactionExecutor:async(sid,input)=>{executionInput=input;return{interactionName:'Charm',success:true};},
+     now:new Date('2026-09-21T18:05:00Z')
+   }
+ );
+ assert.equal(out.pending,true);
+ assert.equal(out.specialKind,'CHARM');
+ assert.equal(executionInput.gmOutcome,'SUCCESS');
+ const grant=writes.map(x=>x.vars?.data).find(x=>x?.kind==='CHARM'&&x?.grantToken);
+ assert.equal(grant.targetCharacterExternalId,'CHAR_B');
+});
+
+test('Charm target chooses the information and actor receives it without removing it from target',async()=>{
+ const src=source();
+ src.facts.push({externalId:'F2',title:'Secret de Bob',text:'Bob connaît un secret.',nature:'FACT',importance:'NORMAL',notebookCategory:'Relations',active:true});
+ const rt=runtime();
+ rt.sessionKnowledges.push({characterExternalId:'CHAR_B',factExternalId:'F2',sourceType:'INITIAL',learnedAt:'2026-09-21T18:00:00Z'});
+ rt.sessionStealGrants.push({
+   grantToken:'CHARM_GRANT_123456789012345678901234',
+   interactionExternalId:'ACT_CHARM',
+   actorCharacterExternalId:'CHAR_A',
+   targetCharacterExternalId:'CHAR_B',
+   kind:'CHARM',
+   status:'OPEN',
+   createdAt:'2026-09-21T18:05:00Z',
+   expiresAt:'2026-09-21T22:05:00Z',
+   usedAt:null,
+   chosenObjectExternalId:null
+ });
+ const bob={id:'P2',displayName:'Bob',active:true,characterExternalId:'CHAR_B',briefingStatus:'READ',playerAccessToken:'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',playerAccessEnabled:true,playerOpenCount:1};
+ const sess=session();
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...bob,gameSession:sess}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+ let resolved;
+ const out=await executePlayerInteraction(
+   bob.playerAccessToken,
+   {grantToken:'CHARM_GRANT_123456789012345678901234',selectionExternalId:'F2'},
+   {reader,executor:async(op,vars)=>{resolved=vars;return{};},now:new Date('2026-09-21T18:06:00Z')}
+ );
+ assert.equal(out.kind,'CHARM');
+ assert.equal(out.fact.factExternalId,'F2');
+ assert.equal(resolved.knowledge.characterExternalId,'CHAR_A');
+ assert.equal(resolved.knowledge.factExternalId,'F2');
+});
+
+test('Negotiation stores actor offer and target response swaps two transferable proofs',async()=>{
+ const src=source();
+ src.abilities.push({externalId:'ABILITY_NEGOTIATION',name:'Negotiation',description:'Échange forcé',category:'SOCIAL',defaultLevel:1,defaultCooldownMinutes:60,secret:false,active:true});
+ src.abilityAssignments.push({externalId:'AA_NEG',ownerType:'CHARACTER',ownerExternalId:'CHAR_A',abilityExternalId:'ABILITY_NEGOTIATION',level:1,active:true});
+ src.interactions.push({externalId:'ACT_NEGOTIATION',name:'Negotiation',category:'SOCIAL',targetType:'CHARACTER',scanMode:'DIRECT',abilityExternalId:'ABILITY_NEGOTIATION',actorScope:'ABILITY_HOLDER',resolution:'GM',validation:'GM',costResourceExternalId:'RES_PA',costValue:1,costTiming:'BEFORE',limitPerTarget:1,cooldownMinutes:60,targetSecret:false,active:true});
+ const rt=runtime();
+ const readerA=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+ const writes=[];
+ const start=await executePlayerInteraction(
+   participant().playerAccessToken,
+   {interactionExternalId:'ACT_NEGOTIATION',targetExternalId:'CHAR_B',offeredObjectExternalId:'ITEM1'},
+   {reader:readerA,executor:async(op,vars)=>{writes.push({op,vars});return{};},interactionExecutor:async()=>({interactionName:'Negotiation',success:true}),now:new Date('2026-09-21T18:05:00Z')}
+ );
+ assert.equal(start.pending,true);
+ const createdGrant=writes.map(x=>x.vars?.data).find(x=>x?.kind==='NEGOTIATION'&&x?.grantToken);
+ assert.equal(createdGrant.chosenObjectExternalId,'ITEM1');
+
+ rt.sessionStealGrants.push({...createdGrant});
+ const bob={id:'P2',displayName:'Bob',active:true,characterExternalId:'CHAR_B',briefingStatus:'READ',playerAccessToken:'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',playerAccessEnabled:true,playerOpenCount:1};
+ const readerB=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...bob,gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+ let swapVars=null;
+ const done=await executePlayerInteraction(
+   bob.playerAccessToken,
+   {grantToken:createdGrant.grantToken,selectionExternalId:'ITEM_B'},
+   {reader:readerB,executor:async(op,vars)=>{swapVars=vars;return{};},clueReveal:async()=>({}),now:new Date('2026-09-21T18:06:00Z')}
+ );
+ assert.equal(done.kind,'NEGOTIATION');
+ assert.equal(done.given.objectExternalId,'ITEM1');
+ assert.equal(done.received.objectExternalId,'ITEM_B');
+ assert.equal(swapVars.actorObjectExternalId,'ITEM1');
+ assert.equal(swapVars.targetObjectExternalId,'ITEM_B');
+});
+
+test('Police Intimidation takes one transferable proof directly and identifies the intimidator',async()=>{
+ const src=source();
+ src.abilities.push({externalId:'ABILITY_POLICE_INTIMIDATION',name:'Police Intimidation',description:'Prendre une preuve',category:'INTIMIDATION',defaultLevel:1,defaultCooldownMinutes:60,secret:false,active:true});
+ src.abilityAssignments.push({externalId:'AA_INT',ownerType:'CHARACTER',ownerExternalId:'CHAR_A',abilityExternalId:'ABILITY_POLICE_INTIMIDATION',level:1,active:true});
+ src.interactions.push({externalId:'ACT_POLICE_INTIMIDATION',name:'Police Intimidation',category:'INTIMIDATION',targetType:'CHARACTER',scanMode:'DIRECT',abilityExternalId:'ABILITY_POLICE_INTIMIDATION',actorScope:'ABILITY_HOLDER',resolution:'GM',validation:'GM',costResourceExternalId:'RES_PA',costValue:1,costTiming:'BEFORE',limitPerTarget:1,cooldownMinutes:60,targetSecret:false,active:true});
+ const rt=runtime();
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+ const writes=[];let executionInput;
+ const attempt=await attemptPlayerClandestineAction(
+   participant().playerAccessToken,
+   {interactionExternalId:'ACT_POLICE_INTIMIDATION',targetCharacterExternalId:'CHAR_B'},
+   {reader,executor:async(op,vars)=>{writes.push({op,vars});return{};},interactionExecutor:async(sid,input)=>{executionInput=input;return{interactionName:'Police Intimidation',success:true};},now:new Date('2026-09-21T18:05:00Z')}
+ );
+ assert.equal(attempt.kind,'INTIMIDATION');
+ assert.equal(attempt.items[0].objectExternalId,'ITEM_B');
+ assert.equal(executionInput.gmOutcome,'SUCCESS');
+ const grant=writes.map(x=>x.vars?.data).find(x=>x?.kind==='INTIMIDATION'&&x?.grantToken);
+ assert.ok(grant);
+
+ rt.sessionStealGrants.push(grant);
+ let claimVars=null;
+ const claimed=await claimPlayerStolenObject(
+   participant().playerAccessToken,
+   {grantToken:grant.grantToken,objectExternalId:'ITEM_B'},
+   {reader,executor:async(op,vars)=>{claimVars=vars;return{};},clueReveal:async()=>({}),now:new Date('2026-09-21T18:06:00Z')}
+ );
+ assert.equal(claimed.intimidated,true);
+ assert.equal(claimed.stolen,false);
+ assert.match(claimVars.notification.body,/Alice/);
+ assert.match(claimVars.notification.body,/Portefeuille/);
+});
+
 test('scan mode is explicit when present and backwards-compatible with secret_cible',()=>{
  assert.equal(interactionScanMode({targetType:'CHARACTER',scanMode:'DIRECT',targetSecret:true}),'DIRECT');
  assert.equal(interactionScanMode({targetType:'CHARACTER',scanMode:'DISCRET',targetSecret:false}),'DISCRET');
