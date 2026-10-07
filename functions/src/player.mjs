@@ -46,7 +46,7 @@ query PlayerSource($versionId: UUID!) {
     externalId title text nature importance notebookCategory isPublic active
   }
   clues(where: {scenarioVersionId: {eq: $versionId}}) {
-    externalId playerName clueType playerText discoveryHook support presentationMode addToNotebook locationExternalId objectExternalId documentExternalId mediaExternalId major active
+    externalId playerName clueType playerText discoveryHook support presentationMode shareable transferable consumable addToNotebook locationExternalId objectExternalId documentExternalId mediaExternalId major active
   }
   clueFacts(where: {scenarioVersionId: {eq: $versionId}}) { clueExternalId factExternalId }
   documentDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
@@ -879,7 +879,23 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
   const objectiveRuntime=new Map((runtime.sessionObjectives??[]).filter(o=>o.characterExternalId===characterExternalId).map(o=>[o.objectiveExternalId,o]));
   const objectives=(source.objectives??[]).filter(o=>o.active!==false&&o.ownerType==='CHARACTER'&&o.ownerExternalId===characterExternalId).map(o=>({...o,status:objectiveRuntime.get(o.externalId)?.status??o.initialStatus,progress:objectiveRuntime.get(o.externalId)?.progress??0,notes:objectiveRuntime.get(o.externalId)?.notes??null}));
   const knowledge=(runtime.sessionKnowledges??[]).filter(k=>k.characterExternalId===characterExternalId).map(k=>({factExternalId:k.factExternalId,sourceType:k.sourceType,learnedAt:k.learnedAt,fact:factMap.get(k.factExternalId)})).filter(k=>k.fact).sort((a,b)=>new Date(a.learnedAt).getTime()-new Date(b.learnedAt).getTime());
-  const discoveries=(runtime.sessionClueDiscoveries??[]).filter(d=>d.characterExternalId===characterExternalId).map(d=>{const clue=clueMap.get(d.clueExternalId);return {...d,clue:clue?{...clue,immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap)}:null};}).filter(d=>d.clue).sort((a,b)=>new Date(a.discoveredAt).getTime()-new Date(b.discoveredAt).getTime());
+  const discoveries=(runtime.sessionClueDiscoveries??[])
+    .filter(d=>d.characterExternalId===characterExternalId)
+    .map(d=>{
+      const clue=clueMap.get(d.clueExternalId);
+      return {
+        ...d,
+        clue:clue
+          ? {
+              ...clue,
+              inBag:clue.shareable!==false && !clue.objectExternalId,
+              immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap)
+            }
+          : null
+      };
+    })
+    .filter(d=>d.clue)
+    .sort((a,b)=>new Date(a.discoveredAt).getTime()-new Date(b.discoveredAt).getTime());
   const inventory=(runtime.sessionObjects??[]).filter(o=>o.inPlay!==false&&o.holderType==='CHARACTER'&&o.holderExternalId===characterExternalId).map(o=>{const def=objectMap.get(o.objectExternalId);const level=Math.max(0,Math.min(3,Number(o.identificationLevel??0)));const identification=def?.[`identification${level}`]||def?.description||def?.name||o.objectExternalId;const visualCode=String(def?.visualArchetypeCode??objectVisualCode(def)).trim().toUpperCase();const overrideMedia=mediaOverrideVisual(session,'OBJECT',o.objectExternalId);const dedicatedMedia=visualMedia(mediaMap,def?.mediaExternalId)??visualMedia(mediaMap,`OBJ_${o.objectExternalId}`)??visualMedia(mediaMap,`OBJECT_${o.objectExternalId}`);const archetypeMedia=skinVisualMedia(source,mediaMap,session,'OBJECT',visualCode);return {...o,name:def?.name??o.objectExternalId,description:def?.description??'',identification,transferable:Boolean(def?.transferable),consumable:Boolean(def?.consumable),critical:Boolean(def?.critical),visualCode,visualMedia:overrideMedia??dedicatedMedia??archetypeMedia};});
   const states=(runtime.sessionCharacterStates??[]).filter(s=>s.characterExternalId===characterExternalId&&s.active!==false).map(s=>({...s,definition:stateMap.get(s.stateExternalId)})).filter(s=>s.definition?.visibleToHolder!==false).map(s=>({...s,name:s.definition?.name??s.stateExternalId,description:s.definition?.description??''}));
   const ownedObjectIds=new Set(inventory.map(o=>o.objectExternalId));
@@ -1070,6 +1086,104 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
   }
 
   return {...result,scanMode:interactionScanMode(interaction),rumor};
+}
+
+export async function sharePlayerClue(token,input,{reader=defaultReader,executor=defaultExecutor,clueReveal=revealClueToCharacter,now=new Date()}={}) {
+  const loaded=await loadPlayerData(token,reader);
+  if(loaded.session.status!=='LIVE')throw new Error('PLAYER_ACTIONS_NOT_LIVE');
+
+  const actor=loaded.participant.characterExternalId;
+  const clueExternalId=String(input?.clueExternalId??'').trim();
+  const targetCharacterExternalId=String(input?.targetCharacterExternalId??'').trim();
+
+  if(!clueExternalId)throw new Error('CLUE_ID_REQUIRED');
+  if(!targetCharacterExternalId||targetCharacterExternalId===actor)
+    throw new Error('INVALID_CLUE_TARGET');
+
+  if(!(loaded.session.sessionParticipants_on_gameSession??[]).some(
+    p=>p.active!==false&&p.characterExternalId===targetCharacterExternalId
+  )) throw new Error('CLUE_TARGET_CHARACTER_NOT_FOUND');
+
+  const clue=(loaded.source.clues??[]).find(
+    c=>c.externalId===clueExternalId&&c.active!==false
+  );
+  if(!clue)throw new Error('CLUE_NOT_FOUND');
+  if(clue.shareable===false)throw new Error('CLUE_NOT_SHAREABLE');
+
+  const actorHasClue=(loaded.runtime.sessionClueDiscoveries??[]).some(
+    d=>d.characterExternalId===actor&&d.clueExternalId===clueExternalId
+  );
+  if(!actorHasClue)throw new Error('CLUE_NOT_OWNED_BY_PLAYER');
+
+  const targetAlreadyHasClue=(loaded.runtime.sessionClueDiscoveries??[]).some(
+    d=>d.characterExternalId===targetCharacterExternalId&&d.clueExternalId===clueExternalId
+  );
+
+  if(!targetAlreadyHasClue){
+    await clueReveal(loaded.session.id,{
+      characterExternalId:targetCharacterExternalId,
+      clueExternalId,
+      sourceRef:actor,
+      note:sessionText(
+        loaded.session,
+        `Indice partagé par ${actor}`,
+        `Clue shared by ${actor}`
+      ),
+    });
+  }
+
+  const createdAt=nowIso(now);
+  const targetName=
+    (loaded.source.characters??[]).find(c=>c.externalId===targetCharacterExternalId)?.name
+    ??targetCharacterExternalId;
+
+  if(!targetAlreadyHasClue){
+    await executor(INSERT_NOTIFICATION_MUTATION,{data:{
+      gameSessionId:loaded.session.id,
+      characterExternalId:targetCharacterExternalId,
+      kind:'CLUE',
+      title:sessionText(loaded.session,'Nouvel indice','New clue'),
+      body:sessionText(
+        loaded.session,
+        `${clue.playerName} a été ajouté à votre Sac et à votre Carnet.`,
+        `${clue.playerName} has been added to your Bag and Notebook.`
+      ),
+      priority:'IMPORTANT',
+      refExternalId:clueExternalId,
+      createdAt,
+      readAt:null,
+    }});
+  }
+
+  await executor(INSERT_NOTIFICATION_MUTATION,{data:{
+    gameSessionId:loaded.session.id,
+    characterExternalId:actor,
+    kind:'ACTION',
+    title:sessionText(loaded.session,'Indice partagé','Clue shared'),
+    body:targetAlreadyHasClue
+      ? sessionText(
+          loaded.session,
+          `${targetName} connaissait déjà cet indice.`,
+          `${targetName} already knew this clue.`
+        )
+      : sessionText(
+          loaded.session,
+          `Vous avez partagé « ${clue.playerName} » avec ${targetName}.`,
+          `You shared “${clue.playerName}” with ${targetName}.`
+        ),
+    priority:'NORMAL',
+    refExternalId:clueExternalId,
+    createdAt,
+    readAt:null,
+  }});
+
+  return {
+    clueExternalId,
+    targetCharacterExternalId,
+    targetName,
+    alreadyKnown:targetAlreadyHasClue,
+    shared:!targetAlreadyHasClue,
+  };
 }
 
 export async function transferPlayerObject(token,input,{reader=defaultReader,executor=defaultExecutor,objectTransfer=transferSessionObject,clueReveal=revealClueToCharacter,now=new Date()}={}) {
