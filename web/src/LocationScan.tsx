@@ -300,167 +300,158 @@ export default function LocationScan({
     {error&&<p className="playerError">{error}</p>}
 
     {data.forbidden&&
-      <section className="playerCard locationBlockedCard">
-        <p className="eyebrow">{tx(language,'FOUILLE IMPOSSIBLE','SEARCH NOT ALLOWED')}</p>
-        <h2>{tx(language,'C’est votre propre espace','This is your own space')}</h2>
+      <section className="playerCard locationBlockedCard immersiveSearchMessage">
+        <h2>{tx(language,'Rien à découvrir ici pour vous','Nothing here for you to discover')}</h2>
         <p>{tx(
           language,
-          'Vous connaissez déjà trop bien cet endroit pour pouvoir le fouiller. Cherchez des indices ailleurs.',
-          'You already know this place too well to search it. Look for clues elsewhere.'
+          'C’est votre propre espace. Vous le connaissez déjà trop bien : cherchez ailleurs.',
+          'This is your own space. You know it too well already — look elsewhere.'
         )}</p>
       </section>
     }
 
     {data.empty&&
-      <section className="playerCard locationEmptyCard">
-        <p className="eyebrow">{tx(language,'LIEU ÉPUISÉ','LOCATION CLEARED')}</p>
-        <h2>{tx(language,'Cette pièce est vide','This location is empty')}</h2>
+      <section className="playerCard locationEmptyCard immersiveSearchMessage">
+        <h2>{tx(language,'Vous ne trouvez plus rien ici','There is nothing else to find here')}</h2>
         <p>{tx(
           language,
-          'Tout ce qui pouvait être emporté a déjà été découvert. Essayez un autre endroit.',
-          'Everything that could be taken has already been discovered. Try another location.'
+          'Les lieux ont déjà livré tout ce qu’ils pouvaient révéler.',
+          'This place has already revealed everything it had to offer.'
         )}</p>
       </section>
     }
 
     {last&&
-      <section className={`playerCard scanResult ${last.result.success?'success':'failure'}`}>
-        <p className="eyebrow">{tx(language,'RÉSULTAT','RESULT')}</p>
-        <h2>{last.result.success?tx(language,'Réussite','Success'):tx(language,'Échec','Failure')}</h2>
-
-        {last.result.actorRoll&&
-          <p className="diceResult">
-            {tx(language,'Jet','Roll')} : {last.result.actorRoll.rolls.join(' + ')}
-            {last.result.actorTotal!=null
-              ? ` → ${tx(language,'total','total')} ${last.result.actorTotal}`
-              : ''}
-            {last.result.targetTotal!=null
-              ? ` / ${tx(language,'difficulté','difficulty')} ${last.result.targetTotal}`
-              : ''}
-          </p>
-        }
-
-        {last.reward?.clue&&
-          <div className="scanReward">
-            <small className={`discoveryModeBadge ${last.reward.clue.mode==='TAKEABLE'?'takeable':'persistent'}`}>
-              {last.reward.clue.mode==='TAKEABLE'
-                ? tx(language,'📦 Élément récupérable','📦 Takeable item')
-                : tx(language,'👁 Information persistante','👁 Persistent information')}
-            </small>
-            <strong>{last.reward.clue.name}</strong>
-            <p>{last.reward.clue.text}</p>
-            <div className="clueBagNotice">
-              ✓ {last.reward?.object
-                ? tx(
-                    language,
-                    'Cet indice est mémorisé dans votre Carnet et l’objet associé se trouve dans votre Sac.',
-                    'This clue is saved in your Notebook and the associated item is in your Bag.'
-                  )
-                : tx(
-                    language,
-                    'Cet indice se trouve maintenant dans votre Sac et votre Carnet.',
-                    'This clue is now in your Bag and Notebook.'
-                  )}
-            </div>
-            {last.reward.clue.mode==='PERSISTENT'&&
-              <em>{tx(
+      <section className="playerCard scanResult immersiveDiscoveryCard">
+        {!last.result.success
+          ? <>
+              <h2>{tx(language,'Rien cette fois…','Nothing this time…')}</h2>
+              <p>{tx(
                 language,
-                'Cette information reste accessible aux autres joueurs.',
-                'This information remains accessible to other players.'
-              )}</em>
-            }
-          </div>
-        }
+                'Votre recherche ne révèle rien de nouveau.',
+                'Your search reveals nothing new.'
+              )}</p>
+            </>
+          : <>
+              {last.reward?.clue&&
+                <div className="scanReward immersiveClueReward">
+                  <p className="immersiveDiscoveryLead">
+                    {tx(language,'Vous découvrez…','You discover…')}
+                  </p>
+                  <h2>{last.reward.clue.name}</h2>
+                  <p className="immersiveDiscoveryText">{last.reward.clue.text}</p>
 
-        {last.reward?.object&&
-          <div className="scanReward objectReward">
-            <strong>{tx(language,'Objet découvert','Item discovered')} : {last.reward.object.name}</strong>
-            {last.reward.object.description&&<p>{last.reward.object.description}</p>}
-            {last.reward.object.logisticsCode&&
-              <div className="physicalPickupCallout">
-                <span>{tx(language,'OBJET PHYSIQUE','PHYSICAL PROP')}</span>
-                <strong>{tx(language,'À récupérer auprès du Maître du Jeu','Collect from the Game Master')}</strong>
-                <p>{tx(
-                  language,
-                  'Présentez-vous au MJ et donnez-lui simplement ce code :',
-                  'Show the GM this pickup code:'
-                )}</p>
-                <b>{last.reward.object.logisticsCode}</b>
-              </div>
-            }
-          </div>
-        }
+                  <div className="clueBagNotice">
+                    {last.reward?.object
+                      ? tx(
+                          language,
+                          'L’indice reste dans votre Carnet. L’objet associé se trouve dans votre Sac.',
+                          'The clue remains in your Notebook. The associated item is in your Bag.'
+                        )
+                      : tx(
+                          language,
+                          'Cet indice est maintenant dans votre Sac et votre Carnet.',
+                          'This clue is now in your Bag and Notebook.'
+                        )}
+                  </div>
 
-        {last.result.success&&last.reward?.kind==='NONE'&&
-          <p>{tx(language,'Tu ne trouves rien de nouveau ici.','You find nothing new here.')}</p>
-        }
+                  {last.reward.clue.mode==='PERSISTENT'&&
+                    <p className="persistentClueNote">
+                      {tx(
+                        language,
+                        'Cet élément reste visible sur place.',
+                        'This element remains visible here.'
+                      )}
+                    </p>
+                  }
+                </div>
+              }
 
-        {last.result.cost&&
-          <small>
-            {tx(language,'Coût','Cost')} : {last.result.cost.value} {resourceLabel(last.result.cost.resourceExternalId,language)}
-            {' · '}
-            {tx(language,'reste','remaining')} {last.result.cost.remaining}
-          </small>
+              {last.reward?.object&&
+                <div className="scanReward objectReward immersiveObjectReward">
+                  <p className="immersiveDiscoveryLead">
+                    {tx(language,'Vous mettez la main sur…','You get your hands on…')}
+                  </p>
+                  <h2>{last.reward.object.name}</h2>
+                  {last.reward.object.description&&<p>{last.reward.object.description}</p>}
+
+                  {last.reward.object.logisticsCode&&
+                    <div className="physicalPickupCallout">
+                      <strong>{tx(language,'Un objet réel vous attend','A physical prop is waiting for you')}</strong>
+                      <p>{tx(
+                        language,
+                        'Présentez ce code au Maître du Jeu pour le récupérer.',
+                        'Show this code to the Game Master to collect it.'
+                      )}</p>
+                      <b>{last.reward.object.logisticsCode}</b>
+                    </div>
+                  }
+                </div>
+              }
+
+              {last.result.success&&last.reward?.kind==='NONE'&&
+                <>
+                  <h2>{tx(language,'Rien de nouveau','Nothing new')}</h2>
+                  <p>{tx(
+                    language,
+                    'Vous inspectez les lieux, mais rien d’autre n’attire votre attention.',
+                    'You search the area, but nothing else catches your attention.'
+                  )}</p>
+                </>
+              }
+
+              {last.result.cost&&
+                <p className="searchCostRecap">
+                  {tx(language,'Il vous reste','You have')}{' '}
+                  <strong>{last.result.cost.remaining} {resourceLabel(last.result.cost.resourceExternalId,language)}</strong>
+                  {' '}
+                  {tx(language,'pour poursuivre vos recherches.','left for further searches.')}
+                </p>
+              }
+            </>
         }
       </section>
     }
 
     {cooldown>0&&!data.empty&&!data.forbidden&&
       <section className="playerCard searchCooldownCard">
-        <p className="eyebrow">{tx(language,'PROCHAINE FOUILLE','NEXT SEARCH')}</p>
+        <h2>{tx(language,'Laissez retomber la poussière…','Give it a little time…')}</h2>
         <div className="searchCountdown">{formatCountdown(cooldown)}</div>
         <p>{tx(
           language,
-          'Profite de ce temps pour enquêter, parler aux autres joueurs ou utiliser tes autres actions. Aucun PA n’est consommé pendant l’attente.',
-          'Use this time to investigate, talk to other players or use your other actions. No AP is spent while you wait.'
+          'Observez, discutez, recoupez vos informations. Vous pourrez reprendre vos recherches ensuite.',
+          'Observe, talk, compare what you know. You can resume your search afterwards.'
         )}</p>
       </section>
     }
 
-    <section className="playerCard">
-      <div className="playerSectionHead">
-        <h2>{tx(language,'Actions disponibles','Available actions')}</h2>
-        <span>{data.actions.length}</span>
-      </div>
+    <section className="playerCard immersiveSearchActions">
+      <h2>{tx(language,'Que faites-vous ?','What do you do?')}</h2>
 
       {data.actions.length===0
         ? <p>{tx(
             language,
-            'Aucune action autonome n’est disponible ici pour le moment.',
-            'No autonomous action is currently available here.'
+            'Rien ne semble pouvoir être tenté ici pour le moment.',
+            'There seems to be nothing you can try here right now.'
           )}</p>
         : data.actions.map(a=>
-          <article className="scanAction" key={a.externalId}>
-            <div className="playerActionTop">
-              <div>
-                <strong>{a.name}</strong>
-                <small>{a.systemFallback
-                  ? tx(language,'Action standard','Standard action')
-                  : `${a.category} · ${a.resolution}`}
-                </small>
-              </div>
+          <article className="scanAction immersiveSearchAction" key={a.externalId}>
+            <div className="immersiveActionHead">
+              <strong>{tx(language,'Fouiller les lieux','Search the area')}</strong>
               {Number(a.costValue??0)>0&&
-                <span className="costBadge">
+                <span className="immersiveCostBadge">
                   {a.costValue} {resourceLabel(a.costResourceExternalId,language)}
                 </span>
               }
             </div>
 
-            {a.ability&&
-              <p className="playerAbility">
-                {a.ability.name} · {tx(language,'niv.','lvl.')} {a.ability.level}
-              </p>
-            }
-
-            {a.diceCount&&a.diceSides
-              ? <p className="scanDice">
-                  {tx(language,'Jet','Roll')} : {a.diceCount}D{a.diceSides}
-                  {a.difficulty!=null
-                    ? ` · ${tx(language,'difficulté','difficulty')} ${a.difficulty}`
-                    : ''}
-                </p>
-              : null
-            }
+            <p className="immersiveActionHint">
+              {tx(
+                language,
+                'Prenez le temps d’examiner les alentours avec attention.',
+                'Take a moment to examine the surroundings carefully.'
+              )}
+            </p>
 
             <button
               className="playerPrimary"
@@ -473,12 +464,12 @@ export default function LocationScan({
               }}
             >
               {busy===a.externalId
-                ? tx(language,'Résolution…','Resolving…')
+                ? tx(language,'Vous fouillez…','Searching…')
                 : a.searchCooldownRemainingSeconds&&cooldown>0
-                  ? `${tx(language,'Fouiller dans','Search in')} ${formatCountdown(cooldown)}`
+                  ? `${tx(language,'Reprendre dans','Resume in')} ${formatCountdown(cooldown)}`
                   : a.available
-                    ? a.name
-                    : (a.blockedReason||tx(language,'Indisponible','Unavailable'))}
+                    ? tx(language,'Fouiller les lieux','Search the area')
+                    : (a.blockedReason||tx(language,'Impossible pour le moment','Not possible right now'))}
             </button>
           </article>
         )
@@ -493,31 +484,23 @@ export default function LocationScan({
         aria-label={tx(language,'Confirmer la dépense de PA','Confirm AP spending')}
       >
         <div className="qrScannerPanel paConfirmPanel">
-          <p className="eyebrow">{tx(language,'CONFIRMATION D’ACTION','ACTION CONFIRMATION')}</p>
-          <h2>{pendingAction.name}</h2>
-          <p>
-            {tx(language,'Voulez-vous dépenser','Do you want to spend')}{' '}
-            <strong>{pendingAction.costValue} {language==='EN'?'AP':'PA'}</strong>{' '}
-            {tx(language,'pour tenter cette action ?','to attempt this action?')}
-          </p>
-
-          {pendingAction.currentCostResourceValue!=null&&
-            <div className="paSpendPreview">
-              <span>{tx(language,'Avant','Before')} <strong>{pendingAction.currentCostResourceValue} {language==='EN'?'AP':'PA'}</strong></span>
-              <span>{tx(language,'Après','After')} <strong>{Math.max(0,Number(pendingAction.currentCostResourceValue)-Number(pendingAction.costValue??0))} {language==='EN'?'AP':'PA'}</strong></span>
-            </div>
-          }
+          <h2>{tx(language,'Fouiller ce lieu ?','Search this place?')}</h2>
+          <p>{tx(
+            language,
+            `Cette recherche vous coûtera ${pendingAction.costValue} PA.`,
+            `This search will cost ${pendingAction.costValue} AP.`
+          )}</p>
 
           <div className="giveConfirmActions">
             <button className="playerSecondary" onClick={()=>setPendingAction(null)}>
-              {tx(language,'Non','No')}
+              {tx(language,'Pas maintenant','Not now')}
             </button>
             <button className="playerPrimary" onClick={()=>{
               const action=pendingAction;
               setPendingAction(null);
               void execute(action);
             }}>
-              {tx(language,'Oui, continuer','Yes, continue')}
+              {tx(language,'Fouiller','Search')}
             </button>
           </div>
         </div>
