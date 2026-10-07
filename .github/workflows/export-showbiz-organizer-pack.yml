@@ -1,0 +1,41 @@
+name: Export SHOWBIZ Organizer Pack
+
+on:
+  push:
+    branches:
+      - diagnose/showbiz-orga-pack
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - name: Export organizer pack data
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+          GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: node functions/tools/export-showbiz-organizer-pack.mjs
+      - name: Upload organizer pack data
+        uses: actions/upload-artifact@v4
+        with:
+          name: showbiz-organizer-pack-data
+          path: showbiz-organizer-pack-data.json
+          if-no-files-found: error
+          retention-days: 3
