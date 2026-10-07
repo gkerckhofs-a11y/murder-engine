@@ -457,11 +457,210 @@ function LabelsPrint({pack,skinClass}:{pack:any;skinClass:string}){
   </main>;
 }
 
+function QrSheetPrint({
+  pack,
+  skinClass,
+  mode,
+}:{
+  pack:any;
+  skinClass:string;
+  mode:'locations'|'access'|'characters';
+}){
+  const locationItems=(pack.logistics?.qrLocations??[]).map((x:any)=>({
+    key:x.externalId,
+    name:x.name,
+    subtitle:x.externalId,
+    url:window.location.origin+'/scan/'+encodeURIComponent(x.externalId),
+    portrait:null,
+  }));
+
+  const accessItems=(pack.session?.playerAccess??[]).map((x:any)=>({
+    key:x.characterExternalId,
+    name:x.characterName,
+    subtitle:x.participantDisplayName,
+    url:window.location.origin+'/?player='+encodeURIComponent(x.playerAccessToken),
+    portrait:null,
+  }));
+
+  const characterItems=(pack.logistics?.qrCharacters??[]).map((x:any)=>({
+    key:x.externalId,
+    name:x.name,
+    subtitle:x.publicRole||x.externalId,
+    url:window.location.origin+'/scan/character/'+encodeURIComponent(x.externalId),
+    portrait:x.portrait?.source||null,
+  }));
+
+  const items=
+    mode==='locations'
+      ? locationItems
+      : mode==='access'
+        ? accessItems
+        : characterItems;
+
+  const title=
+    mode==='locations'
+      ? 'QR des lieux'
+      : mode==='access'
+        ? 'QR accès joueurs · cette session'
+        : 'QR personnages · interactions';
+
+  return <main className={'gmPrintRoot '+skinClass}>
+    <PrintControls/>
+
+    <article className="gmPrintPage gmQrSheetPage">
+      <header className="gmPrintHeader">
+        <p>MURDER ENGINE · PLANCHES A4</p>
+        <h1>{title}</h1>
+        <h2>{pack.scenario.title}</h2>
+      </header>
+
+      <div className={mode==='characters'?'gmQrSheetGrid illustrated':'gmQrSheetGrid'}>
+        {items.map((item:any)=>
+          <article className="gmQrSheetCard" key={item.key}>
+            {item.portrait&&
+              <img className="gmQrSheetPortrait" src={item.portrait} alt={item.name}/>
+            }
+            <QRCodeSVG value={item.url} size={mode==='characters'?126:150} level="M" includeMargin/>
+            <strong>{item.name}</strong>
+            <small>{item.subtitle}</small>
+          </article>
+        )}
+      </div>
+    </article>
+  </main>;
+}
+
+function OrganizerDossier({
+  pack,
+  skinClass,
+}:{
+  pack:any;
+  skinClass:string;
+}){
+  const characters=pack.printables?.characterSheets??[];
+  const clues=pack.materials?.clues??[];
+
+  return <main className={'gmPrintRoot '+skinClass}>
+    <PrintControls/>
+
+    <article className="gmPrintPage gmDossierCover">
+      <header className="gmPrintHeader">
+        <p>MURDER ENGINE · DOSSIER MJ</p>
+        <h1>{pack.scenario.title}</h1>
+        <h2>{pack.session?.name||('Version '+pack.scenario.versionLabel)}</h2>
+      </header>
+
+      <section>
+        <h3>Résumé du scénario</h3>
+        <NarrativeText
+          text={pack.preparation?.gmSummary||'—'}
+          className="gmNarrativeText"
+        />
+      </section>
+
+      <section>
+        <h3>Repères</h3>
+        <ul>
+          <li>{characters.length} personnages</li>
+          <li>{clues.length} indices</li>
+          <li>{pack.materials?.locations?.length??0} lieux</li>
+          <li>{pack.materials?.documents?.length??0} documents</li>
+          <li>{pack.materials?.objects?.length??0} objets</li>
+        </ul>
+      </section>
+    </article>
+
+    {characters.map((character:any)=>
+      <article className="gmPrintPage gmDossierCharacter" key={character.externalId}>
+        <header className="gmPrintHeader">
+          {character.portrait?.source&&
+            <img
+              className="gmCharacterPortrait"
+              src={character.portrait.source}
+              alt={character.name}
+            />
+          }
+          <p>PERSONNAGE · SYNTHÈSE MJ</p>
+          <h1>{character.name}</h1>
+          <h2>{character.publicRole||'Personnage'}</h2>
+          {character.participantDisplayName&&
+            <span>Joué par {character.participantDisplayName}</span>
+          }
+        </header>
+
+        <section>
+          <h3>En bref</h3>
+          {character.dramaticFunction&&
+            <p><strong>Fonction dramatique :</strong> {character.dramaticFunction}</p>
+          }
+          {character.apparentMotive&&
+            <p><strong>Position / mobile apparent :</strong> {character.apparentMotive}</p>
+          }
+          {character.secretIntro&&<>
+            <h4>Secret / connaissance sensible</h4>
+            <NarrativeText
+              text={character.secretIntro}
+              className="gmNarrativeText compact"
+            />
+          </>}
+        </section>
+
+        <section>
+          <h3>Objectifs</h3>
+          <ul>
+            {(character.objectives??[]).map((o:any)=>
+              <li key={o.externalId}>
+                <strong>{o.title}</strong> — {o.description}
+              </li>
+            )}
+          </ul>
+        </section>
+
+        <section>
+          <h3>Relations clés</h3>
+          {(character.relationships??[]).map((rel:any)=>
+            <p key={rel.externalId}>
+              <strong>{rel.otherName}</strong> — {rel.text}
+            </p>
+          )}
+        </section>
+      </article>
+    )}
+
+    <article className="gmPrintPage gmDossierClues">
+      <header className="gmPrintHeader">
+        <p>DOSSIER MJ</p>
+        <h1>Index des indices</h1>
+        <h2>{clues.length} éléments</h2>
+      </header>
+
+      <div className="gmClueIndex">
+        {clues.map((clue:any)=>
+          <section className="gmClueIndexRow" key={clue.externalId}>
+            <h3>{clue.major?'★ ':''}{clue.playerName}</h3>
+            <small>{clue.externalId} · {clue.clueType} · {clue.support}</small>
+            <p>{clue.playerText}</p>
+            {clue.gmInterpretation&&
+              <p><strong>Lecture MJ :</strong> {clue.gmInterpretation}</p>
+            }
+            <p className="gmCluePlacement">
+              {clue.locationExternalId&&<>Lieu : {clue.locationExternalId} · </>}
+              {clue.objectExternalId&&<>Objet : {clue.objectExternalId} · </>}
+              {clue.documentExternalId&&<>Document : {clue.documentExternalId}</>}
+            </p>
+          </section>
+        )}
+      </div>
+    </article>
+  </main>;
+}
+
 export default function GmPackView({versionId,sessionId}:Props){
   const [pack,setPack]=useState<any|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
   const [qrZipBusy,setQrZipBusy]=useState(false);
+  const [productionBusy,setProductionBusy]=useState('');
 
   useEffect(()=>{
     let alive=true;
@@ -473,9 +672,22 @@ export default function GmPackView({versionId,sessionId}:Props){
             ? `/api/sessions/gm-pack?sessionId=${encodeURIComponent(sessionId)}`
             : `/api/library/gm-pack?versionId=${encodeURIComponent(versionId??'')}`;
 
+        const init:RequestInit={};
+
+        if(sessionId){
+          const token=await organizerToken(true);
+          if(!token)
+            throw new Error('ORGANIZER_AUTH_REQUIRED');
+
+          init.headers={
+            authorization:'Bearer '+token,
+          };
+        }
+
         const r=
           await fetchJson<{ok:boolean;pack:any}>(
-            apiUrl
+            apiUrl,
+            init
           );
         if(!r?.pack)
           throw new Error(
@@ -514,6 +726,18 @@ export default function GmPackView({versionId,sessionId}:Props){
 
   if(printMode==='labels')
     return <LabelsPrint pack={pack} skinClass={skinClass}/>;
+
+  if(printMode==='dossier')
+    return <OrganizerDossier pack={pack} skinClass={skinClass}/>;
+
+  if(printMode==='qr-locations')
+    return <QrSheetPrint pack={pack} skinClass={skinClass} mode="locations"/>;
+
+  if(printMode==='qr-access')
+    return <QrSheetPrint pack={pack} skinClass={skinClass} mode="access"/>;
+
+  if(printMode==='qr-characters')
+    return <QrSheetPrint pack={pack} skinClass={skinClass} mode="characters"/>;
 
   const s=pack.scenario;
   const c=pack.counts;
