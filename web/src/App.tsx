@@ -34,7 +34,7 @@ type ScenarioVersionDetail = VersionSummary & {
   characters: CharacterSummary[];
   facts: Array<{ externalId: string; title: string; nature: string; importance: string; isPublic: boolean; active: boolean }>;
   clues: Array<{ externalId: string; playerName: string; clueType: string; support: string; major: boolean; active: boolean }>;
-  objects: Array<{ externalId:string; name:string; description?:string|null; support?:string|null; mediaExternalId?:string|null; visualArchetypeCode?:string|null; active:boolean }>;
+  objects: Array<{ externalId:string; name:string; description?:string|null; support?:string|null; logisticsCode?:string|null; mediaExternalId?:string|null; visualArchetypeCode?:string|null; active:boolean }>;
   mediaOverrides: Record<string,{assetExternalId?:string|null;label?:string|null;source?:string|null;altText?:string|null;mediaType?:string|null;category?:string|null;skinId?:string|null}>;
 };
 type CharacterDetail = {
