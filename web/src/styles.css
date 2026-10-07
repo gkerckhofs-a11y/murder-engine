@@ -11653,7 +11653,7 @@ button.skinGalleryCard:disabled{
 .characterPortraitHero img{
   width:96px;
   height:120px;
-  object-fit:cover;
+  object-fit:contain;
   border:1px solid color-mix(in srgb,currentColor 22%,transparent);
   border-radius:12px;
   background:color-mix(in srgb,currentColor 5%,transparent);
@@ -11853,7 +11853,7 @@ button.skinGalleryCard:disabled{
 .playerCharacterPortrait{
   width:88px;
   height:112px;
-  object-fit:cover;
+  object-fit:contain;
   border-radius:14px;
   border:1px solid rgba(255,255,255,.18);
   box-shadow:0 10px 26px rgba(0,0,0,.28);
@@ -13063,4 +13063,14 @@ button.skinGalleryCard:disabled{
 
 .playerAccessLinks .playerLinkRows{
   margin-top:10px;
+}
+
+
+/* CHARACTER PORTRAITS — preserve full-body transparent artwork */
+.characterPortraitHero img,
+.playerCharacterPortrait,
+.gmCharacterPortrait{
+  object-fit:contain;
+  object-position:center bottom;
+  background:transparent;
 }
