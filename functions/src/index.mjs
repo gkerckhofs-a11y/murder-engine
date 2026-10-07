@@ -1165,6 +1165,7 @@ export const getSessionGmPackView = onRequest(
   },
   async(req,res)=>{
     if(!requireGet(req,res))return;
+    if(!await requireOrganizerAuth(req,res))return;
 
     const sessionId=
       String(req.query.sessionId??'').trim();
