@@ -377,11 +377,16 @@ export default function LocationScan({
 
                   {last.reward.object.logisticsCode&&
                     <div className="physicalPickupCallout">
-                      <strong>{tx(language,'Un objet réel vous attend','A physical prop is waiting for you')}</strong>
+                      <span>{tx(language,'OBJET À RÉCUPÉRER','PROP TO COLLECT')}</span>
+                      <strong>{tx(
+                        language,
+                        'Allez maintenant voir le Maître du Jeu (GM)',
+                        'Go to the Game Master (GM) now'
+                      )}</strong>
                       <p>{tx(
                         language,
-                        'Présentez ce code au Maître du Jeu pour le récupérer.',
-                        'Show this code to the Game Master to collect it.'
+                        'Cet objet existe physiquement. Montrez ce code au GM pour qu’il vous le remette.',
+                        'This item exists as a physical prop. Show this code to the GM so they can give it to you.'
                       )}</p>
                       <b>{last.reward.object.logisticsCode}</b>
                     </div>
