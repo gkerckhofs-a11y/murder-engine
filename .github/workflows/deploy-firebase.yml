@@ -1,0 +1,108 @@
+name: Deploy Firebase
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to deploy
+        required: true
+        default: media-library-v2
+        type: string
+      target:
+        description: Deployment scope
+        required: true
+        default: player-media-and-hosting
+        type: choice
+        options:
+          - player-media-and-hosting
+          - hosting-only
+          - all-functions-and-hosting
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout requested version
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            functions/package-lock.json
+            web/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Run Functions tests
+        working-directory: functions
+        run: npm test
+
+      - name: Install Web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build Web
+        working-directory: web
+        run: npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Verify Firebase project configuration
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          test -n "$FIREBASE_PROJECT_ID" || (echo "Missing FIREBASE_PROJECT_ID repository variable" && exit 1)
+          test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur" || (echo "Unexpected Firebase project: $FIREBASE_PROJECT_ID" && exit 1)
+          echo "Firebase project: $FIREBASE_PROJECT_ID"
+          echo "Deploying ref: ${{ inputs.ref }}"
+
+      - name: Deploy selected scope
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          DEPLOY_TARGET: ${{ inputs.target }}
+        run: |
+          case "$DEPLOY_TARGET" in
+            player-media-and-hosting)
+              ONLY="functions:getPublicPlayerPortal,functions:executePublicPlayerLocationAction,functions:setScenarioMediaOverrideView,hosting"
+              ;;
+            hosting-only)
+              ONLY="hosting"
+              ;;
+            all-functions-and-hosting)
+              ONLY="functions,hosting"
+              ;;
+            *)
+              echo "Unknown deployment target: $DEPLOY_TARGET"
+              exit 1
+              ;;
+          esac
+
+          firebase deploy \
+            --project "$FIREBASE_PROJECT_ID" \
+            --only "$ONLY" \
+            --non-interactive
+
+      - name: Deployment summary
+        run: |
+          echo "### Firebase deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ref: \`${{ inputs.ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Scope: \`${{ inputs.target }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Project: \`${{ vars.FIREBASE_PROJECT_ID }}\`" >> "$GITHUB_STEP_SUMMARY"
