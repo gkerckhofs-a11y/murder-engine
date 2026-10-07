@@ -13082,23 +13082,24 @@ button.skinGalleryCard:disabled{
   margin-left:7px;
   padding:2px 6px;
   border-radius:999px;
-  background:rgba(61,128,83,.16);
-  border:1px solid rgba(97,171,119,.35);
-  color:#9dd6ac;
+  background:rgba(212,175,99,.16);
+  border:1px solid rgba(212,175,99,.42);
+  color:#f4dfae;
   font-size:.58rem;
   font-weight:850;
   letter-spacing:.04em;
 }
 
 .clueBagNotice{
-  margin-top:9px;
-  padding:8px 10px;
+  margin-top:12px;
+  padding:10px 12px;
   border-radius:10px;
-  background:rgba(61,128,83,.13);
-  border:1px solid rgba(97,171,119,.28);
-  color:#b8dfc2;
-  font-size:.78rem;
+  background:rgba(212,175,99,.11);
+  border:1px solid rgba(212,175,99,.34);
+  color:#f5e7c8;
+  font-size:.82rem;
   font-weight:750;
+  line-height:1.45;
 }
 
 
@@ -13128,4 +13129,106 @@ button.skinGalleryCard:disabled{
   position:sticky;
   top:6px;
   z-index:5;
+}
+
+
+/* Immersive room-search presentation */
+.immersiveSearchMessage{
+  text-align:left;
+}
+.immersiveSearchMessage h2{
+  margin-bottom:8px;
+}
+.immersiveDiscoveryCard{
+  border-color:rgba(212,175,99,.42);
+  box-shadow:none;
+}
+.immersiveClueReward,
+.immersiveObjectReward{
+  margin-top:0;
+  padding:0;
+  background:transparent;
+  border:0;
+}
+.immersiveObjectReward{
+  margin-top:20px;
+  padding-top:18px;
+  border-top:1px solid rgba(212,175,99,.28);
+}
+.immersiveDiscoveryLead{
+  margin:0 0 6px;
+  color:#d7b96f;
+  font-size:.76rem;
+  font-weight:850;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.immersiveDiscoveryCard h2{
+  margin:0 0 10px;
+}
+.immersiveDiscoveryText{
+  font-size:1.04rem;
+  line-height:1.65;
+}
+.persistentClueNote{
+  margin:10px 0 0;
+  color:#d8cdb8;
+  font-size:.82rem;
+  font-style:italic;
+}
+.searchCostRecap{
+  margin:16px 0 0;
+  padding-top:12px;
+  border-top:1px solid rgba(255,255,255,.12);
+  color:#e6dcc8;
+  font-size:.82rem;
+}
+.immersiveSearchActions h2{
+  margin-bottom:14px;
+}
+.immersiveSearchAction{
+  padding:0;
+  border-top:0;
+}
+.immersiveActionHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:8px;
+}
+.immersiveActionHead>strong{
+  font-size:1.05rem;
+}
+.immersiveCostBadge{
+  flex:0 0 auto;
+  padding:5px 9px;
+  border-radius:999px;
+  border:1px solid rgba(212,175,99,.42);
+  background:rgba(212,175,99,.12);
+  color:#f2dfb1;
+  font-size:.74rem;
+  font-weight:850;
+}
+.immersiveActionHint{
+  margin:0 0 12px;
+  opacity:.8;
+}
+.immersiveSearchCost span{
+  border-color:rgba(212,175,99,.32)!important;
+  background:rgba(212,175,99,.08)!important;
+  color:#ead7aa!important;
+}
+
+/* Avoid pale green on dark player surfaces */
+.scanResult.success,
+.playerFlash,
+.playerReadOk{
+  box-shadow:none;
+}
+.playerFlash,
+.playerReadOk{
+  background:#2a2418;
+  border-color:#7f6a3f;
+  color:#f3e4c2;
 }
