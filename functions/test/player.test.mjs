@@ -315,6 +315,107 @@ test('player interaction actor identity is forced from token',async()=>{
  assert.equal(captured.actorCharacterExternalId,'CHAR_A');assert.equal(out.success,true);
 });
 
+test('discovered object clue exposes its directly assigned image in notebook and bag data',()=>{
+ const src=source();
+ src.mediaAssets=[
+   ...src.mediaAssets,
+   {
+     externalId:'MEDIA_TONIC',
+     mediaType:'IMAGE',
+     source:'/immersive/showbiz/vocal-tonic.png',
+     altText:'Flacon de tonic vocal',
+     active:true
+   }
+ ];
+ src.clues.push({
+   externalId:'SHW-COM-04',
+   playerName:'Flacon de tonic vocal',
+   clueType:'OBJET',
+   playerText:'Le flacon semble avoir été déplacé.',
+   logisticsCode:'SB-OBJ-005',
+   mediaExternalId:'MEDIA_TONIC',
+   shareable:true,
+   transferable:true,
+   addToNotebook:true,
+   active:true
+ });
+ const rt=runtime();
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_A',
+   clueExternalId:'SHW-COM-04',
+   discoveredAt:'2026-09-21T18:04:30Z'
+ });
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   rt,
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const discovery=out.discoveries.find(
+   d=>d.clueExternalId==='SHW-COM-04'
+ );
+
+ assert.equal(discovery.clue.inBag,true);
+ assert.equal(
+   discovery.clue.visualMedia.source,
+   '/immersive/showbiz/vocal-tonic.png'
+ );
+});
+
+test('discovered object clue resolves Media Library image from its logistics code without a GameObject',()=>{
+ const src=source();
+ src.clues.push({
+   externalId:'SHW-COM-04',
+   playerName:'Flacon de tonic vocal',
+   clueType:'OBJET',
+   playerText:'Le flacon semble avoir été déplacé.',
+   logisticsCode:'SB-OBJ-005',
+   shareable:true,
+   transferable:true,
+   addToNotebook:true,
+   active:true
+ });
+ const rt=runtime();
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_A',
+   clueExternalId:'SHW-COM-04',
+   discoveredAt:'2026-09-21T18:04:30Z'
+ });
+ const sess=session();
+ sess.scenarioVersion={
+   ...sess.scenarioVersion,
+   mediaOverridesJson:JSON.stringify({
+     'OBJECT:SB-OBJ-005':{
+       assetExternalId:'MEDIA_VOCAL_TONIC',
+       source:'https://example.test/vocal-tonic.png',
+       altText:'Flacon de tonic vocal',
+       mediaType:'IMAGE'
+     }
+   })
+ };
+
+ const out=shapePlayerPortal(
+   participant(),
+   sess,
+   src,
+   rt,
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const discovery=out.discoveries.find(
+   d=>d.clueExternalId==='SHW-COM-04'
+ );
+
+ assert.equal(discovery.clue.inBag,true);
+ assert.equal(
+   discovery.clue.visualMedia.source,
+   'https://example.test/vocal-tonic.png'
+ );
+});
+
 test('discovered non-object clue is exposed as being in the player bag',()=>{
  const src=source();
  src.clues.push({
