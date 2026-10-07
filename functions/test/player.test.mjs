@@ -87,6 +87,51 @@ test('player sheet exposes only clues targeted at the current character',()=>{
  );
 });
 
+test('player object visual inherits Media Library override from sibling scenario version',()=>{
+ const src=source();
+ const sess=session();
+
+ sess.scenarioVersion={
+   ...sess.scenarioVersion,
+   mediaOverridesJson:null,
+   scenario:{
+     ...sess.scenarioVersion.scenario,
+     scenarioVersions_on_scenario:[
+       {
+         id:'V2',
+         mediaOverridesJson:JSON.stringify({
+           'OBJECT:ITEM1':{
+             assetExternalId:'MEDIA_SHARED_KEY',
+             source:'https://example.test/shared-key.png',
+             altText:'Shared key image',
+             mediaType:'IMAGE'
+           }
+         }),
+         importedAt:'2026-10-07T10:00:00Z'
+       }
+     ]
+   }
+ };
+
+ const out=shapePlayerPortal(
+   participant(),
+   sess,
+   src,
+   runtime(),
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const key=out.inventory.find(
+   o=>o.objectExternalId==='ITEM1'
+ );
+
+ assert.equal(
+   key.visualMedia.source,
+   'https://example.test/shared-key.png'
+ );
+ assert.equal(key.visualMedia.inherited,true);
+});
+
 test('Visual V1 exposes character portraits, relation portraits and object thumbnails',()=>{
  const out=shapePlayerPortal(participant(),session(),source(),runtime(),new Date('2026-09-21T18:05:00Z'));
  assert.equal(out.character.portrait.source,'/immersive/test/alice.png');
