@@ -304,6 +304,129 @@ test('QR location provides standard 1 PA fallback when no explicit automatic act
  assert.equal(clueInput.clueExternalId,'C2');assert.equal(objectInput.objectExternalId,'ITEM2');assert.equal(out.result.cost.remaining,3);
 });
 
+test('takeable clue is globally unavailable after another player found it',async()=>{
+ const src=source();
+ src.interactions=[];
+ src.clues.push({
+   externalId:'C_TAKE',
+   playerName:'Unique note',
+   clueType:'DOCUMENT',
+   playerText:'Only one copy exists.',
+   locationExternalId:'LOC1',
+   presentationMode:'TAKEABLE',
+   shareable:true,
+   addToNotebook:true,
+   active:true
+ });
+
+ // Remove the physical dossier so only this clue can make the room searchable.
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.filter(o=>o.objectExternalId!=='ITEM2');
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_B',
+   clueExternalId:'C_TAKE',
+   discoveredAt:'2026-09-21T18:01:00Z'
+ });
+
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+
+ const view=await getPlayerLocation(
+   participant().playerAccessToken,
+   'LOC1',
+   {reader,now:new Date('2026-09-21T18:20:00Z')}
+ );
+
+ assert.equal(view.empty,true);
+ assert.equal(view.actions.length,0);
+});
+
+test('static clue remains available to another player but loses priority to takeable evidence',async()=>{
+ const src=source();
+ src.interactions=[];
+ src.clues=src.clues.filter(c=>c.externalId!=='C2');
+ src.clues.push(
+   {
+     externalId:'C_TAKE',
+     playerName:'Unique note',
+     clueType:'DOCUMENT',
+     playerText:'Only one copy exists.',
+     locationExternalId:'LOC1',
+     presentationMode:'TAKEABLE',
+     shareable:true,
+     addToNotebook:true,
+     active:true
+   },
+   {
+     externalId:'C_STATIC',
+     playerName:'Scratch on the wall',
+     clueType:'OBSERVATION',
+     playerText:'A mark is carved into the wall.',
+     locationExternalId:'LOC1',
+     presentationMode:'PERSISTENT',
+     shareable:true,
+     addToNotebook:true,
+     active:true
+   }
+ );
+
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.filter(o=>o.objectExternalId!=='ITEM2');
+
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+
+ let firstClue=null;
+ await executePlayerLocationAction(
+   participant().playerAccessToken,
+   {
+     interactionExternalId:'SYSTEM_LOCATION_SEARCH',
+     locationExternalId:'LOC1'
+   },
+   {
+     reader,
+     executor:async()=>({}),
+     clueReveal:async(sid,input)=>{firstClue=input.clueExternalId;return{};},
+     objectTransfer:async()=>({})
+   }
+ );
+ assert.equal(firstClue,'C_TAKE');
+
+ // Simulate the unique clue having been taken; the static clue remains.
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_B',
+   clueExternalId:'C_TAKE',
+   discoveredAt:'2026-09-21T18:02:00Z'
+ });
+
+ let secondClue=null;
+ await executePlayerLocationAction(
+   participant().playerAccessToken,
+   {
+     interactionExternalId:'SYSTEM_LOCATION_SEARCH',
+     locationExternalId:'LOC1'
+   },
+   {
+     reader,
+     executor:async()=>({}),
+     clueReveal:async(sid,input)=>{secondClue=input.clueExternalId;return{};},
+     objectTransfer:async()=>({}),
+     now:new Date('2026-09-21T18:20:00Z')
+   }
+ );
+ assert.equal(secondClue,'C_STATIC');
+});
+
 test('global 10 minute search cooldown blocks any second location search without spending PA',async()=>{
  const src=source();
  const rt=runtime();
