@@ -86,7 +86,7 @@ test('tally detects absolute majority',()=>{
   assert.equal(out.majorityAbsolute,true); assert.equal(out.winnerOptionExternalId,'OPT_A'); assert.equal(out.suggestSecondRound,false);
 });
 
-test('no majority suggests second round with top two',()=>{
+test('no majority suggests second round and keeps ties at the qualification cutoff',()=>{
   const electorate=['A','B','C','D'];
   const out=tallyVote({definition:source().voteDefinitions[0],options:source().voteOptionDefinitions,electorate,ballots:[
     {electorCharacterExternalId:'A',selectedOptionExternalIds:'OPT_A',weight:1},
@@ -94,7 +94,9 @@ test('no majority suggests second round with top two',()=>{
     {electorCharacterExternalId:'C',selectedOptionExternalIds:'OPT_B',weight:1},
     {electorCharacterExternalId:'D',selectedOptionExternalIds:'OPT_C',weight:1},
   ]});
-  assert.equal(out.majorityAbsolute,false); assert.equal(out.suggestSecondRound,true); assert.deepEqual(out.secondRoundOptionExternalIds,['OPT_A','OPT_B']);
+  assert.equal(out.majorityAbsolute,false);
+  assert.equal(out.suggestSecondRound,true);
+  assert.deepEqual(out.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C']);
 });
 
 test('second round keeps every candidate tied at the qualification cutoff',()=>{
