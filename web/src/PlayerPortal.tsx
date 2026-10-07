@@ -179,7 +179,8 @@ export default function PlayerPortal({token}:{token:string}){
           interactionExternalId,
           targetExternalId,
           requestOnly,
-          offeredObjectExternalId:options?.offeredObjectExternalId??null
+          offeredObjectExternalId:options?.offeredObjectExternalId??null,
+          businessDealTerms:options?.businessDealTerms??null
         }),
         requestOnly?tr(portal,'Demande envoyée au MJ ✓','Request sent to GM ✓'):''
       );
@@ -604,7 +605,7 @@ function isSearchLocationAction(i:any){
 }
 function playerCountdown(total:number){const sec=Math.max(0,Math.floor(total));return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;}
 
-function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:string;portal:Portal;busy:boolean;onExecute:(id:string,target:string|null,requestOnly:boolean,options?:{offeredObjectExternalId?:string|null})=>Promise<any>|void;onRefresh:()=>Promise<void>;onVote:(id:string,round:number,selected:string[])=>void}){
+function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:string;portal:Portal;busy:boolean;onExecute:(id:string,target:string|null,requestOnly:boolean,options?:{offeredObjectExternalId?:string|null;businessDealTerms?:string|null})=>Promise<any>|void;onRefresh:()=>Promise<void>;onVote:(id:string,round:number,selected:string[])=>void}){
   const [targets,setTargets]=useState<Record<string,string>>({});
   const [scannerOpen,setScannerOpen]=useState(false);
   const [scannedLocation,setScannedLocation]=useState<string|null>(null);
@@ -616,6 +617,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
   const [searchCooldown,setSearchCooldown]=useState(Number(portal.searchCooldownRemainingSeconds??0));
   const [paPrompt,setPaPrompt]=useState<PaPrompt|null>(null);
   const [negotiationOffers,setNegotiationOffers]=useState<Record<string,string>>({});
+  const [businessDealTerms,setBusinessDealTerms]=useState<Record<string,string>>({});
   const [abilityRequestSelections,setAbilityRequestSelections]=useState<Record<string,string>>({});
   const [abilityRequestBusy,setAbilityRequestBusy]=useState(false);
   useEffect(()=>setSearchCooldown(Number(portal.searchCooldownRemainingSeconds??0)),[portal.searchCooldownRemainingSeconds]);
@@ -637,16 +639,19 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     catch(e){setLocalError(e instanceof Error?e.message:String(e));}finally{setClandestineBusy(false);}
   }
 
-  async function respondAbilityRequest(request:any){
+  async function respondAbilityRequest(request:any,decision?:'ACCEPT'|'DECLINE'){
     const selectionExternalId=abilityRequestSelections[request.grantToken]||'';
-    if(!selectionExternalId)return;
+    const isBusinessDeal=request.kind==='BUSINESS_DEAL';
+    if(!isBusinessDeal&&!selectionExternalId)return;
+    if(isBusinessDeal&&!decision)return;
     setAbilityRequestBusy(true);
     setLocalError('');
     try{
       await postJson('/api/player/interaction',{
         token,
         grantToken:request.grantToken,
-        selectionExternalId
+        selectionExternalId:isBusinessDeal?null:selectionExternalId,
+        decision:isBusinessDeal?decision:null
       });
       setAbilityRequestSelections(v=>{
         const next={...v};
@@ -678,7 +683,9 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     const negotiationOfferId=negotiationOffers[i.externalId]||'';
     const negotiationEvidence=(portal.inventory??[]).filter((o:any)=>o.transferable===true);
     const needsNegotiationOffer=i.specialKind==='NEGOTIATION';
-    const disabled=busy||(!i.directEnabled&&!requestable)||(needsTarget&&!targetId)||(needsNegotiationOffer&&!negotiationOfferId)||i.cooldownRemainingSeconds>0;
+    const dealTerms=businessDealTerms[i.externalId]||'';
+    const needsBusinessDealTerms=i.specialKind==='BUSINESS_DEAL';
+    const disabled=busy||(!i.directEnabled&&!requestable)||(needsTarget&&!targetId)||(needsNegotiationOffer&&!negotiationOfferId)||(needsBusinessDealTerms&&dealTerms.trim().length<5)||i.cooldownRemainingSeconds>0;
     const modeLabel=scanMode==='DISCRET'
       ? tr(portal,'Discrètement','Discreetly')
       : scanMode==='SELECT'
@@ -739,12 +746,30 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
           </select>
         </div>}
 
+        {needsBusinessDealTerms&&<label className="abilityOfferPicker">
+          <small>{tr(portal,'Termes de l’accord','Deal terms')}</small>
+          <textarea
+            value={dealTerms}
+            maxLength={1600}
+            placeholder={tr(
+              portal,
+              'Ex. Je finance votre prochain film à hauteur de 500 $ en échange de 10 % des bénéfices.',
+              'e.g. I finance your next film with $500 in exchange for 10% of the profits.'
+            )}
+            onChange={e=>setBusinessDealTerms(v=>({...v,[i.externalId]:e.target.value}))}
+          />
+          <small>{tr(portal,'L’autre joueur devra accepter, puis le MJ validera l’accord.','The other player must accept, then the GM will validate the deal.')}</small>
+        </label>}
+
         <button className={i.directEnabled?'playerPrimary playActionCta':'playerSecondary playActionCta'} disabled={disabled} onClick={()=>{
           const run=()=>onExecute(
             i.externalId,
             targetId||null,
             requestable,
-            {offeredObjectExternalId:needsNegotiationOffer?negotiationOfferId:null}
+            {
+              offeredObjectExternalId:needsNegotiationOffer?negotiationOfferId:null,
+              businessDealTerms:needsBusinessDealTerms?dealTerms.trim():null
+            }
           );
           if(requestable)run(); else withPaConfirmation(i,run);
         }}>
@@ -796,38 +821,97 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
         {portal.pendingAbilityRequests.map((request:any)=>{
           const selection=abilityRequestSelections[request.grantToken]||'';
           const isCharm=request.kind==='CHARM';
+          const isBusinessDeal=request.kind==='BUSINESS_DEAL';
+
           return <article className="playerAction playActionCard abilityRequestCard" key={request.grantToken}>
             <div className="playActionHeader">
               <div>
-                <strong>{isCharm?tr(portal,'Charm','Charm'):tr(portal,'Négociation','Negotiation')}</strong>
+                <strong>
+                  {isCharm
+                    ? tr(portal,'Charm','Charm')
+                    : isBusinessDeal
+                      ? tr(portal,'Affaire commerciale','Business Deal')
+                      : tr(portal,'Négociation','Negotiation')}
+                </strong>
                 <small>{request.actorName}</small>
               </div>
             </div>
-            <p className="playActionDescription">
-              {isCharm
-                ? tr(
-                    portal,
-                    'Cette personne utilise son charme sur vous. Vous devez choisir une information que vous connaissez à lui révéler.',
-                    'This person uses Charm on you. You must choose one piece of information you know to reveal.'
-                  )
-                : tr(
-                    portal,
-                    'Cette personne impose un échange de preuves. Choisissez la preuve que vous lui remettez.',
-                    'This person forces an evidence exchange. Choose the evidence you give them.'
-                  )}
-            </p>
-            {!isCharm&&request.offeredObject&&<div className="abilityOfferSummary">
-              <small>{tr(portal,'Vous recevrez','You will receive')}</small>
-              <strong>{request.offeredObject.name}</strong>
-              {request.offeredObject.description&&<span>{request.offeredObject.description}</span>}
-            </div>}
-            <select value={selection} onChange={e=>setAbilityRequestSelections(v=>({...v,[request.grantToken]:e.target.value}))}>
-              <option value="">{isCharm?tr(portal,'Choisir une information…','Choose information…'):tr(portal,'Choisir une preuve…','Choose evidence…')}</option>
-              {request.options.map((option:any)=>{
-                const id=isCharm?option.factExternalId:option.objectExternalId;
-                const label=isCharm?option.title:option.name;
-                return <option key={id} value={id}>{label}</option>;
-              })}
+
+            {isBusinessDeal
+              ? <>
+                  <p className="playActionDescription">
+                    {tr(
+                      portal,
+                      'Cette personne vous propose un accord financier formel. Vous êtes libre de l’accepter ou de le refuser.',
+                      'This person proposes a formal financial deal. You are free to accept or decline.'
+                    )}
+                  </p>
+                  <div className="abilityOfferSummary">
+                    <small>{tr(portal,'Termes proposés','Proposed terms')}</small>
+                    <strong>{request.terms}</strong>
+                  </div>
+                  <div className="giveConfirmActions">
+                    <button
+                      className="playerSecondary"
+                      disabled={abilityRequestBusy}
+                      onClick={()=>void respondAbilityRequest(request,'DECLINE')}
+                    >
+                      {tr(portal,'Refuser','Decline')}
+                    </button>
+                    <button
+                      className="playerPrimary"
+                      disabled={abilityRequestBusy}
+                      onClick={()=>void respondAbilityRequest(request,'ACCEPT')}
+                    >
+                      {tr(portal,'Accepter l’accord','Accept deal')}
+                    </button>
+                  </div>
+                  <small className="playerHelp">
+                    {tr(
+                      portal,
+                      'Après acceptation, le MJ devra encore valider l’accord pour qu’il devienne officiel.',
+                      'After acceptance, the GM must still validate the deal before it becomes official.'
+                    )}
+                  </small>
+                </>
+              : <>
+                  <p className="playActionDescription">
+                    {isCharm
+                      ? tr(
+                          portal,
+                          'Cette personne utilise son charme sur vous. Vous devez choisir une information que vous connaissez à lui révéler.',
+                          'This person uses Charm on you. You must choose one piece of information you know to reveal.'
+                        )
+                      : tr(
+                          portal,
+                          'Cette personne impose un échange de preuves. Choisissez la preuve que vous lui remettez.',
+                          'This person forces an evidence exchange. Choose the evidence you give them.'
+                        )}
+                  </p>
+                  {!isCharm&&request.offeredObject&&<div className="abilityOfferSummary">
+                    <small>{tr(portal,'Vous recevrez','You will receive')}</small>
+                    <strong>{request.offeredObject.name}</strong>
+                    {request.offeredObject.description&&<span>{request.offeredObject.description}</span>}
+                  </div>}
+                  <select value={selection} onChange={e=>setAbilityRequestSelections(v=>({...v,[request.grantToken]:e.target.value}))}>
+                    <option value="">{isCharm?tr(portal,'Choisir une information…','Choose information…'):tr(portal,'Choisir une preuve…','Choose evidence…')}</option>
+                    {request.options.map((option:any)=>{
+                      const id=isCharm?option.factExternalId:option.objectExternalId;
+                      const label=isCharm?option.title:option.name;
+                      return <option key={id} value={id}>{label}</option>;
+                    })}
+                  </select>
+                  {selection&&isCharm&&<p className="abilityChoicePreview">{request.options.find((o:any)=>o.factExternalId===selection)?.text}</p>}
+                  <button
+                    className="playerPrimary playActionCta"
+                    disabled={abilityRequestBusy||!selection}
+                    onClick={()=>void respondAbilityRequest(request)}
+                  >
+                    {isCharm?tr(portal,'Révéler cette information','Reveal this information'):tr(portal,'Effectuer l’échange','Complete exchange')}
+                  </button>
+                </>}
+          </article>;
+        })}
             </select>
             {selection&&isCharm&&<p className="abilityChoicePreview">{request.options.find((o:any)=>o.factExternalId===selection)?.text}</p>}
             <button
