@@ -151,6 +151,9 @@ export default function PlayerPortal({token}:{token:string}){
   if(loading&&!portal)return <main className="playerShell"><section className="playerCard"><h1>Murder Engine</h1><p>Loading your character sheet…</p></section></main>;
   if(error&&!portal)return <main className="playerShell"><section className="playerCard"><p className="eyebrow">MURDER ENGINE</p><h1>Link unavailable</h1><p>This player link is no longer active or valid.</p><small>{error}</small></section></main>;
   if(!portal)return null;
+  const printMode=new URLSearchParams(window.location.search).get('print');
+  if(printMode==='sheet')return <PlayerPrintableSheet portal={portal}/>;
+
   const c=portal.character; const s=portal.session; const pa=(portal.resources??[]).find((r:any)=>r.resourceExternalId==='RES_PA');
   const presentation=(portal as any).presentation??{};
   const skinId=asSkinId(presentation.skinId);
@@ -232,6 +235,96 @@ export default function PlayerPortal({token}:{token:string}){
   </main>;
 }
 
+function PlayerPrintableSheet({portal}:{portal:Portal}){
+  const c=portal.character;
+
+  useEffect(()=>{
+    const id=window.setTimeout(()=>window.print(),350);
+    return()=>window.clearTimeout(id);
+  },[]);
+
+  return <main className="playerPdfRoot">
+    <div className="playerPdfControls">
+      <button className="playerPrimary" onClick={()=>window.print()}>
+        {tr(portal,'Enregistrer / imprimer en PDF','Save / print as PDF')}
+      </button>
+      <button className="playerSecondary" onClick={()=>window.close()}>
+        {tr(portal,'Fermer','Close')}
+      </button>
+    </div>
+
+    <article className="playerPdfSheet">
+      <header className="playerPdfHeader">
+        <p>{portal.session?.scenarioTitle}</p>
+        {c.portrait?.source&&
+          <img src={c.portrait.source} alt={c.portrait.altText||c.name}/>
+        }
+        <h1>{c.name}</h1>
+        {c.publicRole&&<h2>{c.publicRole}</h2>}
+        {c.narrativeAge&&<span>{c.narrativeAge}</span>}
+      </header>
+
+      {c.motto&&<blockquote>« {c.motto} »</blockquote>}
+
+      <section>
+        <h3>{tr(portal,'Mon histoire','My story')}</h3>
+        <NarrativeText text={c.biography||'—'} className="playerNarrativeText"/>
+      </section>
+
+      {c.secretIntro&&<section className="playerPdfSecret">
+        <h3>{tr(portal,'Ce que vous seul savez','What only you know')}</h3>
+        <NarrativeText text={c.secretIntro} className="playerNarrativeText compact"/>
+      </section>}
+
+      {c.apparentMotive&&<section>
+        <h3>{tr(portal,'Ma position','My position')}</h3>
+        <NarrativeText text={c.apparentMotive} className="playerNarrativeText compact"/>
+      </section>}
+
+      {c.personalTimeline&&<section>
+        <h3>{tr(portal,'Ma chronologie','My timeline')}</h3>
+        <NarrativeText text={c.personalTimeline} className="playerNarrativeText"/>
+      </section>}
+
+      {(portal.discoverableAboutMe??[]).length>0&&<section>
+        <h3>{tr(
+          portal,
+          'Ce que les joueurs peuvent découvrir sur moi',
+          'What other players can discover about me'
+        )}</h3>
+        <ul>
+          {(portal.discoverableAboutMe??[]).map((clue:any)=>
+            <li key={clue.externalId}>
+              <strong>{clue.playerName}</strong>
+              <p>{clue.playerText}</p>
+            </li>
+          )}
+        </ul>
+      </section>}
+
+      <section>
+        <h3>{tr(portal,'Mes missions','My missions')}</h3>
+        {portal.objectives?.length
+          ? <ol>{portal.objectives.map((o:any)=><li key={o.externalId}><strong>{o.title}</strong><p>{o.description}</p></li>)}</ol>
+          : <p>—</p>}
+      </section>
+
+      {portal.relationships?.length>0&&<section>
+        <h3>{tr(portal,'Mes relations','My relationships')}</h3>
+        {portal.relationships.map((r:any)=>
+          <div className="playerPdfRelation" key={r.externalId}>
+            <strong>{r.otherName}</strong>
+            {r.otherPublicRole&&<span> · {r.otherPublicRole}</span>}
+            <p>{r.text}</p>
+          </div>
+        )}
+      </section>}
+
+      <footer>Murder Engine · Ludificateur</footer>
+    </article>
+  </main>;
+}
+
 function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=>void}){
   type SheetTab='story'|'missions'|'roleplay'|'qr';
   const c=portal.character;
@@ -260,6 +353,18 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
       )}
     </nav>
 
+    <button
+      type="button"
+      className="playerSecondary playerSheetPdfButton"
+      onClick={()=>{
+        const url=new URL(window.location.href);
+        url.searchParams.set('print','sheet');
+        window.open(url.toString(),'_blank','noopener,noreferrer');
+      }}
+    >
+      📄 {tr(portal,'PDF de ma fiche','My character sheet PDF')}
+    </button>
+
     {c.motto&&tab==='story'&&<blockquote className="playerQuote">« {c.motto} »</blockquote>}
 
     {tab==='story'&&<section className="playerCard">
@@ -278,6 +383,30 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
         {c.personalTimeline
           ? <NarrativeText text={c.personalTimeline} className="playerNarrativeText"/>
           : <p className="playerMuted">{tr(portal,'Aucune chronologie particulière n’est renseignée pour ce personnage.','No specific timeline is provided for this character.')}</p>}
+      </div>
+
+      <div className="sheetSubsection discoverableAboutMe">
+        <p className="playerSectionKicker">{tr(portal,'CE QUE LES AUTRES PEUVENT APPRENDRE','WHAT OTHERS MAY LEARN')}</p>
+        <h3>{tr(
+          portal,
+          'Ce que les joueurs peuvent découvrir sur moi',
+          'What other players can discover about me'
+        )}</h3>
+        {(portal.discoverableAboutMe??[]).length===0
+          ? <p className="playerMuted">{tr(
+              portal,
+              'Aucun indice ciblé n’est actuellement renseigné sur votre personnage.',
+              'No targeted clue is currently defined about your character.'
+            )}</p>
+          : <div className="discoverableClueList">
+              {(portal.discoverableAboutMe??[]).map((clue:any)=>
+                <article key={clue.externalId}>
+                  <strong>{clue.playerName}</strong>
+                  <p>{clue.playerText}</p>
+                </article>
+              )}
+            </div>
+        }
       </div>
     </section>}
 
@@ -775,6 +904,20 @@ function PlayerBag({
                 📄 {tr(portal,'Indice / document','Clue / document')}
                 <span className="bagOwnedBadge">✓ {tr(portal,'Dans votre sac','In your bag')}</span>
               </div>
+
+              {d.object?.visualMedia&&
+                <div className="bagLinkedObjectVisual">
+                  <img
+                    src={d.object.visualMedia.source}
+                    alt={d.object.visualMedia.altText||d.object.name||d.playerName}
+                  />
+                  <span>
+                    <small>{tr(portal,'Objet associé','Associated item')}</small>
+                    <strong>{d.object.name}</strong>
+                  </span>
+                </div>
+              }
+
               {d.immersiveDocument&&<ImmersiveDocument entry={d} language={portal.session?.language}/>} 
               <div className="bagDocumentMeta">
                 <strong>{d.playerName}</strong>
