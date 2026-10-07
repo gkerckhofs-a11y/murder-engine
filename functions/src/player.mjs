@@ -175,6 +175,79 @@ mutation ClaimSteal(
 }
 `;
 
+const RESOLVE_ABILITY_GRANT_MUTATION = `
+mutation ResolveAbilityGrant(
+  $sessionId: UUID!,
+  $grantToken: String!,
+  $chosenExternalId: String!,
+  $usedAt: Timestamp!,
+  $actorNotification: SessionPlayerNotification_Data!,
+  $targetNotification: SessionPlayerNotification_Data!,
+  $log: SessionActionLog_Data!
+) @transaction {
+  sessionStealGrant_update(
+    key: {gameSessionId: $sessionId, grantToken: $grantToken}
+    data: {status: "USED", usedAt: $usedAt, chosenObjectExternalId: $chosenExternalId}
+  )
+  actorNotification: sessionPlayerNotification_insert(data: $actorNotification)
+  targetNotification: sessionPlayerNotification_insert(data: $targetNotification)
+  sessionActionLog_insert(data: $log)
+}
+`;
+
+const RESOLVE_CHARM_MUTATION = `
+mutation ResolveCharm(
+  $sessionId: UUID!,
+  $grantToken: String!,
+  $factExternalId: String!,
+  $usedAt: Timestamp!,
+  $knowledge: SessionKnowledge_Data!,
+  $actorNotification: SessionPlayerNotification_Data!,
+  $targetNotification: SessionPlayerNotification_Data!,
+  $log: SessionActionLog_Data!
+) @transaction {
+  sessionKnowledge_insert(data: $knowledge)
+  sessionStealGrant_update(
+    key: {gameSessionId: $sessionId, grantToken: $grantToken}
+    data: {status: "USED", usedAt: $usedAt, chosenObjectExternalId: $factExternalId}
+  )
+  actorNotification: sessionPlayerNotification_insert(data: $actorNotification)
+  targetNotification: sessionPlayerNotification_insert(data: $targetNotification)
+  sessionActionLog_insert(data: $log)
+}
+`;
+
+const RESOLVE_NEGOTIATION_MUTATION = `
+mutation ResolveNegotiation(
+  $sessionId: UUID!,
+  $grantToken: String!,
+  $actorObjectExternalId: String!,
+  $targetObjectExternalId: String!,
+  $actorCharacterExternalId: String!,
+  $targetCharacterExternalId: String!,
+  $usedAt: Timestamp!,
+  $actorNotification: SessionPlayerNotification_Data!,
+  $targetNotification: SessionPlayerNotification_Data!,
+  $log: SessionActionLog_Data!
+) @transaction {
+  actorObject: sessionObject_update(
+    key: {gameSessionId: $sessionId, objectExternalId: $actorObjectExternalId}
+    data: {holderType: "CHARACTER", holderExternalId: $targetCharacterExternalId, updatedAt: $usedAt}
+  )
+  targetObject: sessionObject_update(
+    key: {gameSessionId: $sessionId, objectExternalId: $targetObjectExternalId}
+    data: {holderType: "CHARACTER", holderExternalId: $actorCharacterExternalId, updatedAt: $usedAt}
+  )
+  sessionStealGrant_update(
+    key: {gameSessionId: $sessionId, grantToken: $grantToken}
+    data: {status: "USED", usedAt: $usedAt, chosenObjectExternalId: $targetObjectExternalId}
+  )
+  actorNotification: sessionPlayerNotification_insert(data: $actorNotification)
+  targetNotification: sessionPlayerNotification_insert(data: $targetNotification)
+  sessionActionLog_insert(data: $log)
+}
+`;
+
 const TRANSFER_PLAYER_CASH_MUTATION = `
 mutation TransferPlayerCash(
   $sessionId: UUID!,
