@@ -4,11 +4,12 @@ import JSZip from 'jszip';
 import QRCode from 'qrcode';
 import { asSkinId, skinClassFor, defaultAccentForSkin } from './skin-registry';
 import NarrativeText from './NarrativeText';
+import { organizerToken } from './admin-auth';
 
 type Props={versionId?:string;sessionId?:string};
 
-async function fetchJson<T=any>(url:string):Promise<T>{
-  const r=await fetch(url);
+async function fetchJson<T=any>(url:string,init?:RequestInit):Promise<T>{
+  const r=await fetch(url,init);
 
   const contentType=
     r.headers.get('content-type')??'';
@@ -95,62 +96,108 @@ async function addQrFiles(
   );
 }
 
-async function downloadQrZip(pack:any){
+async function downloadQrZip(
+  pack:any,
+  kind:'full'|'locations'|'access'|'characters'='full'
+){
   const zip=new JSZip();
 
-  const charactersFolder=zip.folder('personnages');
-  const locationsFolder=zip.folder('lieux');
+  async function addCharacters(){
+    const folder=zip.folder('QR-PERSONNAGES-INTERACTIONS');
+    if(!folder)throw new Error('ZIP_FOLDER_ERROR');
 
-  if(!charactersFolder||!locationsFolder)
-    throw new Error('ZIP_FOLDER_ERROR');
+    for(const character of pack.logistics.qrCharacters??[]){
+      const url=
+        window.location.origin+
+        '/scan/character/'+
+        encodeURIComponent(character.externalId);
 
-  for(const character of pack.logistics.qrCharacters??[]){
-    const url=
-      `${window.location.origin}/scan/character/${encodeURIComponent(character.externalId)}`;
+      const filename=
+        safeFilename(character.externalId)+
+        '-'+
+        safeFilename(character.name);
 
-    const filename=
-      `${safeFilename(character.externalId)}-${safeFilename(character.name)}`;
-
-    await addQrFiles(
-      charactersFolder,
-      filename,
-      url
-    );
+      await addQrFiles(folder,filename,url);
+    }
   }
 
-  for(const location of pack.logistics.qrLocations??[]){
-    const url=
-      `${window.location.origin}/scan/${encodeURIComponent(location.externalId)}`;
+  async function addLocations(){
+    const folder=zip.folder('QR-LIEUX');
+    if(!folder)throw new Error('ZIP_FOLDER_ERROR');
 
-    const filename=
-      `${safeFilename(location.externalId)}-${safeFilename(location.name)}`;
+    for(const location of pack.logistics.qrLocations??[]){
+      const url=
+        window.location.origin+
+        '/scan/'+
+        encodeURIComponent(location.externalId);
 
-    await addQrFiles(
-      locationsFolder,
-      filename,
-      url
-    );
+      const filename=
+        safeFilename(location.externalId)+
+        '-'+
+        safeFilename(location.name);
+
+      await addQrFiles(folder,filename,url);
+    }
   }
+
+  async function addAccess(){
+    if(!pack.session)throw new Error('PACK_SESSION_REQUIRED');
+
+    const folder=zip.folder('QR-ACCES-JOUEURS');
+    if(!folder)throw new Error('ZIP_FOLDER_ERROR');
+
+    const rows=pack.session.playerAccess??[];
+
+    for(const row of rows){
+      const url=
+        window.location.origin+
+        '/?player='+
+        encodeURIComponent(row.playerAccessToken);
+
+      const filename=
+        safeFilename(row.characterExternalId)+
+        '-'+
+        safeFilename(row.characterName);
+
+      await addQrFiles(folder,filename,url);
+    }
+
+    const escapeCsv=(value:any)=>
+      '"'+String(value??'').replace(/"/g,'""')+'"';
+
+    const csv=[
+      'Personnage,Joueur,Lien',
+      ...rows.map((row:any)=>{
+        const url=
+          window.location.origin+
+          '/?player='+
+          encodeURIComponent(row.playerAccessToken);
+
+        return [
+          escapeCsv(row.characterName),
+          escapeCsv(row.participantDisplayName),
+          escapeCsv(url),
+        ].join(',');
+      }),
+    ].join('\n');
+
+    folder.file('correspondance-joueurs.csv',csv);
+  }
+
+  if(kind==='full'||kind==='locations')await addLocations();
+  if(kind==='full'||kind==='characters')await addCharacters();
+  if(kind==='full'||kind==='access')await addAccess();
 
   const readme=[
-    'MURDER ENGINE — PACK QR',
+    'MURDER ENGINE — PACK ORGANISATEUR',
     '',
-    `Scénario : ${pack.scenario.title}`,
-    `Version : ${pack.scenario.versionLabel}`,
+    'Scénario : '+pack.scenario.title,
+    pack.session?'Session : '+pack.session.name:'Version : '+pack.scenario.versionLabel,
     '',
-    `QR personnages : ${pack.logistics.qrCharacters?.length??0}`,
-    `QR lieux : ${pack.logistics.qrLocations?.length??0}`,
+    'QR lieux et QR personnages : réutilisables entre sessions.',
+    'QR accès joueurs : propres à la session.',
     '',
-    'Chaque QR est fourni en :',
-    '- SVG vectoriel pour impression',
-    '- PNG haute résolution',
-    '',
-    'Les QR personnages sont statiques :',
-    'un même personnage conserve le même QR entre les sessions.',
-    '',
-    'Le QR identifie la cible. Le contexte de la session est',
-    'déterminé par le joueur connecté à Murder Engine.',
-    '',
+    'Les planches A4 sont accessibles depuis l’écran Pack MJ.',
   ].join('\n');
 
   zip.file('LISEZ-MOI.txt',readme);
@@ -162,19 +209,29 @@ async function downloadQrZip(pack:any){
   });
 
   const url=URL.createObjectURL(blob);
-
   const anchor=document.createElement('a');
-
   anchor.href=url;
+
+  const prefix=
+    kind==='locations'
+      ? 'QR-LIEUX'
+      : kind==='access'
+        ? 'QR-ACCES-JOUEURS'
+        : kind==='characters'
+          ? 'QR-PERSONNAGES'
+          : 'PACK-ORGANISATEUR';
+
   anchor.download=
-    pack.session
-      ? `QR-${safeFilename(pack.scenario.title)}-${safeFilename(pack.session.name||'session')}.zip`
-      : `QR-${safeFilename(pack.scenario.title)}-${safeFilename(pack.scenario.versionLabel)}.zip`;
+    prefix+
+    '-'+
+    safeFilename(pack.scenario.title)+
+    '-'+
+    safeFilename(pack.session?.name||pack.scenario.versionLabel)+
+    '.zip';
 
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-
   URL.revokeObjectURL(url);
 }
 
