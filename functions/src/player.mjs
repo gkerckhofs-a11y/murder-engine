@@ -2134,11 +2134,17 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
   }
 
   const specialKind=specialPlayerAbilityKind(interaction);
-  if(['CHARM','NEGOTIATION'].includes(specialKind)){
+  if(['CHARM','NEGOTIATION','BUSINESS_DEAL'].includes(specialKind)){
     const targetCharacter=(loaded.source.characters??[]).find(c=>c.externalId===targetExternalId);
     const targetName=targetCharacter?.name??targetExternalId;
     const actorCharacter=(loaded.source.characters??[]).find(c=>c.externalId===actor);
     const actorName=actorCharacter?.name??actor;
+    const businessTerms=specialKind==='BUSINESS_DEAL'
+      ? String(input?.businessDealTerms??'').trim().slice(0,1600)
+      : '';
+
+    if(specialKind==='BUSINESS_DEAL'&&businessTerms.length<5)
+      throw new Error('BUSINESS_DEAL_TERMS_REQUIRED');
 
     if(specialKind==='CHARM'){
       if(!charmInformationForTarget(loaded.source,loaded.runtime,actor,targetExternalId).length)
@@ -2181,17 +2187,42 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
       chosenObjectExternalId:offeredObjectExternalId,
     }});
 
+    if(specialKind==='BUSINESS_DEAL'){
+      await executor(INSERT_PLAYER_ACTION_LOG_MUTATION,{data:{
+        gameSessionId:loaded.session.id,
+        actionType:'BUSINESS_DEAL_PROPOSED',
+        characterExternalId:actor,
+        refExternalId:grantToken,
+        beforeValue:null,
+        afterValue:targetExternalId,
+        deltaValue:null,
+        note:JSON.stringify({
+          terms:businessTerms,
+          actorName,
+          targetName,
+          interactionExternalId:id,
+        }),
+        createdAt,
+      }});
+    }
+
     const body=specialKind==='CHARM'
       ? sessionText(
           loaded.session,
           actorName+' utilise son charme sur vous. Choisissez une information que vous connaissez à lui révéler.',
           actorName+' uses Charm on you. Choose one piece of information you know to reveal.'
         )
-      : sessionText(
-          loaded.session,
-          actorName+' impose un échange de preuves. Choisissez une preuve transférable à lui remettre en retour.',
-          actorName+' forces an evidence exchange. Choose one transferable piece of evidence to give in return.'
-        );
+      : specialKind==='NEGOTIATION'
+        ? sessionText(
+            loaded.session,
+            actorName+' impose un échange de preuves. Choisissez une preuve transférable à lui remettre en retour.',
+            actorName+' forces an evidence exchange. Choose one transferable piece of evidence to give in return.'
+          )
+        : sessionText(
+            loaded.session,
+            actorName+' vous propose un accord financier formel : « '+businessTerms+' ». Vous êtes libre de l’accepter ou de le refuser.',
+            actorName+' proposes a formal financial deal: “'+businessTerms+'”. You are free to accept or decline.'
+          );
 
     await executor(INSERT_NOTIFICATION_MUTATION,{data:{
       gameSessionId:loaded.session.id,
@@ -2199,7 +2230,9 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
       kind:specialKind,
       title:specialKind==='CHARM'
         ? sessionText(loaded.session,'Charm — réponse requise','Charm — response required')
-        : sessionText(loaded.session,'Négociation — échange requis','Negotiation — exchange required'),
+        : specialKind==='NEGOTIATION'
+          ? sessionText(loaded.session,'Négociation — échange requis','Negotiation — exchange required')
+          : sessionText(loaded.session,'Affaire commerciale — décision requise','Business Deal — decision required'),
       body,
       priority:'IMPORTANT',
       refExternalId:id,
@@ -2211,11 +2244,17 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
       characterExternalId:actor,
       kind:specialKind,
       title:sessionText(loaded.session,'Action lancée','Action started'),
-      body:sessionText(
-        loaded.session,
-        'Votre action sur '+targetName+' est lancée. La cible doit maintenant faire son choix.',
-        'Your action on '+targetName+' has started. The target must now make their choice.'
-      ),
+      body:specialKind==='BUSINESS_DEAL'
+        ? sessionText(
+            loaded.session,
+            'Votre proposition a été envoyée à '+targetName+'. L’accord ne deviendra officiel que si la cible accepte puis si le MJ le valide.',
+            'Your proposal was sent to '+targetName+'. The deal becomes official only if the target accepts and the GM validates it.'
+          )
+        : sessionText(
+            loaded.session,
+            'Votre action sur '+targetName+' est lancée. La cible doit maintenant faire son choix.',
+            'Your action on '+targetName+' has started. The target must now make their choice.'
+          ),
       priority:'NORMAL',
       refExternalId:id,
       createdAt,
