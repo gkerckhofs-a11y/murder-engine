@@ -573,11 +573,52 @@ async function loadPlayerData(token, reader=defaultReader) {
   };
 }
 
-function effectiveAbilities(source, characterExternalId) {
+function directAbilityPlayerDescription(session,externalId,fallback='') {
+  switch(String(externalId??'').trim().toUpperCase()){
+    case 'ABILITY_CHARM':
+      return sessionText(
+        session,
+        'Pour 1 PA, scannez un autre personnage. La cible choisit une information qu’elle connaît à vous révéler. Elle conserve cette information et aucune preuve n’est transférée. Une fois par cible, sans délai d’attente.',
+        'For 1 AP, scan another character. The target chooses one piece of information they know to reveal to you. They keep that information and no evidence is transferred. Once per target, with no cooldown.'
+      );
+    case 'ABILITY_POLICE_INTIMIDATION':
+      return sessionText(
+        session,
+        'Pour 1 PA, scannez un autre personnage puis choisissez une preuve transférable dans ses affaires. Vous prenez cette preuve et la cible sait que vous l’avez intimidée. Une fois par cible, sans délai d’attente.',
+        'For 1 AP, scan another character and choose one transferable piece of evidence from their belongings. You take that evidence and the target knows you intimidated them. Once per target, with no cooldown.'
+      );
+    case 'ABILITY_NEGOTIATION':
+      return sessionText(
+        session,
+        'Pour 1 PA, choisissez une de vos preuves transférables puis scannez un autre personnage. La cible choisit une preuve transférable à vous remettre en retour et l’échange est effectué automatiquement. Une fois par cible, sans délai d’attente.',
+        'For 1 AP, choose one of your transferable pieces of evidence, then scan another character. The target chooses one transferable piece of evidence to give you in return and the exchange is completed automatically. Once per target, with no cooldown.'
+      );
+    default:
+      return fallback;
+  }
+}
+
+function effectiveAbilities(source, characterExternalId, session=null) {
   const defs=byId((source.abilities??[]).filter(x=>x.active!==false));
   return (source.abilityAssignments??[]).filter(a=>a.active!==false&&a.ownerType==='CHARACTER'&&a.ownerExternalId===characterExternalId).map(a=>{
     const d=defs.get(a.abilityExternalId); if(!d)return null;
-    return {externalId:d.externalId,name:d.name,description:d.description,category:d.category,level:Number(a.level??d.defaultLevel??0),flatBonus:Number(a.flatBonus??0),maxUses:a.usesOverride??d.defaultMaxUses??null,cooldownMinutes:a.cooldownOverrideMinutes??d.defaultCooldownMinutes??null,secret:Boolean(d.secret)};
+    return {
+      externalId:d.externalId,
+      name:d.name,
+      description:session?directAbilityPlayerDescription(session,d.externalId,d.description):d.description,
+      category:d.category,
+      level:Number(a.level??d.defaultLevel??0),
+      flatBonus:Number(a.flatBonus??0),
+      maxUses:a.usesOverride??d.defaultMaxUses??null,
+      cooldownMinutes:[
+        'ABILITY_CHARM',
+        'ABILITY_NEGOTIATION',
+        'ABILITY_POLICE_INTIMIDATION'
+      ].includes(String(d.externalId??'').toUpperCase())
+        ? 0
+        : (a.cooldownOverrideMinutes??d.defaultCooldownMinutes??null),
+      secret:Boolean(d.secret)
+    };
   }).filter(Boolean);
 }
 
@@ -680,7 +721,7 @@ function charmInformationForTarget(source,runtime,actorCharacterExternalId,targe
 }
 
 function playerInteractions(source,runtime,session,characterExternalId,resources,now=new Date()) {
-  const abilities=effectiveAbilities(source,characterExternalId);
+  const abilities=effectiveAbilities(source,characterExternalId,session);
   const abilityMap=new Map(abilities.map(a=>[a.externalId,a]));
   const otherPlayers=(session.sessionParticipants_on_gameSession??[]).filter(p=>p.active!==false&&p.characterExternalId&&p.characterExternalId!==characterExternalId);
   const charMap=byId(source.characters??[]);
@@ -1667,7 +1708,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
     session:{id:session.id,name:session.name,scheduledAt:session.scheduledAt,venue:session.venue,language:session.language??'FR',status:session.status,startedAt:session.startedAt,pausedAt:session.pausedAt,finishedAt:session.finishedAt,scenarioTitle:session.scenarioVersion?.scenario?.title??'Murder Party',playerSummary:session.scenarioVersion?.playerSummary??''},
     character:{externalId:character.externalId,name:character.name,publicRole:character.publicRole,biography:character.biography,secretIntro:character.secretIntro,interpretationNotes:character.interpretationNotes,appearanceNotes:character.appearanceNotes,apparentMotive:character.apparentMotive,personalTimeline:character.personalTimeline,motto:character.motto,narrativeAge:character.narrativeAge,portrait:mediaOverrideVisual(session,'CHARACTER',character.externalId)??visualMedia(mediaMap,character.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',character.portraitArchetypeCode)},
     otherCharacters:(session.sessionParticipants_on_gameSession??[]).filter(p=>p.active!==false&&p.characterExternalId&&p.characterExternalId!==characterExternalId).map(p=>{const c=charMap.get(p.characterExternalId);return{characterExternalId:p.characterExternalId,name:c?.name??p.characterExternalId,publicRole:c?.publicRole??null,participantName:p.displayName,portrait:mediaOverrideVisual(session,'CHARACTER',p.characterExternalId)??visualMedia(mediaMap,c?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',c?.portraitArchetypeCode)};}),
-    objectives,relationships,resources,knowledge,discoveries,documentEntries,inventory,discoverableAboutMe,pendingAbilityRequests,states,abilities:effectiveAbilities(source,characterExternalId).filter(a=>!a.secret),interactions,votes,voteResults,notifications,actionLogs,unreadNotificationCount:notifications.filter(n=>!n.readAt).length,searchCooldownRemainingSeconds:globalLocationSearchCooldownRemaining(source,runtime,characterExternalId,now),
+    objectives,relationships,resources,knowledge,discoveries,documentEntries,inventory,discoverableAboutMe,pendingAbilityRequests,states,abilities:effectiveAbilities(source,characterExternalId,session).filter(a=>!a.secret),interactions,votes,voteResults,notifications,actionLogs,unreadNotificationCount:notifications.filter(n=>!n.readAt).length,searchCooldownRemainingSeconds:globalLocationSearchCooldownRemaining(source,runtime,characterExternalId,now),
   };
 }
 
