@@ -54,6 +54,11 @@ type ActionResult = {
       name:string;
       text:string;
       clueType:string;
+      logisticsCode?:string|null;
+      visualMedia?:{
+        source:string;
+        altText?:string|null;
+      }|null;
       mode:'TAKEABLE'|'PERSISTENT';
     }|null;
     object?:{
@@ -344,7 +349,33 @@ export default function LocationScan({
                     {tx(language,'Vous découvrez…','You discover…')}
                   </p>
                   <h2>{last.reward.clue.name}</h2>
+
+                  {last.reward.clue.visualMedia?.source&&
+                    <img
+                      className="discoveredObjectVisual"
+                      src={last.reward.clue.visualMedia.source}
+                      alt={last.reward.clue.visualMedia.altText||last.reward.clue.name}
+                    />
+                  }
+
                   <p className="immersiveDiscoveryText">{last.reward.clue.text}</p>
+
+                  {last.reward.clue.logisticsCode&&!last.reward?.object&&
+                    <div className="physicalPickupCallout">
+                      <span>{tx(language,'OBJET À RÉCUPÉRER','PROP TO COLLECT')}</span>
+                      <strong>{tx(
+                        language,
+                        'Allez maintenant voir le Maître du Jeu (GM)',
+                        'Go to the Game Master (GM) now'
+                      )}</strong>
+                      <p>{tx(
+                        language,
+                        'Cet indice correspond à un objet physique. Montrez ce code au GM pour qu’il vous le remette.',
+                        'This clue corresponds to a physical prop. Show this code to the GM so they can give it to you.'
+                      )}</p>
+                      <b>{last.reward.clue.logisticsCode}</b>
+                    </div>
+                  }
 
                   <div className="clueBagNotice">
                     {last.reward?.object
