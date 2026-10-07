@@ -132,16 +132,24 @@ export default function MediaLibraryPanel({
   const visibleAssets=useMemo(()=>{
     const needle=filter.trim().toLowerCase();
 
-    return assets.filter(asset=>{
-      const category=String(asset.category??'GENERAL').toUpperCase();
-      if(!['GENERAL',targetType].includes(category))return false;
+    return assets
+      .filter(asset=>{
+        if(!needle)return true;
 
-      if(!needle)return true;
+        return `${asset.label} ${asset.tags??''} ${asset.skinId??''} ${asset.category??''}`
+          .toLowerCase()
+          .includes(needle);
+      })
+      .sort((a,b)=>{
+        const rank=(asset:Asset)=>{
+          const category=String(asset.category??'GENERAL').toUpperCase();
+          if(category===targetType)return 0;
+          if(category==='GENERAL')return 1;
+          return 2;
+        };
 
-      return `${asset.label} ${asset.tags??''} ${asset.skinId??''}`
-        .toLowerCase()
-        .includes(needle);
-    });
+        return rank(a)-rank(b) || a.label.localeCompare(b.label);
+      });
   },[assets,filter,targetType]);
 
   async function load(){
