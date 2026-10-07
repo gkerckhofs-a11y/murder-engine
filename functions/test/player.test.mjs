@@ -277,6 +277,84 @@ test('player cash transfer rejects self target and invalid amount',async()=>{
  await assert.rejects(()=>transferPlayerCash(participant().playerAccessToken,{targetCharacterExternalId:'CHAR_B',amount:1.5},{reader,executor:async()=>({})}),/INVALID_CASH_AMOUNT/);
 });
 
+test('completed player vote disappears from Play tab',()=>{
+ const src=source();
+ src.voteDefinitions=src.voteDefinitions.map(v=>({
+   ...v,
+   resultVisibility:'AFTER_CLOSE'
+ }));
+
+ const rt=runtime();
+ rt.sessionBallots=[
+   {
+     voteExternalId:'VOTE1',
+     round:1,
+     electorCharacterExternalId:'CHAR_A',
+     selectedOptionExternalIds:'OPT1',
+     weight:1,
+     castAt:'2026-09-21T18:05:00Z',
+     updatedAt:'2026-09-21T18:05:00Z'
+   }
+ ];
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   rt,
+   new Date('2026-09-21T18:06:00Z')
+ );
+
+ assert.equal(out.votes.length,0);
+});
+
+test('closed vote result appears as player-safe News data',()=>{
+ const src=source();
+ src.voteDefinitions=src.voteDefinitions.map(v=>({
+   ...v,
+   title:'Who takes the lead role?',
+   resultVisibility:'AFTER_CLOSE'
+ }));
+
+ const rt=runtime();
+ rt.sessionVotes=[
+   {
+     voteExternalId:'VOTE1',
+     round:1,
+     status:'CLOSED',
+     eligibleOptionExternalIds:'OPT1',
+     openedAt:'2026-09-21T18:00:00Z',
+     closedAt:'2026-09-21T18:10:00Z',
+     resultJson:JSON.stringify({
+       winnerOptionExternalId:'OPT1',
+       tieForLead:false,
+       suggestSecondRound:false,
+       ranked:[
+         {
+           optionExternalId:'OPT1',
+           label:'A',
+           votes:1
+         }
+       ]
+     })
+   }
+ ];
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   rt,
+   new Date('2026-09-21T18:11:00Z')
+ );
+
+ assert.equal(out.votes.length,0);
+ assert.equal(out.voteResults.length,1);
+ assert.equal(out.voteResults[0].title,'Who takes the lead role?');
+ assert.equal(out.voteResults[0].winnerLabel,'A');
+ assert.equal(out.voteResults[0].round,1);
+});
+
 test('player vote always uses character linked to token',async()=>{
  const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();};let ballot;
  await castPlayerVote(participant().playerAccessToken,{voteExternalId:'VOTE1',round:1,selectedOptionExternalIds:['OPT1'],electorCharacterExternalId:'CHAR_B'},{reader,voteCaster:async(sid,input)=>{ballot=input;return input;}});assert.equal(ballot.electorCharacterExternalId,'CHAR_A');
