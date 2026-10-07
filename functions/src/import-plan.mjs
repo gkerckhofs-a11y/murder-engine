@@ -260,6 +260,7 @@ export function buildImportPlan(workbook, {
     propRequirementExternalId: textOrNull(r.prop_requirement_id),
     ownerInitialType: textOrNull(r.owner_initial_type),
     ownerInitialExternalId: textOrNull(r.owner_initial_id),
+    logisticsCode: textOrNull(r.code_logistique),
     transferable: truthy(r.transferable, true),
     stealable: truthy(r.volable, false),
     consumable: truthy(r.consommable, false),
@@ -283,6 +284,7 @@ export function buildImportPlan(workbook, {
     gameObjects.push({
       scenarioVersionId, externalId, name:d.title, description:d.textContent || d.title, support:'DOCUMENT',
       propRequirementExternalId:d.propRequirementExternalId, ownerInitialType:d.ownerInitialType, ownerInitialExternalId:d.ownerInitialExternalId,
+      logisticsCode:d.logisticsCode??null,
       transferable:d.transferable, stealable:d.stealable, consumable:d.consumable, initialCharges:1, critical:false,
       identification0:d.title, identification1:null, identification2:null, identification3:null,
       mediaExternalId:null, visualArchetypeCode:'LETTER', active:true,
