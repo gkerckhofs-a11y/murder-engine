@@ -1,0 +1,41 @@
+name: Create SHOWBIZ V1.7 Test Session
+
+on:
+  push:
+    branches:
+      - diagnose/showbiz-master-export
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - name: Create SHOWBIZ test session
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+          GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: node functions/tools/create-showbiz-v17-test-session.mjs
+      - name: Upload session links
+        uses: actions/upload-artifact@v4
+        with:
+          name: showbiz-v17-test-session
+          path: showbiz-test-session.json
+          if-no-files-found: error
+          retention-days: 3
