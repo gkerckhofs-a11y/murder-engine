@@ -237,21 +237,35 @@ function validateTarget(source, session, targetType, targetExternalId) {
   return targetExternalId;
 }
 
-const DIRECT_ABILITY_IDS = new Set([
+const NO_COOLDOWN_ABILITY_IDS = new Set([
+  'ABILITY_CHARM',
+  'ABILITY_NEGOTIATION',
+  'ABILITY_POLICE_INTIMIDATION',
+  'ABILITY_BUSINESS_DEAL',
+]);
+
+const ONCE_PER_TARGET_ABILITY_IDS = new Set([
   'ABILITY_CHARM',
   'ABILITY_NEGOTIATION',
   'ABILITY_POLICE_INTIMIDATION',
 ]);
 
-function isDirectPlayerAbility(interaction) {
-  return DIRECT_ABILITY_IDS.has(
+function noCooldownAbility(interaction) {
+  return NO_COOLDOWN_ABILITY_IDS.has(
+    String(interaction?.abilityExternalId??'').trim().toUpperCase()
+  );
+}
+
+function oncePerTargetAbility(interaction) {
+  return ONCE_PER_TARGET_ABILITY_IDS.has(
     String(interaction?.abilityExternalId??'').trim().toUpperCase()
   );
 }
 
 function limitConfig(interaction, ability) {
   const repeatableLocationSearch=isRepeatableLocationSearch(interaction);
-  const directPlayerAbility=isDirectPlayerAbility(interaction);
+  const noCooldown=noCooldownAbility(interaction);
+  const oncePerTarget=oncePerTargetAbility(interaction);
 
   return {
     maxUses: repeatableLocationSearch
@@ -259,7 +273,7 @@ function limitConfig(interaction, ability) {
       : (interaction.maxUses ?? ability?.maxUses ?? null),
 
     cooldownMinutes:
-      directPlayerAbility
+      noCooldown
         ? 0
         : (
             interaction.cooldownMinutes ??
@@ -270,7 +284,7 @@ function limitConfig(interaction, ability) {
     limitPerTarget:
       repeatableLocationSearch
         ? null
-        : directPlayerAbility
+        : oncePerTarget
           ? (interaction.limitPerTarget ?? 1)
           : (interaction.limitPerTarget ?? null),
   };
