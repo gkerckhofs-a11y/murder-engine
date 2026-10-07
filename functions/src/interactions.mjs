@@ -237,8 +237,21 @@ function validateTarget(source, session, targetType, targetExternalId) {
   return targetExternalId;
 }
 
+const DIRECT_ABILITY_IDS = new Set([
+  'ABILITY_CHARM',
+  'ABILITY_NEGOTIATION',
+  'ABILITY_POLICE_INTIMIDATION',
+]);
+
+function isDirectPlayerAbility(interaction) {
+  return DIRECT_ABILITY_IDS.has(
+    String(interaction?.abilityExternalId??'').trim().toUpperCase()
+  );
+}
+
 function limitConfig(interaction, ability) {
   const repeatableLocationSearch=isRepeatableLocationSearch(interaction);
+  const directPlayerAbility=isDirectPlayerAbility(interaction);
 
   return {
     maxUses: repeatableLocationSearch
@@ -246,13 +259,20 @@ function limitConfig(interaction, ability) {
       : (interaction.maxUses ?? ability?.maxUses ?? null),
 
     cooldownMinutes:
-      interaction.cooldownMinutes ??
-      ability?.cooldownMinutes ??
-      null,
+      directPlayerAbility
+        ? 0
+        : (
+            interaction.cooldownMinutes ??
+            ability?.cooldownMinutes ??
+            null
+          ),
 
-    limitPerTarget: repeatableLocationSearch
-      ? null
-      : (interaction.limitPerTarget ?? null),
+    limitPerTarget:
+      repeatableLocationSearch
+        ? null
+        : directPlayerAbility
+          ? (interaction.limitPerTarget ?? 1)
+          : (interaction.limitPerTarget ?? null),
   };
 }
 
