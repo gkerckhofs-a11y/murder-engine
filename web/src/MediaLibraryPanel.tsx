@@ -115,7 +115,9 @@ export default function MediaLibraryPanel({
         type:'OBJECT' as const,
         externalId:o.externalId,
         label:o.name,
-        subtitle:o.support??null,
+        subtitle:o.logisticsCode
+          ? `${o.logisticsCode}${o.support?` · ${o.support}`:''}`
+          : o.support??null,
       }));
   },[targetType,version?.characters,version?.objects]);
 
