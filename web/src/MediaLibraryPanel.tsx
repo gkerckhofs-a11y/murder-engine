@@ -360,8 +360,8 @@ export default function MediaLibraryPanel({
           <div className="mediaUpload">
             <div className="mediaUploadHead">
               <div>
-                <span className="micro">AJOUTER UNE IMAGE</span>
-                <strong>Nouvel élément dans la bibliothèque</strong>
+                <span className="micro">OU IMPORTER UNE NOUVELLE IMAGE</span>
+                <strong>Ajouter un nouveau fichier à la bibliothèque</strong>
               </div>
               <small>JPG, PNG, WebP ou GIF · 5 Mo max.</small>
             </div>
@@ -407,11 +407,20 @@ export default function MediaLibraryPanel({
             </div>
           </div>
 
+          <div className="mediaExistingHead">
+            <div>
+              <span className="micro">BIBLIOTHÈQUE EXISTANTE</span>
+              <strong>Choisir une image déjà importée</strong>
+              <small>Clique sur une vignette pour l’attribuer au personnage ou à l’objet sélectionné.</small>
+            </div>
+            <b>{visibleAssets.length}</b>
+          </div>
+
           <div className="mediaLibraryToolbar">
             <input
               value={filter}
               onChange={e=>setFilter(e.target.value)}
-              placeholder="Filtrer par nom, tag, skin…"
+              placeholder="Rechercher dans la bibliothèque : nom, tag, skin…"
             />
             <button className="secondary mediaRefreshButton" disabled={loading} onClick={()=>void load()}>
               {loading?'…':'↻ Actualiser'}
