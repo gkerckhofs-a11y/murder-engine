@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import QrLocationScanner from './QrLocationScanner';
+import LocationScan from './LocationScan';
 import QrCharacterScanner from './QrCharacterScanner';
 import ImmersiveDocument from './ImmersiveDocument';
 import NarrativeText from './NarrativeText';
@@ -457,6 +458,7 @@ function playerCountdown(total:number){const sec=Math.max(0,Math.floor(total));r
 function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:string;portal:Portal;busy:boolean;onExecute:(id:string,target:string|null,requestOnly:boolean)=>void;onRefresh:()=>Promise<void>;onVote:(id:string,round:number,selected:string[])=>void}){
   const [targets,setTargets]=useState<Record<string,string>>({});
   const [scannerOpen,setScannerOpen]=useState(false);
+  const [scannedLocation,setScannedLocation]=useState<string|null>(null);
   const [characterScanner,setCharacterScanner]=useState<{interactionId:string;requestOnly:boolean;scanMode:'DIRECT'|'DISCRET'}|null>(null);
   const [specialScanner,setSpecialScanner]=useState<any|null>(null);
   const [clandestineResult,setClandestineResult]=useState<any|null>(null);
@@ -607,7 +609,33 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
       {!portal.abilities?.length?<p>{tr(portal,'Aucune compétence particulière n’est renseignée.','No special skill is provided.')}</p>:<div className="abilityGrid playAbilityGrid">{portal.abilities.map((a:any)=><article className="abilityCard" key={a.externalId}><div><strong>{a.name}</strong><span>{tr(portal,'Niveau','Level')} {a.level}</span></div>{a.description&&<p>{a.description}</p>}</article>)}</div>}
     </details>
 
-    {scannerOpen&&<QrLocationScanner token={token} language={portal.session?.language} onClose={()=>setScannerOpen(false)}/>} 
+    {scannerOpen&&
+      <QrLocationScanner
+        token={token}
+        language={portal.session?.language}
+        onClose={()=>setScannerOpen(false)}
+        onSelect={locationExternalId=>{
+          setScannerOpen(false);
+          setScannedLocation(locationExternalId);
+        }}
+      />
+    }
+
+    {scannedLocation&&
+      <div className="locationInlineOverlay" role="dialog" aria-modal="true">
+        <div className="locationInlineStage">
+          <LocationScan
+            locationExternalId={scannedLocation}
+            playerToken={token}
+            embedded
+            onClose={()=>{
+              setScannedLocation(null);
+              void onRefresh();
+            }}
+          />
+        </div>
+      </div>
+    } 
     {characterScanner&&<QrCharacterScanner title={characterScanner.scanMode==='DISCRET'?tr(portal,'Scanner la cible discrètement','Scan target discreetly'):tr(portal,'Scanner la cible','Scan target')} mode={characterScanner.scanMode} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setCharacterScanner(null)} onSelect={(target:any)=>{setTargets(v=>({...v,[characterScanner.interactionId]:target.characterExternalId}));setCharacterScanner(null);}}/>}
     {specialScanner&&<QrCharacterScanner title={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?tr(portal,'Scanner la cible discrètement','Scan target discreetly'):tr(portal,'Scanner la cible','Scan target')} mode={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT'} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setSpecialScanner(null)} onSelect={(target:any)=>{const interaction=specialScanner;setSpecialScanner(null);withPaConfirmation(interaction,()=>void attemptClandestine(interaction,target));}}/>}
     {paPrompt&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Confirmer la dépense de PA','Confirm AP spending')}><div className="qrScannerPanel paConfirmPanel"><p className="eyebrow">{tr(portal,'CONFIRMATION D’ACTION','ACTION CONFIRMATION')}</p><h2>{paPrompt.title}</h2><p>{tr(portal,'Voulez-vous dépenser','Do you want to spend')} <strong>{paPrompt.cost} {isEnglish(portal)?'AP':'PA'}</strong> {tr(portal,'pour tenter cette action ?','to attempt this action?')}</p>{paPrompt.current!=null&&<div className="paSpendPreview"><span>{tr(portal,'Avant','Before')} <strong>{paPrompt.current} {isEnglish(portal)?'AP':'PA'}</strong></span><span>{tr(portal,'Après','After')} <strong>{paPrompt.remaining} {isEnglish(portal)?'AP':'PA'}</strong></span></div>}<div className="giveConfirmActions"><button className="playerSecondary" onClick={()=>setPaPrompt(null)}>{tr(portal,'Non','No')}</button><button className="playerPrimary" onClick={()=>{const run=paPrompt.run;setPaPrompt(null);run();}}>{tr(portal,'Oui, continuer','Yes, continue')}</button></div></div></div>}
