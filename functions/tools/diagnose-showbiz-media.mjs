@@ -371,3 +371,145 @@ for(const scenario of showbiz){
     },null,2));
   }
 }
+
+
+const SKILLS_RUMORS_QUERY=`
+query DiagnoseShowbizSkillsRumors($versionId: UUID!) {
+  abilities(
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {externalId: ASC}
+  ) {
+    externalId
+    name
+    description
+    category
+    defaultLevel
+    defaultMaxUses
+    defaultCooldownMinutes
+    secret
+    active
+  }
+
+  abilityAssignments(
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {ownerExternalId: ASC}
+  ) {
+    externalId
+    ownerType
+    ownerExternalId
+    abilityExternalId
+    level
+    flatBonus
+    usesOverride
+    cooldownOverrideMinutes
+    active
+  }
+
+  interactions(
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {externalId: ASC}
+  ) {
+    externalId
+    name
+    category
+    targetType
+    scanMode
+    abilityExternalId
+    actorScope
+    targetScope
+    costResourceExternalId
+    costValue
+    costTiming
+    resolution
+    diceCount
+    diceSides
+    abilityLevelMultiplier
+    flatBonus
+    difficulty
+    opposedAbilityExternalId
+    tieRule
+    validation
+    maxUses
+    limitPerTarget
+    cooldownMinutes
+    targetSecret
+    active
+  }
+
+  characters(
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {externalId: ASC}
+  ) {
+    externalId
+    name
+    publicRole
+    active
+  }
+
+  clues(
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {externalId: ASC}
+  ) {
+    externalId
+    playerName
+    clueType
+    playerText
+    discoveryHook
+    major
+    shareable
+    transferable
+    active
+  }
+}
+`;
+
+for(const scenario of showbiz){
+  for(const version of scenario.versions){
+    const data=await read(SKILLS_RUMORS_QUERY,{versionId:version.id});
+    const chars=new Map(
+      (data.characters??[]).map(x=>[x.externalId,x])
+    );
+
+    const assignments=(data.abilityAssignments??[])
+      .filter(x=>x.active!==false)
+      .map(x=>({
+        ...x,
+        ownerName:chars.get(x.ownerExternalId)?.name??x.ownerExternalId,
+      }));
+
+    const rumorClues=(data.clues??[])
+      .filter(x=>
+        x.active!==false &&
+        String(x.clueType??'').toUpperCase()==='RUMOR'
+      )
+      .map(x=>({
+        ...x,
+        targetCharacterExternalId:
+          String(x.discoveryHook??'')
+            .match(/^(?:RUMOR_TARGET|CHARACTER_TARGET|TARGET_CHARACTER|ABOUT_CHARACTER)\s*:\s*(.+)$/i)?.[1]
+            ?.trim()??null,
+      }))
+      .map(x=>({
+        ...x,
+        targetName:
+          chars.get(x.targetCharacterExternalId)?.name??
+          x.targetCharacterExternalId,
+      }));
+
+    console.log(
+      'SHOWBIZ_SKILLS_RUMORS_DIAG',
+      JSON.stringify({
+        version:{
+          id:version.id,
+          versionLabel:version.versionLabel,
+          variantName:version.variantName,
+        },
+        abilities:(data.abilities??[]).filter(x=>x.active!==false),
+        assignments,
+        interactions:(data.interactions??[]).filter(x=>x.active!==false),
+        rumorCount:rumorClues.length,
+        rumorClues,
+      },null,2)
+    );
+  }
+}
