@@ -13527,3 +13527,23 @@ button.skinGalleryCard:disabled{
   background:#211815;
   box-shadow:0 8px 24px rgba(0,0,0,.2);
 }
+
+
+.voteResultNews{
+  border-left:3px solid var(--skin-accent,#c59a4a);
+  padding-left:13px;
+}
+.voteResultNews strong{
+  display:block;
+  margin:.25rem 0 .35rem;
+}
+.voteResultNews p{
+  margin:.15rem 0 0;
+}
+.skin-hollywood-1930 .voteResultNews{
+  border-left-color:#8b2635;
+  background:rgba(104,46,54,.07);
+}
+.skin-hollywood-1930 .voteResultNews b{
+  color:#6a202c;
+}
