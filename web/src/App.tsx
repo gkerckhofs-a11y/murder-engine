@@ -89,6 +89,16 @@ type LiveDashboard = {
   session:{id:string;status:string;startedAt?:string|null;pausedAt?:string|null;finishedAt?:string|null;elapsedSeconds:number;currentPhaseExternalId?:string|null};
   phases:Array<{externalId:string;name:string;orderIndex:number;gmDescription:string}>;
   events:LiveEvent[]; characters:LiveCharacter[]; stateDefinitions:Array<{externalId:string;name:string;description:string;defaultDurationSeconds?:number|null}>;
+  businessDeals:Array<{
+    dealId:string;
+    actorCharacterExternalId:string;
+    actorName:string;
+    targetCharacterExternalId:string;
+    targetName:string;
+    terms:string;
+    status:'PROPOSED'|'ACCEPTED'|'DECLINED'|'OFFICIAL';
+    proposedAt:string;
+  }>;
   logs:Array<{id:string;actionType:string;characterExternalId?:string|null;refExternalId?:string|null;beforeValue?:string|null;afterValue?:string|null;deltaValue?:number|null;note?:string|null;createdAt:string}>;
   alerts:{overdueEvents:number;soonEvents:number;activeStates:number};
 };
@@ -422,6 +432,17 @@ export default function App() {
     try { await postJson('/api/sessions/live/event',{sessionId:session.id,eventExternalId,status}); await loadLive(session.id); }
     catch(e){ setSessionError(e instanceof Error?e.message:String(e)); }
   }
+  async function liveBusinessDeal(dealId:string) {
+    if(!session)return; setSessionError('');
+    try {
+      await organizerPostJson('/api/sessions/live/business-deal',{
+        sessionId:session.id,
+        dealId
+      });
+      await loadLive(session.id);
+    }
+    catch(e){ setSessionError(e instanceof Error?e.message:String(e)); }
+  }
   async function interactionMutation() {
     if(!session)return;
     await Promise.all([loadLive(session.id),loadRuntime(session.id)]);
@@ -529,7 +550,7 @@ export default function App() {
 
     {view === 'registrations' && <PrecastManager scenarios={scenarios} initialScenarioId={registrationScenarioId} onOpenSession={sessionId=>{setRegistrationScenarioId(null);setView('sessions');void loadSessions();void openSession(sessionId);}} />}
 
-    {view === 'sessions' && <SessionsView sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onPurge={(id,name)=>void purgeSession(id,name)} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onInteractionMutation={()=>void interactionMutation()} />}
+    {view === 'sessions' && <SessionsView sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onPurge={(id,name)=>void purgeSession(id,name)} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onBusinessDeal={dealId=>void liveBusinessDeal(dealId)} onInteractionMutation={()=>void interactionMutation()} />}
 
     {view === 'import' && <ImportView targetScenario={importTargetScenario} skinId={asSkinId(selectedSkinId)} accentColor={selectedAccentColor||defaultAccentForSkin(asSkinId(selectedSkinId))} skinLocked={false} onSkinChange={(id,accent)=>{setSelectedSkinId(id);setSelectedAccentColor(accent);}} onAccentChange={setSelectedAccentColor} file={file} data={data} commit={commit} loading={loading} committing={committing} error={error} filter={filter} filtered={filtered} onChoose={choose} onValidate={()=>void validate()} onCommit={()=>void commitImport()} onFilter={setFilter} onOpenImported={()=>commit && void openVersion(commit.scenarioVersionId).then(()=>setView('library'))} />}
   </main>;
@@ -706,7 +727,7 @@ function OrganizerFold({
   </section>;
 }
 
-function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onPurge:(sessionId:string,name:string)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
+function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onPurge:(sessionId:string,name:string)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onBusinessDeal:(dealId:string)=>void;onInteractionMutation:()=>void}) {
   const [showArchived,setShowArchived]=useState(false);
   const listedSessions=showArchived?props.sessions:props.sessions.filter(s=>s.status!=='ARCHIVED');
 
@@ -862,7 +883,7 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
       <RuntimePanel session={s} runtime={props.runtime} loading={props.runtimeLoading} onInitialize={props.onInitializeRuntime}/>
     </OrganizerFold>
 
-    {!archived&&s.runtimeInitializedAt&&<LivePanel session={s} live={props.live} loading={props.liveLoading} onControl={props.onLiveControl} onResource={props.onLiveResource} onState={props.onLiveState} onEvent={props.onLiveEvent} onInteractionMutation={props.onInteractionMutation}/>}
+    {!archived&&s.runtimeInitializedAt&&<LivePanel session={s} live={props.live} loading={props.liveLoading} onControl={props.onLiveControl} onResource={props.onLiveResource} onState={props.onLiveState} onEvent={props.onLiveEvent} onBusinessDeal={props.onBusinessDeal} onInteractionMutation={props.onInteractionMutation}/>}
 
     {!archived&&!s.runtimeInitializedAt?
       <OrganizerFold sessionId={s.id} id="add-participant" title="Ajouter un participant" defaultOpen={!liveMode}>
@@ -1643,7 +1664,7 @@ function formatElapsed(totalSeconds:number) {
   return h>0?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
 }
 
-function LivePanel({session,live,loading,onControl,onResource,onState,onEvent,onInteractionMutation}:{session:SessionDetail;live:LiveDashboard|null;loading:boolean;onControl:(action:string)=>void;onResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
+function LivePanel({session,live,loading,onControl,onResource,onState,onEvent,onBusinessDeal,onInteractionMutation}:{session:SessionDetail;live:LiveDashboard|null;loading:boolean;onControl:(action:string)=>void;onResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onBusinessDeal:(dealId:string)=>void;onInteractionMutation:()=>void}) {
   const [tick,setTick]=useState(Date.now());
   useEffect(()=>{ if(live?.session.status!=='LIVE')return; const id=window.setInterval(()=>setTick(Date.now()),1000); return()=>window.clearInterval(id); },[live?.session.status,live?.snapshotAt]);
   if(loading&&!live)return <section className="card livePanel">Chargement du poste MJ…</section>;
@@ -1676,6 +1697,64 @@ function LivePanel({session,live,loading,onControl,onResource,onState,onEvent,on
         <strong>{new Set((live.logs??[]).filter((l:any)=>l.actionType==='LOCATION_EMPTY').map((l:any)=>l.refExternalId)).size}</strong>
       </div>
     </section>
+
+    {(live.businessDeals??[]).length>0&&
+      <OrganizerFold
+        sessionId={session.id}
+        id="live-business-deals"
+        title="Accords commerciaux"
+        subtitle={`${(live.businessDeals??[]).filter(d=>d.status==='ACCEPTED').length} à valider · ${(live.businessDeals??[]).filter(d=>d.status==='OFFICIAL').length} officiels`}
+        defaultOpen={(live.businessDeals??[]).some(d=>d.status==='ACCEPTED')}
+      >
+        <section className="card businessDealsPanel">
+          <div className="paneHead">
+            <div>
+              <p className="eyebrow">BUSINESS DEAL</p>
+              <h3>Accords financiers formels</h3>
+              <p>Un accord n’est officiel qu’après acceptation des deux joueurs puis validation du MJ.</p>
+            </div>
+            <span>{live.businessDeals.length}</span>
+          </div>
+
+          <div className="businessDealList">
+            {live.businessDeals.map(deal=><article className={`businessDealRow ${deal.status.toLowerCase()}`} key={deal.dealId}>
+              <div className="businessDealMain">
+                <div className="businessDealPeople">
+                  <strong>{deal.actorName}</strong>
+                  <span>↔</span>
+                  <strong>{deal.targetName}</strong>
+                </div>
+                <p>{deal.terms}</p>
+                <small>Proposé {niceDate(deal.proposedAt)}</small>
+              </div>
+              <div className="businessDealActions">
+                <span className={`eventStatus ${deal.status.toLowerCase()}`}>
+                  {deal.status==='PROPOSED'
+                    ? 'En attente du joueur'
+                    : deal.status==='ACCEPTED'
+                      ? 'À valider par le MJ'
+                      : deal.status==='DECLINED'
+                        ? 'Refusé'
+                        : 'Officiel ✓'}
+                </span>
+                {deal.status==='ACCEPTED'&&
+                  <button
+                    onClick={()=>
+                      window.confirm(
+                        `Valider officiellement cet accord ?\n\n${deal.actorName} ↔ ${deal.targetName}\n${deal.terms}`
+                      )&&onBusinessDeal(deal.dealId)
+                    }
+                  >
+                    ✓ Valider l’accord
+                  </button>
+                }
+              </div>
+            </article>)}
+          </div>
+        </section>
+      </OrganizerFold>
+    }
+
     <OrganizerFold sessionId={session.id} id="live-timeline" title="Timeline" subtitle="Événements de scénario" defaultOpen={true}>
     <section className="card liveTimeline"><div className="paneHead"><div><p className="eyebrow">TIMELINE</p><h3>Événements de scénario</h3></div><span>{live.events.filter(e=>e.status==='DONE').length}/{live.events.length}</span></div>{live.events.length===0?<p className="empty">Aucun événement structuré dans ce scénario.</p>:<div className="eventList">{live.events.map(e=>{const remain=e.dueElapsedSeconds==null?null:e.dueElapsedSeconds-elapsed;const urgent=e.status==='PENDING'&&remain!=null&&remain<=0;const soon=e.status==='PENDING'&&remain!=null&&remain>0&&remain<=600;return <article className={`eventRow ${e.status.toLowerCase()} ${urgent?'overdue':soon?'soon':''}`} key={e.externalId}><div className="eventWhen"><strong>{e.delayMinutes!=null?`+${e.delayMinutes} min`:'Manuel'}</strong>{remain!=null&&e.status==='PENDING'&&<small>{remain<=0?`retard ${formatElapsed(-remain)}`:`dans ${formatElapsed(remain)}`}</small>}</div><div className="eventBody"><strong>{e.title}</strong><p>{e.gmDescription}</p>{e.fallbackGm&&<small>Plan B : {e.fallbackGm}</small>}</div><div className="eventActions"><span className={`eventStatus ${e.status.toLowerCase()}`}>{e.status}</span>{running&&e.status==='PENDING'&&<><button onClick={()=>onEvent(e.externalId,'DONE')}>Fait ✓</button><button className="secondary" onClick={()=>onEvent(e.externalId,'SKIPPED')}>Ignorer</button></>}{running&&e.status!=='PENDING'&&<button className="secondary" onClick={()=>onEvent(e.externalId,'PENDING')}>Rouvrir</button>}</div></article>})}</div>}</section>
     </OrganizerFold>
