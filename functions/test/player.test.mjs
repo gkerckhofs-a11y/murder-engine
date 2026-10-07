@@ -176,6 +176,50 @@ test('player object visual accepts a media override keyed by logistics code',()=
  );
 });
 
+test('player object visual resolves a Media Library override through linked clue logistics code',()=>{
+ const src=source();
+ src.clues=src.clues.map(c=>
+   c.externalId==='C2'
+     ? {...c,logisticsCode:'SB-OBJ-005'}
+     : c
+ );
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.map(o=>
+   o.objectExternalId==='ITEM2'
+     ? {...o,holderType:'CHARACTER',holderExternalId:'CHAR_A'}
+     : o
+ );
+ const sess=session();
+ sess.scenarioVersion={
+   ...sess.scenarioVersion,
+   mediaOverridesJson:JSON.stringify({
+     'OBJECT:SB-OBJ-005':{
+       assetExternalId:'MEDIA_VOCAL_TONIC',
+       source:'https://example.test/vocal-tonic.png',
+       altText:'Flacon de tonic vocal',
+       mediaType:'IMAGE'
+     }
+   })
+ };
+
+ const out=shapePlayerPortal(
+   participant(),
+   sess,
+   src,
+   rt,
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const tonic=out.inventory.find(
+   o=>o.objectExternalId==='ITEM2'
+ );
+
+ assert.equal(
+   tonic.visualMedia.source,
+   'https://example.test/vocal-tonic.png'
+ );
+});
+
 test('player object visual falls back to the media of its linked clue',()=>{
  const src=source();
  src.mediaAssets=[
