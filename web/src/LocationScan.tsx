@@ -310,11 +310,17 @@ export default function LocationScan({locationExternalId}:{locationExternalId:st
             <strong>{last.reward.clue.name}</strong>
             <p>{last.reward.clue.text}</p>
             <div className="clueBagNotice">
-              ✓ {tx(
-                language,
-                'Cet indice se trouve maintenant dans votre Sac et votre Carnet.',
-                'This clue is now in your Bag and Notebook.'
-              )}
+              ✓ {last.reward?.object
+                ? tx(
+                    language,
+                    'Cet indice est mémorisé dans votre Carnet et l’objet associé se trouve dans votre Sac.',
+                    'This clue is saved in your Notebook and the associated item is in your Bag.'
+                  )
+                : tx(
+                    language,
+                    'Cet indice se trouve maintenant dans votre Sac et votre Carnet.',
+                    'This clue is now in your Bag and Notebook.'
+                  )}
             </div>
             {last.reward.clue.mode==='PERSISTENT'&&
               <em>{tx(
