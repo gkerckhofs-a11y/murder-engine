@@ -2531,14 +2531,16 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
   return {result,reward,location:{externalId:location.externalId,name:location.name}};
 }
 
-function clandestineVisibleObjects(loaded,targetCharacterExternalId) {
+function clandestineVisibleObjects(loaded,targetCharacterExternalId,kind='STEAL') {
   const defs=byId((loaded.source.gameObjects??[]).filter(o=>o.active!==false));
+  const intimidation=String(kind??'').toUpperCase()==='INTIMIDATION';
   return (loaded.runtime.sessionObjects??[])
     .filter(o=>o.inPlay!==false&&o.holderType==='CHARACTER'&&o.holderExternalId===targetCharacterExternalId)
     .map(o=>({row:o,def:defs.get(o.objectExternalId)}))
-    .filter(x=>x.def?.stealable===true)
+    .filter(x=>intimidation?x.def?.transferable===true:x.def?.stealable===true)
     .map(x=>({objectExternalId:x.row.objectExternalId,name:x.def?.name??x.row.objectExternalId,description:x.def?.description??null}));
 }
+
 
 export async function attemptPlayerClandestineAction(token,input,{reader=defaultReader,executor=defaultExecutor,interactionExecutor=executeInteraction,now=new Date()}={}) {
   const loaded=await loadPlayerData(token,reader);
@@ -2548,45 +2550,105 @@ export async function attemptPlayerClandestineAction(token,input,{reader=default
   const targetCharacterExternalId=String(input?.targetCharacterExternalId??'').trim();
   const interaction=(loaded.source.interactions??[]).find(i=>i.externalId===interactionExternalId&&i.active!==false);
   if(!interaction) throw new Error('INTERACTION_NOT_FOUND');
-  const kind=clandestineInteractionKind(interaction);
+
+  const directKind=specialPlayerAbilityKind(interaction);
+  const kind=directKind==='INTIMIDATION'?'INTIMIDATION':clandestineInteractionKind(interaction);
   if(!kind) throw new Error('INTERACTION_NOT_CLANDESTINE');
   if(!targetCharacterExternalId||targetCharacterExternalId===actor) throw new Error('INVALID_CLANDESTINE_TARGET');
   if(!(loaded.session.sessionParticipants_on_gameSession??[]).some(p=>p.active!==false&&p.characterExternalId===targetCharacterExternalId)) throw new Error('TARGET_CHARACTER_NOT_IN_SESSION');
-  if(String(interaction.resolution).toUpperCase()==='GM'||String(interaction.validation??'').toUpperCase()==='GM') throw new Error('CLANDESTINE_INTERACTION_REQUIRES_AUTOMATION');
+
+  const items=clandestineVisibleObjects(loaded,targetCharacterExternalId,kind);
+  if(kind==='INTIMIDATION'&&!items.length)
+    throw new Error('INTIMIDATION_NO_TRANSFERABLE_EVIDENCE');
+
+  if(kind!=='INTIMIDATION'&&(String(interaction.resolution).toUpperCase()==='GM'||String(interaction.validation??'').toUpperCase()==='GM'))
+    throw new Error('CLANDESTINE_INTERACTION_REQUIRES_AUTOMATION');
+
   const scanMode=interactionScanMode(interaction);
-  const result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId,targetExternalId:targetCharacterExternalId,note:sessionText(loaded.session,`Action joueur · scan ${scanMode??'DISCRET'}`,`Player action · ${scanMode??'DISCREET'} scan`)});
-  const notifyTarget=async(body,title=sessionText(loaded.session,'Action sur votre personnage','Action targeting your character'))=>executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:targetCharacterExternalId,kind:'INTERACTION_TARGET',title,body,priority:'NORMAL',refExternalId:interactionExternalId,createdAt:nowIso(now),readAt:null}});
+  const result=await interactionExecutor(loaded.session.id,{
+    actorCharacterExternalId:actor,
+    interactionExternalId,
+    targetExternalId:targetCharacterExternalId,
+    ...(kind==='INTIMIDATION'?{gmOutcome:'SUCCESS'}:{}),
+    note:sessionText(
+      loaded.session,
+      'Action joueur · scan '+(scanMode??'DIRECT'),
+      'Player action · '+(scanMode??'DIRECT')+' scan'
+    )
+  });
+
+  const notifyTarget=async(body,title=sessionText(loaded.session,'Action sur votre personnage','Action targeting your character'))=>executor(INSERT_NOTIFICATION_MUTATION,{data:{
+    gameSessionId:loaded.session.id,
+    characterExternalId:targetCharacterExternalId,
+    kind:'INTERACTION_TARGET',
+    title,
+    body,
+    priority:'NORMAL',
+    refExternalId:interactionExternalId,
+    createdAt:nowIso(now),
+    readAt:null
+  }});
+
   if(!result.success){
     await notifyTarget(sessionText(
       loaded.session,
-      `Une action « ${interaction.name} » a été tentée sur votre personnage, mais elle a échoué. Murder Engine ne révèle pas son auteur.`,
-      `An action “${interaction.name}” was attempted on your character, but it failed. Murder Engine does not reveal who performed it.`
+      'Une action « '+interaction.name+' » a été tentée sur votre personnage, mais elle a échoué. Murder Engine ne révèle pas son auteur.',
+      'An action “'+interaction.name+'” was attempted on your character, but it failed. Murder Engine does not reveal who performed it.'
     ));
     return {kind,success:false,result,items:[],scanMode};
   }
-  const items=clandestineVisibleObjects(loaded,targetCharacterExternalId);
+
   if(kind==='SEARCH_PLAYER'){
     await notifyTarget(sessionText(
       loaded.session,
-      `Une action « ${interaction.name} » vient d’être exercée sur votre personnage. Elle a réussi. Murder Engine ne révèle pas son auteur.`,
-      `An action “${interaction.name}” has just been used on your character. It succeeded. Murder Engine does not reveal who performed it.`
+      'Une action « '+interaction.name+' » vient d’être exercée sur votre personnage. Elle a réussi. Murder Engine ne révèle pas son auteur.',
+      'An action “'+interaction.name+'” has just been used on your character. It succeeded. Murder Engine does not reveal who performed it.'
     ));
     return {kind,success:true,result,items,scanMode};
   }
+
   if(!items.length){
     await notifyTarget(sessionText(
       loaded.session,
-      `Une action « ${interaction.name} » vient d’être exercée sur votre personnage, mais aucun objet n’a pu être pris. Murder Engine ne révèle pas son auteur.`,
-      `An action “${interaction.name}” has just been used on your character, but no item could be taken. Murder Engine does not reveal who performed it.`
+      'Une action « '+interaction.name+' » vient d’être exercée sur votre personnage, mais aucun objet n’a pu être pris. Murder Engine ne révèle pas son auteur.',
+      'An action “'+interaction.name+'” has just been used on your character, but no item could be taken. Murder Engine does not reveal who performed it.'
     ));
     return {kind,success:true,result,items:[],grantToken:null,scanMode};
   }
+
   const grantToken=randomBytes(24).toString('base64url');
-  const createdAt=nowIso(now); const expiresAt=new Date((now instanceof Date?now:new Date(now)).getTime()+5*60*1000).toISOString();
-  const data={gameSessionId:loaded.session.id,grantToken,interactionExternalId,actorCharacterExternalId:actor,targetCharacterExternalId,kind:'STEAL',status:'OPEN',createdAt,expiresAt,usedAt:null,chosenObjectExternalId:null};
+  const createdAt=nowIso(now);
+  const expiresAt=new Date((now instanceof Date?now:new Date(now)).getTime()+10*60*1000).toISOString();
+  const data={
+    gameSessionId:loaded.session.id,
+    grantToken,
+    interactionExternalId,
+    actorCharacterExternalId:actor,
+    targetCharacterExternalId,
+    kind:kind==='INTIMIDATION'?'INTIMIDATION':'STEAL',
+    status:'OPEN',
+    createdAt,
+    expiresAt,
+    usedAt:null,
+    chosenObjectExternalId:null
+  };
   await executor(INSERT_STEAL_GRANT_MUTATION,{data});
+
+  if(kind==='INTIMIDATION'){
+    const actorName=(loaded.source.characters??[]).find(c=>c.externalId===actor)?.name??actor;
+    await notifyTarget(
+      sessionText(
+        loaded.session,
+        actorName+' vous intimide et peut prendre une preuve transférable dans vos affaires.',
+        actorName+' intimidates you and may take one transferable piece of evidence from your belongings.'
+      ),
+      sessionText(loaded.session,'Intimidation','Intimidation')
+    );
+  }
+
   return {kind,success:true,result,items,grantToken,expiresAt,scanMode};
 }
+
 
 export async function claimPlayerStolenObject(token,input,{reader=defaultReader,executor=defaultExecutor,clueReveal=revealClueToCharacter,now=new Date()}={}) {
   const loaded=await loadPlayerData(token,reader);
@@ -2598,18 +2660,110 @@ export async function claimPlayerStolenObject(token,input,{reader=defaultReader,
   if(!grant||grant.actorCharacterExternalId!==actor||grant.status!=='OPEN') throw new Error('STEAL_GRANT_NOT_AVAILABLE');
   const nowDate=now instanceof Date?now:new Date(now);
   if(new Date(grant.expiresAt).getTime()<=nowDate.getTime()) throw new Error('STEAL_GRANT_EXPIRED');
-  const objectRow=(loaded.runtime.sessionObjects??[]).find(o=>o.objectExternalId===objectExternalId&&o.inPlay!==false&&o.holderType==='CHARACTER'&&o.holderExternalId===grant.targetCharacterExternalId);
+
+  const objectRow=(loaded.runtime.sessionObjects??[]).find(o=>
+    o.objectExternalId===objectExternalId&&
+    o.inPlay!==false&&
+    o.holderType==='CHARACTER'&&
+    o.holderExternalId===grant.targetCharacterExternalId
+  );
   if(!objectRow) throw new Error('STEAL_OBJECT_NO_LONGER_AVAILABLE');
+
   const def=(loaded.source.gameObjects??[]).find(o=>o.externalId===objectExternalId&&o.active!==false);
-  if(!def?.stealable) throw new Error('OBJECT_NOT_STEALABLE');
+  const intimidation=String(grant.kind??'').toUpperCase()==='INTIMIDATION';
+  if(intimidation){
+    if(!def?.transferable) throw new Error('OBJECT_NOT_TRANSFERABLE');
+  }else if(!def?.stealable){
+    throw new Error('OBJECT_NOT_STEALABLE');
+  }
+
   const linkedClues=(loaded.source.clues??[]).filter(c=>c.active!==false&&c.objectExternalId===objectExternalId&&c.addToNotebook!==false);
-  for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:grant.targetCharacterExternalId,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:sessionText(loaded.session,`Document possédé avant vol : ${def.name}`,`Document owned before theft: ${def.name}`)});}
+  for(const clue of linkedClues){
+    await clueReveal(loaded.session.id,{
+      characterExternalId:grant.targetCharacterExternalId,
+      clueExternalId:clue.externalId,
+      sourceRef:objectExternalId,
+      note:intimidation
+        ? sessionText(loaded.session,'Preuve conservée au carnet avant intimidation','Evidence retained in notebook before intimidation')
+        : sessionText(loaded.session,'Document possédé avant vol : '+def.name,'Document owned before theft: '+def.name)
+    });
+  }
+
   const usedAt=nowIso(nowDate);
-  const notification={gameSessionId:loaded.session.id,characterExternalId:grant.targetCharacterExternalId,kind:'THEFT',title:sessionText(loaded.session,'Quelque chose vous manque…','Something is missing…'),body:sessionText(loaded.session,'Vous venez de constater qu’un objet a disparu de vos affaires. Murder Engine ne révèle pas l’auteur du vol.','You have just noticed that an item has disappeared from your belongings. Murder Engine does not reveal who took it.'),priority:'IMPORTANT',refExternalId:null,createdAt:usedAt,readAt:null};
-  const log={gameSessionId:loaded.session.id,actionType:'OBJECT_STOLEN',characterExternalId:actor,refExternalId:objectExternalId,beforeValue:grant.targetCharacterExternalId,afterValue:actor,deltaValue:null,note:sessionText(loaded.session,`Vol clandestin réussi sur ${grant.targetCharacterExternalId}`,`Successful clandestine theft from ${grant.targetCharacterExternalId}`),createdAt:usedAt};
-  await executor(CLAIM_STEAL_MUTATION,{sessionId:loaded.session.id,grantToken,objectExternalId,actorCharacterExternalId:actor,usedAt,notification,log});
-  for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:sessionText(loaded.session,`Document volé : ${def.name}`,`Stolen document: ${def.name}`)});}
-  return {stolen:true,object:{objectExternalId,name:def.name,description:def.description??null},targetCharacterExternalId:grant.targetCharacterExternalId};
+  const actorName=(loaded.source.characters??[]).find(c=>c.externalId===actor)?.name??actor;
+  const notification=intimidation
+    ? {
+        gameSessionId:loaded.session.id,
+        characterExternalId:grant.targetCharacterExternalId,
+        kind:'INTIMIDATION',
+        title:sessionText(loaded.session,'Preuve prise par intimidation','Evidence taken by intimidation'),
+        body:sessionText(
+          loaded.session,
+          actorName+' vous prend « '+def.name+' » par intimidation.',
+          actorName+' takes “'+def.name+'” from you through intimidation.'
+        ),
+        priority:'IMPORTANT',
+        refExternalId:objectExternalId,
+        createdAt:usedAt,
+        readAt:null
+      }
+    : {
+        gameSessionId:loaded.session.id,
+        characterExternalId:grant.targetCharacterExternalId,
+        kind:'THEFT',
+        title:sessionText(loaded.session,'Quelque chose vous manque…','Something is missing…'),
+        body:sessionText(
+          loaded.session,
+          'Vous venez de constater qu’un objet a disparu de vos affaires. Murder Engine ne révèle pas l’auteur du vol.',
+          'You have just noticed that an item has disappeared from your belongings. Murder Engine does not reveal who took it.'
+        ),
+        priority:'IMPORTANT',
+        refExternalId:null,
+        createdAt:usedAt,
+        readAt:null
+      };
+
+  const log={
+    gameSessionId:loaded.session.id,
+    actionType:intimidation?'OBJECT_INTIMIDATED':'OBJECT_STOLEN',
+    characterExternalId:actor,
+    refExternalId:objectExternalId,
+    beforeValue:grant.targetCharacterExternalId,
+    afterValue:actor,
+    deltaValue:null,
+    note:intimidation
+      ? sessionText(loaded.session,'Preuve prise par intimidation','Evidence taken by intimidation')
+      : sessionText(loaded.session,'Vol clandestin réussi sur '+grant.targetCharacterExternalId,'Successful clandestine theft from '+grant.targetCharacterExternalId),
+    createdAt:usedAt
+  };
+
+  await executor(CLAIM_STEAL_MUTATION,{
+    sessionId:loaded.session.id,
+    grantToken,
+    objectExternalId,
+    actorCharacterExternalId:actor,
+    usedAt,
+    notification,
+    log
+  });
+
+  for(const clue of linkedClues){
+    await clueReveal(loaded.session.id,{
+      characterExternalId:actor,
+      clueExternalId:clue.externalId,
+      sourceRef:objectExternalId,
+      note:intimidation
+        ? sessionText(loaded.session,'Preuve obtenue par intimidation','Evidence obtained through intimidation')
+        : sessionText(loaded.session,'Document volé : '+def.name,'Stolen document: '+def.name)
+    });
+  }
+
+  return {
+    stolen:!intimidation,
+    intimidated:intimidation,
+    object:{objectExternalId,name:def.name,description:def.description??null},
+    targetCharacterExternalId:grant.targetCharacterExternalId
+  };
 }
 
 export async function castPlayerVote(token,input,{reader=defaultReader,voteCaster=castSessionBallot}={}) {
