@@ -619,15 +619,15 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
         <div className={liveAlerts?'hot':''}><span>Alertes timeline</span><strong>{liveAlerts}</strong></div>
         <div><span>Lieux vides</span><strong>{new Set((props.live?.logs??[]).filter((l:any)=>l.actionType==='LOCATION_EMPTY').map((l:any)=>l.refExternalId)).size}</strong></div>
       </div>
-      <nav className="liveOpsNav" aria-label="Raccourcis du poste MJ">
-        <button className="secondary" onClick={()=>document.getElementById('live-timeline')?.scrollIntoView({behavior:'smooth'})}>⏱ Timeline</button>
-        <button className="secondary" onClick={()=>document.getElementById('live-votes')?.scrollIntoView({behavior:'smooth'})}>🗳 Votes</button>
-        <button className="secondary" onClick={()=>document.getElementById('live-actions')?.scrollIntoView({behavior:'smooth'})}>🎲 Actions & fouilles</button>
-        <button className="secondary" onClick={()=>document.getElementById('live-players')?.scrollIntoView({behavior:'smooth'})}>👥 Joueurs</button>
-        <button className="secondary" onClick={()=>document.getElementById('live-messages')?.scrollIntoView({behavior:'smooth'})}>🔔 Message</button>
-        <button className="secondary" onClick={()=>document.getElementById('live-log')?.scrollIntoView({behavior:'smooth'})}>📜 Journal</button>
-      </nav>
     </section>}
+    {liveMode&&<nav className="card liveOpsNav" aria-label="Raccourcis du poste MJ">
+      <button className="secondary" onClick={()=>document.getElementById('live-timeline')?.scrollIntoView({behavior:'smooth'})}>⏱ Timeline</button>
+      <button className="secondary" onClick={()=>document.getElementById('live-votes')?.scrollIntoView({behavior:'smooth'})}>🗳 Votes</button>
+      <button className="secondary" onClick={()=>document.getElementById('live-actions')?.scrollIntoView({behavior:'smooth'})}>🎲 Actions & fouilles</button>
+      <button className="secondary" onClick={()=>document.getElementById('live-players')?.scrollIntoView({behavior:'smooth'})}>👥 Joueurs</button>
+      <button className="secondary" onClick={()=>document.getElementById('live-messages')?.scrollIntoView({behavior:'smooth'})}>🔔 Message</button>
+      <button className="secondary" onClick={()=>document.getElementById('live-log')?.scrollIntoView({behavior:'smooth'})}>📜 Journal</button>
+    </nav>}
     {!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
     <section className="metaStrip"><div><span>Participants</span><strong>{s.counts.participants}</strong></div><div><span>Castés</span><strong>{s.counts.assigned}</strong></div><div><span>Rôles disponibles</span><strong>{s.counts.playableCharacters}</strong></div><div><span>Sans rôle</span><strong>{s.counts.unassignedParticipants}</strong></div><div><span>Rôles libres</span><strong>{s.counts.unassignedCharacters}</strong></div></section>
     {!archived&&<SessionPreparationPanel session={s} onApplied={()=>props.onOpen(s.id)} onMarkReady={()=>props.onStatus('READY')}/>}
