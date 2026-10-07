@@ -92,6 +92,14 @@ const postJson=<T,>(url:string,body:any)=>
     body:JSON.stringify(body),
   });
 
+function safeStorageGet(key:string){
+  try{return window.localStorage.getItem(key)}catch{return null}
+}
+
+function safeStorageSet(key:string,value:string){
+  try{window.localStorage.setItem(key,value)}catch{}
+}
+
 function normalizeLanguage(value?:string|null):Language{
   return String(value??'FR').trim().toUpperCase()==='EN'?'EN':'FR';
 }
@@ -116,10 +124,10 @@ export default function LocationScan({locationExternalId}:{locationExternalId:st
   const queryToken=params.get('player');
 
   const [token,setToken]=useState(
-    ()=>queryToken||localStorage.getItem('murderEnginePlayerToken')||''
+    ()=>queryToken||safeStorageGet('murderEnginePlayerToken')||''
   );
   const [language,setLanguage]=useState<Language>(
-    ()=>normalizeLanguage(localStorage.getItem('murderEnginePlayerLanguage'))
+    ()=>normalizeLanguage(safeStorageGet('murderEnginePlayerLanguage'))
   );
   const [data,setData]=useState<LocationPayload|null>(null);
   const [loading,setLoading]=useState(Boolean(token));
@@ -131,7 +139,7 @@ export default function LocationScan({locationExternalId}:{locationExternalId:st
 
   useEffect(()=>{
     if(queryToken){
-      localStorage.setItem('murderEnginePlayerToken',queryToken);
+      safeStorageSet('murderEnginePlayerToken',queryToken);
       setToken(queryToken);
     }
   },[queryToken]);
@@ -147,11 +155,23 @@ export default function LocationScan({locationExternalId}:{locationExternalId:st
         `/api/player/location?token=${encodeURIComponent(token)}&locationExternalId=${encodeURIComponent(locationExternalId)}`
       );
 
-      const nextLanguage=normalizeLanguage(r.location.session.language);
+      if(!r?.location?.session||!r?.location?.location||!r?.location?.character)
+        throw new Error('INVALID_LOCATION_PAYLOAD');
+
+      const normalizedLocation={
+        ...r.location,
+        actions:Array.isArray(r.location.actions)?r.location.actions.filter(Boolean):[],
+        rewardsRemaining:Number(r.location.rewardsRemaining??0),
+        searchCooldownRemainingSeconds:Number(r.location.searchCooldownRemainingSeconds??0),
+        forbidden:Boolean(r.location.forbidden),
+        empty:Boolean(r.location.empty),
+      } as LocationPayload;
+
+      const nextLanguage=normalizeLanguage(normalizedLocation.session.language);
       setLanguage(nextLanguage);
-      localStorage.setItem('murderEnginePlayerLanguage',nextLanguage);
-      setData(r.location);
-      setCooldown(Number(r.location.searchCooldownRemainingSeconds??0));
+      safeStorageSet('murderEnginePlayerLanguage',nextLanguage);
+      setData(normalizedLocation);
+      setCooldown(normalizedLocation.searchCooldownRemainingSeconds);
     }catch(e){
       setError(e instanceof Error?e.message:String(e));
     }finally{
