@@ -811,7 +811,7 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
       );
       let targetRows=(
         isInformantInteraction(i) ||
-        specialKind ||
+        ['CHARM','NEGOTIATION','INTIMIDATION'].includes(specialKind) ||
         Number(i.limitPerTarget??0)===1
       )
         ? otherPlayers.filter(p=>!usedTargets.has(p.characterExternalId))
@@ -877,7 +877,11 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
       difficulty:i.difficulty,
       usesCount:uses.length,
       maxUses,
-      limitPerTarget:repeatableLocationSearch?null:(specialKind?(i.limitPerTarget??1):(i.limitPerTarget??null)),
+      limitPerTarget:repeatableLocationSearch
+        ? null
+        : ['CHARM','NEGOTIATION','INTIMIDATION'].includes(specialKind)
+          ? (i.limitPerTarget??1)
+          : (i.limitPerTarget??null),
       cooldownMinutes,
       cooldownRemainingSeconds,
       targets
