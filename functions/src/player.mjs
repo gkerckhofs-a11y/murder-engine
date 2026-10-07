@@ -1848,7 +1848,7 @@ async function respondPlayerAbilityGrant(token,input,{reader=defaultReader,execu
   const target=loaded.participant.characterExternalId;
   const grantToken=String(input?.grantToken??'').trim();
   const selectionExternalId=String(input?.selectionExternalId??'').trim();
-  if(!grantToken||!selectionExternalId)throw new Error('ABILITY_RESPONSE_REQUIRED');
+  if(!grantToken)throw new Error('ABILITY_RESPONSE_REQUIRED');
 
   const grant=(loaded.runtime.sessionStealGrants??[]).find(g=>g.grantToken===grantToken);
   if(!grant||grant.status!=='OPEN'||grant.targetCharacterExternalId!==target)
@@ -1867,6 +1867,7 @@ async function respondPlayerAbilityGrant(token,input,{reader=defaultReader,execu
   const kind=String(grant.kind??'').toUpperCase();
 
   if(kind==='CHARM'){
+    if(!selectionExternalId)throw new Error('ABILITY_RESPONSE_REQUIRED');
     const option=charmInformationForTarget(
       loaded.source,
       loaded.runtime,
@@ -1932,6 +1933,7 @@ async function respondPlayerAbilityGrant(token,input,{reader=defaultReader,execu
   }
 
   if(kind==='NEGOTIATION'){
+    if(!selectionExternalId)throw new Error('ABILITY_RESPONSE_REQUIRED');
     const actorObjectExternalId=String(grant.chosenObjectExternalId??'').trim();
     const actorOption=transferableEvidenceForCharacter(loaded.source,loaded.runtime,actor)
       .find(x=>x.objectExternalId===actorObjectExternalId);
@@ -2010,6 +2012,104 @@ async function respondPlayerAbilityGrant(token,input,{reader=defaultReader,execu
       await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceRef:selectionExternalId,note:sessionText(loaded.session,'Preuve reçue par négociation','Evidence received through negotiation')});
 
     return {success:true,kind:'NEGOTIATION',received:targetOption,given:actorOption,actorCharacterExternalId:actor,targetCharacterExternalId:target};
+  }
+
+  if(kind==='BUSINESS_DEAL'){
+    const decision=String(input?.decision??'').trim().toUpperCase();
+    if(!['ACCEPT','DECLINE'].includes(decision))
+      throw new Error('BUSINESS_DEAL_DECISION_REQUIRED');
+
+    const proposal=businessDealProposalByToken(
+      loaded.runtime,
+      grantToken
+    );
+    if(!proposal)throw new Error('BUSINESS_DEAL_PROPOSAL_NOT_FOUND');
+
+    const proposalData=parseJsonNote(proposal.note)??{};
+    const accepted=decision==='ACCEPT';
+    const actorNotification={
+      gameSessionId:loaded.session.id,
+      characterExternalId:actor,
+      kind:'BUSINESS_DEAL',
+      title:accepted
+        ? sessionText(loaded.session,'Accord accepté','Deal accepted')
+        : sessionText(loaded.session,'Accord refusé','Deal declined'),
+      body:accepted
+        ? sessionText(
+            loaded.session,
+            targetName+' a accepté votre accord. Il doit maintenant être validé par le MJ pour devenir officiel.',
+            targetName+' accepted your deal. It must now be validated by the GM to become official.'
+          )
+        : sessionText(
+            loaded.session,
+            targetName+' a refusé votre accord.',
+            targetName+' declined your deal.'
+          ),
+      priority:accepted?'IMPORTANT':'NORMAL',
+      refExternalId:grantToken,
+      createdAt:usedAt,
+      readAt:null,
+    };
+    const targetNotification={
+      gameSessionId:loaded.session.id,
+      characterExternalId:target,
+      kind:'BUSINESS_DEAL',
+      title:accepted
+        ? sessionText(loaded.session,'Accord accepté — validation MJ requise','Deal accepted — GM validation required')
+        : sessionText(loaded.session,'Accord refusé','Deal declined'),
+      body:accepted
+        ? sessionText(
+            loaded.session,
+            'Vous avez accepté cet accord. Il deviendra officiel après validation du MJ.',
+            'You accepted this deal. It will become official after GM validation.'
+          )
+        : sessionText(
+            loaded.session,
+            'Vous avez refusé cet accord.',
+            'You declined this deal.'
+          ),
+      priority:'NORMAL',
+      refExternalId:grantToken,
+      createdAt:usedAt,
+      readAt:null,
+    };
+    const log={
+      gameSessionId:loaded.session.id,
+      actionType:accepted
+        ? 'BUSINESS_DEAL_ACCEPTED'
+        : 'BUSINESS_DEAL_DECLINED',
+      characterExternalId:target,
+      refExternalId:grantToken,
+      beforeValue:actor,
+      afterValue:accepted?'ACCEPTED':'DECLINED',
+      deltaValue:null,
+      note:JSON.stringify({
+        terms:proposalData.terms??'',
+        actorName:proposalData.actorName??actorName,
+        targetName:proposalData.targetName??targetName,
+      }),
+      createdAt:usedAt,
+    };
+
+    await executor(RESOLVE_ABILITY_GRANT_MUTATION,{
+      sessionId:loaded.session.id,
+      grantToken,
+      chosenExternalId:accepted?'ACCEPTED':'DECLINED',
+      usedAt,
+      actorNotification,
+      targetNotification,
+      log,
+    });
+
+    return {
+      success:true,
+      kind:'BUSINESS_DEAL',
+      decision,
+      status:accepted?'ACCEPTED':'DECLINED',
+      terms:proposalData.terms??'',
+      actorCharacterExternalId:actor,
+      targetCharacterExternalId:target,
+    };
   }
 
   throw new Error('UNSUPPORTED_ABILITY_REQUEST');
