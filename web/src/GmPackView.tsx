@@ -659,7 +659,6 @@ export default function GmPackView({versionId,sessionId}:Props){
   const [pack,setPack]=useState<any|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
-  const [qrZipBusy,setQrZipBusy]=useState(false);
   const [productionBusy,setProductionBusy]=useState('');
 
   useEffect(()=>{
@@ -786,27 +785,6 @@ export default function GmPackView({versionId,sessionId}:Props){
           ✉ Étiquettes
         </button>
 
-        <button
-          disabled={qrZipBusy}
-          onClick={async()=>{
-            setQrZipBusy(true);
-
-            try{
-              await downloadQrZip(pack);
-            }catch(error){
-              alert(
-                error instanceof Error
-                  ? error.message
-                  : 'Impossible de générer le ZIP.'
-              );
-            }finally{
-              setQrZipBusy(false);
-            }
-          }}
-        >
-          {qrZipBusy?'⏳ Préparation…':'⬇ ZIP de tous les QR'}
-        </button>
-
         <button onClick={()=>window.print()}>
           🖨 Imprimer le Pack
         </button>
@@ -815,6 +793,131 @@ export default function GmPackView({versionId,sessionId}:Props){
       </div>
     </header>
 
+
+    {pack.session&&<section className="gmPackProduction">
+      <div className="gmPackProductionHead">
+        <div>
+          <p className="gmPackKicker">PRODUCTION DE SESSION</p>
+          <h2>Préparer cette partie</h2>
+          <p>
+            Les QR lieux et personnages sont réutilisables entre sessions.
+            Les QR d’accès joueurs sont propres à cette session.
+          </p>
+        </div>
+      </div>
+
+      <div className="gmPackProductionGrid">
+        <article>
+          <strong>📦 Pack complet</strong>
+          <span>Les 3 familles de QR pour cette session.</span>
+          <button disabled={Boolean(productionBusy)} onClick={async()=>{
+            setProductionBusy('full');
+            try{
+              await downloadQrZip(pack,'full');
+            }catch(e){
+              alert(e instanceof Error?e.message:String(e));
+            }finally{
+              setProductionBusy('');
+            }
+          }}>
+            Télécharger le ZIP complet
+          </button>
+        </article>
+
+        <article>
+          <strong>📍 QR lieux</strong>
+          <span>QR statiques, réutilisables.</span>
+          <div>
+            <button disabled={Boolean(productionBusy)} onClick={async()=>{
+              setProductionBusy('locations');
+              try{
+                await downloadQrZip(pack,'locations');
+              }catch(e){
+                alert(e instanceof Error?e.message:String(e));
+              }finally{
+                setProductionBusy('');
+              }
+            }}>
+              ZIP
+            </button>
+            <button className="secondary" onClick={()=>
+              window.open(printUrl(versionId,'qr-locations',sessionId),'_blank')
+            }>
+              Planche A4
+            </button>
+          </div>
+        </article>
+
+        <article>
+          <strong>👤 Accès joueurs</strong>
+          <span>{pack.session.playerAccess?.length??0} QR personnels de cette session.</span>
+          <div>
+            <button
+              disabled={Boolean(productionBusy)||!(pack.session.playerAccess?.length)}
+              onClick={async()=>{
+                setProductionBusy('access');
+                try{
+                  await downloadQrZip(pack,'access');
+                }catch(e){
+                  alert(e instanceof Error?e.message:String(e));
+                }finally{
+                  setProductionBusy('');
+                }
+              }}
+            >
+              ZIP
+            </button>
+            <button
+              className="secondary"
+              disabled={!(pack.session.playerAccess?.length)}
+              onClick={()=>window.open(printUrl(versionId,'qr-access',sessionId),'_blank')}
+            >
+              Planche A4
+            </button>
+          </div>
+        </article>
+
+        <article>
+          <strong>🎭 QR personnages</strong>
+          <span>QR d’interaction + portraits attribués.</span>
+          <div>
+            <button disabled={Boolean(productionBusy)} onClick={async()=>{
+              setProductionBusy('characters');
+              try{
+                await downloadQrZip(pack,'characters');
+              }catch(e){
+                alert(e instanceof Error?e.message:String(e));
+              }finally{
+                setProductionBusy('');
+              }
+            }}>
+              ZIP
+            </button>
+            <button className="secondary" onClick={()=>
+              window.open(printUrl(versionId,'qr-characters',sessionId),'_blank')
+            }>
+              Cartes A4 illustrées
+            </button>
+          </div>
+        </article>
+
+        <article className="gmPackProductionDossier">
+          <strong>📘 Dossier MJ</strong>
+          <span>Résumé, synthèse des personnages et index des indices.</span>
+          <button onClick={()=>
+            window.open(printUrl(versionId,'dossier',sessionId),'_blank')
+          }>
+            Ouvrir / enregistrer en PDF
+          </button>
+        </article>
+      </div>
+
+      {productionBusy&&
+        <p className="gmPackProductionBusy">
+          Préparation du fichier…
+        </p>
+      }
+    </section>}
 
     <section className="gmPackCounters">
       <article><strong>{c.characters}</strong><span>Personnages</span></article>
