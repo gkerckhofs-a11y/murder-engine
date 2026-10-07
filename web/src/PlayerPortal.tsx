@@ -498,7 +498,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
         </div>
         <div className="playActionBadges">
           {Number(i.costValue??0)>0&&<span>{i.costValue} {resourceLabel(i.costResourceExternalId,portal)}</span>}
-          {i.ability&&<span>{i.ability.name} niv. {i.ability.level}</span>}
+          {i.ability&&<span>{i.ability.name} · {tr(portal,'niv.','lvl.')} {i.ability.level}</span>}
           {i.cooldownRemainingSeconds>0&&<span>⏱ {Math.ceil(i.cooldownRemainingSeconds/60)} min</span>}
         </div>
       </div>
