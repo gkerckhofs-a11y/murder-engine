@@ -148,6 +148,7 @@ function decodeHeaderValue(value){
   try{return decodeURIComponent(raw)}catch{return raw}
 }
 
+
 function sanitizeFilename(value){
   const raw=String(value??'image').trim()||'image';
 
@@ -157,6 +158,69 @@ function sanitizeFilename(value){
     .replace(/[^a-zA-Z0-9._-]+/g,'-')
     .replace(/^-+|-+$/g,'')
     .slice(0,120) || 'image';
+}
+
+let resolvedStorageBucketName=null;
+
+function firebaseConfig(){
+  try{
+    const raw=process.env.FIREBASE_CONFIG;
+    return raw?JSON.parse(raw):{};
+  }catch{
+    return {};
+  }
+}
+
+async function resolveStorageBucket(getStorage){
+  if(resolvedStorageBucketName)
+    return getStorage().bucket(resolvedStorageBucketName);
+
+  const config=firebaseConfig();
+  const projectId=String(
+    process.env.GCLOUD_PROJECT ??
+    process.env.GOOGLE_CLOUD_PROJECT ??
+    config.projectId ??
+    ''
+  ).trim();
+
+  const candidates=[
+    process.env.STORAGE_BUCKET,
+    config.storageBucket,
+    projectId ? projectId + '.firebasestorage.app' : null,
+    projectId ? projectId + '.appspot.com' : null,
+  ]
+    .map(v=>String(v??'').trim())
+    .filter(Boolean)
+    .filter((v,index,array)=>array.indexOf(v)===index);
+
+  try{
+    const fallback=getStorage().bucket();
+    if(fallback?.name&&!candidates.includes(fallback.name))
+      candidates.push(fallback.name);
+  }catch{
+    // No configured default bucket.
+  }
+
+  for(const name of candidates){
+    try{
+      const bucket=getStorage().bucket(name);
+      const [exists]=await bucket.exists();
+      if(exists){
+        resolvedStorageBucketName=name;
+        return bucket;
+      }
+    }catch{
+      // Try next known Firebase bucket naming convention.
+    }
+  }
+
+  const error=new Error('FIREBASE_STORAGE_BUCKET_NOT_FOUND');
+  error.details={
+    projectId:projectId||null,
+    candidates,
+    hint:'Enable Firebase Storage for this project or set STORAGE_BUCKET to the existing bucket name.',
+  };
+  throw error;
 }
 
 async function contextForVersion(versionId){
@@ -226,7 +290,7 @@ export async function uploadMediaLibraryAsset(versionId,input){
     import('firebase-admin/storage'),
   ]);
 
-  const bucket=getStorage().bucket();
+  const bucket=await resolveStorageBucket(getStorage);
   const file=bucket.file(objectPath);
 
   await file.save(raw,{
