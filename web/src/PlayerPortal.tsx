@@ -18,10 +18,26 @@ type PaPrompt = {
 };
 
 async function fetchJson<T>(url:string, init?:RequestInit):Promise<T>{
-  const r=await fetch(url,init); const contentType=r.headers.get('content-type')??''; const raw=await r.text(); let data:any=null;
+  const r=await fetch(url,init);
+  const contentType=r.headers.get('content-type')??'';
+  const raw=await r.text();
+  let data:any=null;
   if(raw&&contentType.includes('application/json')){try{data=JSON.parse(raw)}catch{}}
-  if(!r.ok){const message=data?.message??data?.error??((raw&&!raw.trim().startsWith('<'))?raw.slice(0,240):null);throw new Error(message??`Route API indisponible (${r.status}) : ${url}. Contactez l'organisateur.`)}
-  if(!data)throw new Error(`Réponse non JSON pour ${url}. La fonction serveur correspondante n'est probablement pas déployée.`);
+  const english=localStorage.getItem('murderEnginePlayerLanguage')==='EN';
+  if(!r.ok){
+    const message=data?.message??data?.error??((raw&&!raw.trim().startsWith('<'))?raw.slice(0,240):null);
+    throw new Error(
+      message??
+      (english
+        ? `API route unavailable (${r.status}): ${url}. Contact the organizer.`
+        : `Route API indisponible (${r.status}) : ${url}. Contactez l'organisateur.`)
+    );
+  }
+  if(!data)throw new Error(
+    english
+      ? `Non-JSON response received for ${url}. The corresponding server function is probably not deployed.`
+      : `Réponse non JSON pour ${url}. La fonction serveur correspondante n'est probablement pas déployée.`
+  );
   return data as T;
 }
 async function postJson<T=any>(url:string,body:any):Promise<T>{return fetchJson<T>(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});}
@@ -187,10 +203,10 @@ export default function PlayerPortal({token}:{token:string}){
     {tab==='news'&&<PlayerNews portal={portal} busy={busy} onRead={id=>act(()=>postJson('/api/player/notification/read',{token,notificationId:id}),tr(portal,'Notification lue','Notification read'))}/>} 
     {introOpen&&<div className="qrScannerOverlay playerStoryOverlay" role="dialog" aria-modal="true" aria-label="Introduction"><div className="qrScannerPanel playerStoryPanel"><p className="eyebrow">{tr(portal,'L’HISTOIRE COMMENCE','THE STORY BEGINS')}</p><h2>{s.scenarioTitle}</h2><div className="playerStoryText">{s.playerSummary}</div><button className="playerPrimary" onClick={closeIntro}>{tr(portal,'Entrer dans l’histoire','Enter the story')}</button></div></div>}
 
-    {resultPopup&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat de l’action"><div className={`qrScannerPanel actionResultPopup ${resultPopup.success?'success':'failure'}`}><p className="eyebrow">{tr(portal,'RÉSULTAT','RESULT')}</p><h2>{resultPopup.success?tr(portal,'✓ Réussite','✓ Success'):tr(portal,'✕ Échec','✕ Failure')}</h2><p>{resultPopup.body}</p><button className="playerPrimary" onClick={()=>setResultPopup(null)}>{tr(portal,'Continuer','Continue')}</button></div></div>}
+    {resultPopup&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Résultat de l’action','Action result')}><div className={`qrScannerPanel actionResultPopup ${resultPopup.success?'success':'failure'}`}><p className="eyebrow">{tr(portal,'RÉSULTAT','RESULT')}</p><h2>{resultPopup.success?tr(portal,'✓ Réussite','✓ Success'):tr(portal,'✕ Échec','✕ Failure')}</h2><p>{resultPopup.body}</p><button className="playerPrimary" onClick={()=>setResultPopup(null)}>{tr(portal,'Continuer','Continue')}</button></div></div>}
 
     <footer className="playerFooter">Murder Engine · Ludificateur</footer>
-    <nav className="playerBottomNav" aria-label="Navigation joueur">
+    <nav className="playerBottomNav" aria-label={tr(portal,'Navigation joueur','Player navigation')}>
       <button className={tab==='fiche'?'active':''} onClick={()=>setTab('fiche')}><span>🪪</span><b>{tr(portal,'Fiche','Sheet')}</b></button>
       <button className={tab==='carnet'?'active':''} onClick={()=>setTab('carnet')}><span>📓</span><b>{tr(portal,'Carnet','Notebook')}</b></button>
       <button className={tab==='actions'?'active':''} onClick={()=>setTab('actions')}><span>⚡</span><b>{tr(portal,'Jouer','Play')}</b>{portal.votes?.length>0&&<em>{portal.votes.length}</em>}</button>
@@ -462,7 +478,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     const specialKind=Boolean(i.clandestineKind);
     const rawScanMode=String(i.scanMode??'DIRECT').toUpperCase();
     const scanMode=rawScanMode==='DISCRET'?'DISCRET':rawScanMode==='SELECT'?'SELECT':'DIRECT';
-    const requestable=!i.directEnabled&&i.blockedReason==='À demander au MJ';
+    const requestable=!i.directEnabled&&['À demander au MJ','Ask the GM'].includes(String(i.blockedReason??''));
     const characterTarget=['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase());
     const needsTarget=Boolean(i.targets?.length>0);
     const targetId=targets[i.externalId]||'';
