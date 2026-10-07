@@ -1284,7 +1284,7 @@ test('Business Deal creates a formal proposal that the target may accept',async(
 
  assert.equal(accepted.kind,'BUSINESS_DEAL');
  assert.equal(accepted.status,'ACCEPTED');
- assert.equal(acceptedWrite.log.actionType,'BUSINESS_DEAL_ACCEPTED');
+ assert.equal(acceptedWrite.vars.log.actionType,'BUSINESS_DEAL_ACCEPTED');
 });
 
 test('scan mode is explicit when present and backwards-compatible with secret_cible',()=>{
