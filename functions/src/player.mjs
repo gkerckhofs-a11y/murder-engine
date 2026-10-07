@@ -133,6 +133,46 @@ query PlayerRuntime($sessionId: UUID!) {
   sessionStealGrants(where: {gameSessionId: {eq: $sessionId}}) {
     grantToken interactionExternalId actorCharacterExternalId targetCharacterExternalId kind status createdAt expiresAt usedAt chosenObjectExternalId
   }
+  businessDealProposals: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_PROPOSED"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
+  businessDealAccepted: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_ACCEPTED"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
+  businessDealDeclined: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_DECLINED"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
+  businessDealOfficial: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_OFFICIAL"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
 }
 `;
 
@@ -587,6 +627,12 @@ function directAbilityPlayerDescription(session,externalId,fallback='') {
         'Pour 1 PA, scannez un autre personnage puis choisissez une preuve transférable dans ses affaires. Vous prenez cette preuve et la cible sait que vous l’avez intimidée. Une fois par cible, sans délai d’attente.',
         'For 1 AP, scan another character and choose one transferable piece of evidence from their belongings. You take that evidence and the target knows you intimidated them. Once per target, with no cooldown.'
       );
+    case 'ABILITY_BUSINESS_DEAL':
+      return sessionText(
+        session,
+        'Pour 1 PA, proposez à un autre personnage un accord financier formel. La cible peut accepter ou refuser librement. Si elle accepte, l’accord est transmis au MJ pour officialisation et pourra être pris en compte dans la résolution finale. Un simple transfert d’argent reste libre pour tous les joueurs.',
+        'For 1 AP, propose a formal financial agreement to another character. The target may freely accept or refuse. If accepted, the agreement is sent to the GM for official registration and may be taken into account in the final resolution. Ordinary cash transfers remain available to everyone.'
+      );
     case 'ABILITY_NEGOTIATION':
       return sessionText(
         session,
@@ -613,7 +659,8 @@ function effectiveAbilities(source, characterExternalId, session=null) {
       cooldownMinutes:[
         'ABILITY_CHARM',
         'ABILITY_NEGOTIATION',
-        'ABILITY_POLICE_INTIMIDATION'
+        'ABILITY_POLICE_INTIMIDATION',
+        'ABILITY_BUSINESS_DEAL'
       ].includes(String(d.externalId??'').toUpperCase())
         ? 0
         : (a.cooldownOverrideMinutes??d.defaultCooldownMinutes??null),
@@ -669,10 +716,27 @@ function availableRumorForTarget(source,runtime,actorCharacterExternalId,targetC
     .sort((a,b)=>String(a.externalId).localeCompare(String(b.externalId)))[0]??null;
 }
 
+function parseJsonNote(value){
+  try{return JSON.parse(String(value??''))??null;}catch{return null;}
+}
+
+function businessDealProposalByToken(runtime,grantToken){
+  return (runtime.businessDealProposals??[])
+    .find(log=>log.refExternalId===grantToken)??null;
+}
+
+function businessDealStatus(runtime,grantToken){
+  if((runtime.businessDealOfficial??[]).some(x=>x.refExternalId===grantToken))return 'OFFICIAL';
+  if((runtime.businessDealAccepted??[]).some(x=>x.refExternalId===grantToken))return 'ACCEPTED';
+  if((runtime.businessDealDeclined??[]).some(x=>x.refExternalId===grantToken))return 'DECLINED';
+  return 'PROPOSED';
+}
+
 const SPECIAL_PLAYER_ABILITY_KIND = new Map([
   ['ABILITY_CHARM','CHARM'],
   ['ABILITY_NEGOTIATION','NEGOTIATION'],
   ['ABILITY_POLICE_INTIMIDATION','INTIMIDATION'],
+  ['ABILITY_BUSINESS_DEAL','BUSINESS_DEAL'],
 ]);
 
 function specialPlayerAbilityKind(interaction) {
@@ -1652,7 +1716,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
     .filter(g=>
       g.status==='OPEN' &&
       g.targetCharacterExternalId===characterExternalId &&
-      ['CHARM','NEGOTIATION'].includes(String(g.kind??'').toUpperCase()) &&
+      ['CHARM','NEGOTIATION','BUSINESS_DEAL'].includes(String(g.kind??'').toUpperCase()) &&
       new Date(g.expiresAt).getTime()>now.getTime()
     )
     .map(g=>{
@@ -1661,6 +1725,10 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
       const offeredDef=g.chosenObjectExternalId
         ? objectMap.get(g.chosenObjectExternalId)
         : null;
+      const proposal=kind==='BUSINESS_DEAL'
+        ? businessDealProposalByToken(runtime,g.grantToken)
+        : null;
+      const proposalData=proposal?parseJsonNote(proposal.note):null;
       const options=kind==='CHARM'
         ? charmInformationForTarget(
             source,
@@ -1668,11 +1736,13 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
             g.actorCharacterExternalId,
             characterExternalId
           )
-        : transferableEvidenceForCharacter(
-            source,
-            runtime,
-            characterExternalId
-          );
+        : kind==='NEGOTIATION'
+          ? transferableEvidenceForCharacter(
+              source,
+              runtime,
+              characterExternalId
+            )
+          : [];
       return {
         grantToken:g.grantToken,
         interactionExternalId:g.interactionExternalId,
@@ -1687,10 +1757,14 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
               description:offeredDef?.description??null,
             }
           : null,
+        terms:proposalData?.terms??null,
         options,
       };
     })
-    .filter(request=>request.options.length>0);
+    .filter(request=>
+      request.kind==='BUSINESS_DEAL' ||
+      request.options.length>0
+    );
 
   const notifications=(runtime.sessionPlayerNotifications??[]).filter(n=>n.characterExternalId===characterExternalId).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
   const interactions=playerInteractions(source,runtime,session,characterExternalId,resources,now);
