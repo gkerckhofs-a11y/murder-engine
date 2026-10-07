@@ -13074,3 +13074,29 @@ button.skinGalleryCard:disabled{
   object-position:center bottom;
   background:transparent;
 }
+
+
+.bagOwnedBadge{
+  display:inline-flex;
+  align-items:center;
+  margin-left:7px;
+  padding:2px 6px;
+  border-radius:999px;
+  background:rgba(61,128,83,.16);
+  border:1px solid rgba(97,171,119,.35);
+  color:#9dd6ac;
+  font-size:.58rem;
+  font-weight:850;
+  letter-spacing:.04em;
+}
+
+.clueBagNotice{
+  margin-top:9px;
+  padding:8px 10px;
+  border-radius:10px;
+  background:rgba(61,128,83,.13);
+  border:1px solid rgba(97,171,119,.28);
+  color:#b8dfc2;
+  font-size:.78rem;
+  font-weight:750;
+}
