@@ -80,6 +80,8 @@ export default function MediaLibraryPanel({
   const [open,setOpen]=useState(false);
   const [assets,setAssets]=useState<Asset[]>([]);
   const [overrides,setOverrides]=useState<Record<string,Override>>(version?.mediaOverrides??{});
+  const [pendingAssignments,setPendingAssignments]=useState<Record<string,string|null>>({});
+  const [assignmentSummary,setAssignmentSummary]=useState('');
   const [targetType,setTargetType]=useState<'CHARACTER'|'OBJECT'>('CHARACTER');
   const [selectedTarget,setSelectedTarget]=useState('');
   const [filter,setFilter]=useState('');
@@ -96,8 +98,14 @@ export default function MediaLibraryPanel({
 
   useEffect(()=>{
     setOverrides(version?.mediaOverrides??{});
+    setPendingAssignments({});
+    setAssignmentSummary('');
     setSelectedTarget('');
-  },[version?.id,version?.mediaOverrides]);
+  },[version?.id]);
+
+  useEffect(()=>{
+    setOverrides(version?.mediaOverrides??{});
+  },[version?.mediaOverrides]);
 
   const targets=useMemo<Target[]>(()=>{
     if(targetType==='CHARACTER'){
@@ -132,7 +140,33 @@ export default function MediaLibraryPanel({
 
   const selected=targets.find(t=>t.externalId===selectedTarget)??null;
   const selectedKey=selected?`${selected.type}:${selected.externalId}`:'';
-  const currentOverride=selectedKey?overrides[selectedKey]??null:null;
+
+  const hasPendingAssignment=(key:string)=>
+    Object.prototype.hasOwnProperty.call(pendingAssignments,key);
+
+  const assetOverride=(assetExternalId:string|null|undefined):Override|null=>{
+    if(!assetExternalId)return null;
+    const asset=assets.find(x=>x.externalId===assetExternalId);
+    if(!asset)return null;
+    return {
+      assetExternalId:asset.externalId,
+      label:asset.label,
+      category:asset.category,
+      mediaType:asset.mediaType,
+      source:asset.source,
+      altText:asset.altText??null,
+      skinId:asset.skinId??null,
+    };
+  };
+
+  const effectiveOverride=(key:string):Override|null=>{
+    if(hasPendingAssignment(key))
+      return assetOverride(pendingAssignments[key]);
+    return overrides[key]??null;
+  };
+
+  const currentOverride=selectedKey?effectiveOverride(selectedKey):null;
+  const pendingCount=Object.keys(pendingAssignments).length;
 
   const visibleAssets=useMemo(()=>{
     const needle=filter.trim().toLowerCase();
@@ -190,24 +224,70 @@ export default function MediaLibraryPanel({
     if(open)void load();
   },[open,version?.id]);
 
-  async function assign(assetExternalId:string|null){
-    if(!selected)return;
+  function assign(assetExternalId:string|null){
+    if(!selected||!selectedKey)return;
+
+    setError('');
+    setAssignmentSummary('');
+
+    const persistedAssetId=
+      overrides[selectedKey]?.assetExternalId??null;
+
+    setPendingAssignments(prev=>{
+      const next={...prev};
+
+      if((persistedAssetId??null)===(assetExternalId??null))
+        delete next[selectedKey];
+      else
+        next[selectedKey]=assetExternalId;
+
+      return next;
+    });
+  }
+
+  function discardAssignments(){
+    setPendingAssignments({});
+    setAssignmentSummary('');
+    setError('');
+  }
+
+  async function saveAssignments(){
+    const entries=Object.entries(pendingAssignments);
+    if(!entries.length)return;
 
     setBusy(true);
     setError('');
+    setAssignmentSummary('');
 
     try{
-      const result=await postJson<{
-        ok:boolean;
-        overrides:Record<string,Override>;
-      }>('/api/media/assign',{
-        versionId:version.id,
-        targetType:selected.type,
-        targetExternalId:selected.externalId,
-        assetExternalId,
-      });
+      let latestOverrides=overrides;
 
-      setOverrides(result.overrides??{});
+      for(const [key,assetExternalId] of entries){
+        const separator=key.indexOf(':');
+        const targetType=key.slice(0,separator);
+        const targetExternalId=key.slice(separator+1);
+
+        const result=await postJson<{
+          ok:boolean;
+          overrides:Record<string,Override>;
+        }>('/api/media/assign',{
+          versionId:version.id,
+          targetType,
+          targetExternalId,
+          assetExternalId,
+        });
+
+        latestOverrides=result.overrides??latestOverrides;
+      }
+
+      setOverrides(latestOverrides);
+      setPendingAssignments({});
+      setAssignmentSummary(
+        entries.length===1
+          ? 'Attribution enregistrée ✓'
+          : `${entries.length} attributions enregistrées ✓`
+      );
+
       if(onChanged)await onChanged();
     }catch(e){
       setError(e instanceof Error?e.message:String(e));
@@ -382,6 +462,36 @@ export default function MediaLibraryPanel({
         </button>
       </div>
 
+      {(pendingCount>0||assignmentSummary)&&<div className="mediaAssignmentSaveBar">
+        <div>
+          <strong>
+            {pendingCount>0
+              ? `${pendingCount} attribution${pendingCount>1?'s':''} en attente`
+              : assignmentSummary}
+          </strong>
+          {pendingCount>0&&<small>
+            Tu peux continuer à attribuer des images avant d’enregistrer.
+          </small>}
+        </div>
+
+        {pendingCount>0&&<div className="mediaAssignmentSaveActions">
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={discardAssignments}
+          >
+            Annuler les changements
+          </button>
+          <button
+            className="mediaPrimaryAction"
+            disabled={busy}
+            onClick={()=>void saveAssignments()}
+          >
+            {busy?'Enregistrement…':`Enregistrer ${pendingCount} attribution${pendingCount>1?'s':''}`}
+          </button>
+        </div>}
+      </div>}
+
       <div className="mediaWorkspace">
         <div className="mediaTargets">
           <div className="mediaColumnHead">
@@ -393,7 +503,8 @@ export default function MediaLibraryPanel({
             ? <p className="empty">Aucun élément disponible.</p>
             : targets.map(target=>{
               const key=`${target.type}:${target.externalId}`;
-              const image=overrides[key];
+              const image=effectiveOverride(key);
+              const changed=hasPendingAssignment(key);
 
               return <button
                 key={key}
@@ -412,7 +523,9 @@ export default function MediaLibraryPanel({
                   <small>{target.subtitle||target.externalId}</small>
                 </span>
 
-                <em className={image?.source?'custom':'default'}>{image?.source?'Image choisie':'Défaut'}</em>
+                <em className={changed?'pending':image?.source?'custom':'default'}>
+                  {changed?'À enregistrer':image?.source?'Image choisie':'Défaut'}
+                </em>
               </button>;
             })
           }
@@ -436,7 +549,7 @@ export default function MediaLibraryPanel({
               </button>
 
               {currentOverride?.source&&
-                <button className="secondary mediaResetButton" disabled={busy} onClick={()=>void assign(null)}>
+                <button className="secondary mediaResetButton" disabled={busy} onClick={()=>assign(null)}>
                   Réinitialiser
                 </button>
               }
@@ -556,7 +669,7 @@ export default function MediaLibraryPanel({
             <div>
               <span className="micro">BIBLIOTHÈQUE EXISTANTE</span>
               <strong>Choisir une image déjà importée</strong>
-              <small>Clique sur une vignette pour l’attribuer au personnage ou à l’objet sélectionné.</small>
+              <small>Clique sur une vignette pour préparer l’attribution. Enregistre ensuite toutes tes modifications en une fois.</small>
             </div>
             <b>{visibleAssets.length}</b>
           </div>
@@ -567,7 +680,7 @@ export default function MediaLibraryPanel({
               onChange={e=>setFilter(e.target.value)}
               placeholder="Rechercher dans la bibliothèque : nom, tag, skin…"
             />
-            <button className="secondary mediaRefreshButton" disabled={loading} onClick={()=>void load()}>
+            <button className="secondary mediaRefreshButton" disabled={loading||pendingCount>0} onClick={()=>void load()}>
               {loading?'…':'↻ Actualiser'}
             </button>
           </div>
@@ -579,7 +692,7 @@ export default function MediaLibraryPanel({
                   key={asset.externalId}
                   className={`mediaAssetCard ${currentOverride?.assetExternalId===asset.externalId?'selected':''}`}
                   disabled={!selected||busy}
-                  onClick={()=>void assign(asset.externalId)}
+                  onClick={()=>assign(asset.externalId)}
                 >
                   <span className="mediaAssetVisual">
                     <img src={asset.source} alt={asset.altText||asset.label}/>
