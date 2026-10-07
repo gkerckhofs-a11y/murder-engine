@@ -803,7 +803,7 @@ function PlayerBag({
       map.set(d.clueExternalId,{
         ...d,
         owned:true,
-        object:inventoryMap.get(d.objectExternalId)??null
+        object:d.object??inventoryMap.get(d.objectExternalId)??null
       });
 
     for(const discovery of portal.discoveries??[]){
