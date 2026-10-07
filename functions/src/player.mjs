@@ -20,7 +20,18 @@ query PlayerAccessByToken($token: String!) {
         logoMediaExternalId
         backgroundMediaExternalId
         mediaOverridesJson
-        scenario { id title slug skinId accentColor }
+        scenario {
+          id
+          title
+          slug
+          skinId
+          accentColor
+          scenarioVersions_on_scenario(orderBy: {importedAt: DESC}) {
+            id
+            mediaOverridesJson
+            importedAt
+          }
+        }
       }
       sessionParticipants_on_gameSession(orderBy: {createdAt: ASC}) {
         id displayName active characterExternalId
@@ -1160,12 +1171,30 @@ function parseMediaOverrides(value){
 }
 
 function mediaOverrideVisual(session,targetType,targetExternalId){
-  const overrides=parseMediaOverrides(
-    session?.scenarioVersion?.mediaOverridesJson
-  );
+  const key=
+    `${String(targetType??'').trim().toUpperCase()}:${String(targetExternalId??'').trim()}`;
 
-  const override=
-    overrides[`${String(targetType??'').trim().toUpperCase()}:${String(targetExternalId??'').trim()}`];
+  const version=session?.scenarioVersion??{};
+  const siblingVersions=
+    version?.scenario?.scenarioVersions_on_scenario??[];
+
+  const overrideSources=[
+    version.mediaOverridesJson,
+    ...siblingVersions
+      .filter(v=>v?.id!==version.id)
+      .map(v=>v?.mediaOverridesJson)
+  ];
+
+  let override=null;
+
+  for(const raw of overrideSources){
+    const candidate=parseMediaOverrides(raw)?.[key];
+
+    if(candidate?.source){
+      override=candidate;
+      break;
+    }
+  }
 
   if(!override?.source)return null;
 
@@ -1180,6 +1209,8 @@ function mediaOverrideVisual(session,targetType,targetExternalId){
     label:override.label??null,
     skinId:override.skinId??null,
     override:true,
+    inherited:
+      !parseMediaOverrides(version.mediaOverridesJson)?.[key]?.source,
   };
 }
 
