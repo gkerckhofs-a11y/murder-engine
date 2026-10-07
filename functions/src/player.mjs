@@ -1357,7 +1357,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
   const resources=(runtime.sessionResources??[]).filter(r=>r.characterExternalId===characterExternalId).map(r=>({...r,name:resourceMap.get(r.resourceExternalId)?.name??r.resourceExternalId,unit:resourceMap.get(r.resourceExternalId)?.unit??null}));
   const objectiveRuntime=new Map((runtime.sessionObjectives??[]).filter(o=>o.characterExternalId===characterExternalId).map(o=>[o.objectiveExternalId,o]));
   const objectives=(source.objectives??[]).filter(o=>o.active!==false&&o.ownerType==='CHARACTER'&&o.ownerExternalId===characterExternalId).map(o=>({...o,status:objectiveRuntime.get(o.externalId)?.status??o.initialStatus,progress:objectiveRuntime.get(o.externalId)?.progress??0,notes:objectiveRuntime.get(o.externalId)?.notes??null}));
-  const knowledge=(runtime.sessionKnowledges??[]).filter(k=>k.characterExternalId===characterExternalId).map(k=>({factExternalId:k.factExternalId,sourceType:k.sourceType,learnedAt:k.learnedAt,fact:factMap.get(k.factExternalId)})).filter(k=>k.fact).sort((a,b)=>new Date(a.learnedAt).getTime()-new Date(b.learnedAt).getTime());
+  const knowledge=(runtime.sessionKnowledges??[]).filter(k=>k.characterExternalId===characterExternalId).map(k=>({factExternalId:k.factExternalId,sourceType:k.sourceType,learnedAt:k.learnedAt,fact:factMap.get(k.factExternalId)})).filter(k=>k.fact).sort((a,b)=>new Date(b.learnedAt).getTime()-new Date(a.learnedAt).getTime());
   const discoveries=(runtime.sessionClueDiscoveries??[])
     .filter(d=>d.characterExternalId===characterExternalId)
     .map(d=>{
@@ -1375,7 +1375,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
       };
     })
     .filter(d=>d.clue)
-    .sort((a,b)=>new Date(a.discoveredAt).getTime()-new Date(b.discoveredAt).getTime());
+    .sort((a,b)=>new Date(b.discoveredAt).getTime()-new Date(a.discoveredAt).getTime());
   const inventory=(runtime.sessionObjects??[])
     .filter(o=>
       o.inPlay!==false &&
