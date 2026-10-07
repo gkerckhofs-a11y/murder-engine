@@ -757,7 +757,16 @@ export const executeLiveInteraction = onRequest({ region:'europe-west1', cors:tr
     const result=await executeInteraction(sessionId,body);
     if(['PLAYER','CHARACTER'].includes(String(result.targetType??'').toUpperCase())&&result.targetExternalId){
       try{
-        await sendPlayerNotification(sessionId,{characterExternalId:result.targetExternalId,kind:'INTERACTION_TARGET',title:'Action sur votre personnage',body:`Une action « ${result.interactionName} » vient d’être exercée sur votre personnage. ${result.success?'Elle a réussi.':'Elle a échoué.'} Murder Engine ne révèle pas son auteur.`,refExternalId:result.interactionExternalId,priority:'NORMAL'});
+        await sendPlayerNotification(sessionId,{
+          characterExternalId:result.targetExternalId,
+          kind:'INTERACTION_TARGET',
+          title:'Action sur votre personnage',
+          titleEn:'Action targeting your character',
+          body:`Une action « ${result.interactionName} » vient d’être exercée sur votre personnage. ${result.success?'Elle a réussi.':'Elle a échoué.'} Murder Engine ne révèle pas son auteur.`,
+          bodyEn:`An action “${result.interactionName}” has just been used on your character. ${result.success?'It succeeded.':'It failed.'} Murder Engine does not reveal who performed it.`,
+          refExternalId:result.interactionExternalId,
+          priority:'NORMAL'
+        });
       }catch(notificationError){logger.warn('Interaction target notification skipped',notificationError);}
     }
     return res.status(200).json({ok:true,result});
@@ -768,7 +777,22 @@ export const executeLiveInteraction = onRequest({ region:'europe-west1', cors:tr
 export const revealLiveClue = onRequest({ region:'europe-west1', cors:true, maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   const sessionId=String(body.sessionId??'').trim();
-  try { const result=await revealClueToCharacter(sessionId,body); try{await sendPlayerNotification(sessionId,{characterExternalId:String(body.characterExternalId??'').trim(),kind:'CLUE',title:'Nouvel indice',body:'Un nouvel indice a été ajouté à votre carnet.',refExternalId:String(body.clueExternalId??'').trim(),priority:'IMPORTANT'});}catch(notificationError){logger.warn('Player clue notification skipped',notificationError);} return res.status(200).json({ok:true,result}); }
+  try {
+    const result=await revealClueToCharacter(sessionId,body);
+    try{
+      await sendPlayerNotification(sessionId,{
+        characterExternalId:String(body.characterExternalId??'').trim(),
+        kind:'CLUE',
+        title:'Nouvel indice',
+        titleEn:'New clue',
+        body:'Un nouvel indice a été ajouté à votre carnet.',
+        bodyEn:'A new clue has been added to your notebook.',
+        refExternalId:String(body.clueExternalId??'').trim(),
+        priority:'IMPORTANT'
+      });
+    }catch(notificationError){logger.warn('Player clue notification skipped',notificationError);}
+    return res.status(200).json({ok:true,result});
+  }
   catch(error){ logger.error('Clue reveal failed',error); return res.status(400).json({error:'CLUE_REVEAL_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
@@ -776,7 +800,24 @@ export const transferLiveObject = onRequest({ region:'europe-west1', cors:true, 
   const body=requirePostJson(req,res); if(!body)return;
   if(!await requireOrganizerAuth(req,res)) return;
   const sessionId=String(body.sessionId??'').trim();
-  try { const result=await transferSessionObject(sessionId,body); if(String(body.holderType??'').toUpperCase()==='CHARACTER'&&body.holderExternalId){try{await sendPlayerNotification(sessionId,{characterExternalId:String(body.holderExternalId),kind:'OBJECT',title:'Objet reçu',body:'Un objet vient d’être ajouté à votre inventaire.',refExternalId:String(body.objectExternalId??'').trim(),priority:'NORMAL'});}catch(notificationError){logger.warn('Player object notification skipped',notificationError);}} return res.status(200).json({ok:true,result}); }
+  try {
+    const result=await transferSessionObject(sessionId,body);
+    if(String(body.holderType??'').toUpperCase()==='CHARACTER'&&body.holderExternalId){
+      try{
+        await sendPlayerNotification(sessionId,{
+          characterExternalId:String(body.holderExternalId),
+          kind:'OBJECT',
+          title:'Objet reçu',
+          titleEn:'Item received',
+          body:'Un objet vient d’être ajouté à votre inventaire.',
+          bodyEn:'An item has been added to your inventory.',
+          refExternalId:String(body.objectExternalId??'').trim(),
+          priority:'NORMAL'
+        });
+      }catch(notificationError){logger.warn('Player object notification skipped',notificationError);}
+    }
+    return res.status(200).json({ok:true,result});
+  }
   catch(error){ logger.error('Object transfer failed',error); return res.status(400).json({error:'OBJECT_TRANSFER_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
