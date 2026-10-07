@@ -57,7 +57,7 @@ query PlayerSource($versionId: UUID!) {
     externalId title text nature importance notebookCategory isPublic active
   }
   clues(where: {scenarioVersionId: {eq: $versionId}}) {
-    externalId playerName clueType playerText discoveryHook support presentationMode shareable transferable consumable addToNotebook locationExternalId objectExternalId documentExternalId mediaExternalId major active
+    externalId playerName clueType playerText discoveryHook support presentationMode shareable transferable consumable addToNotebook locationExternalId objectExternalId documentExternalId logisticsCode mediaExternalId major active
   }
   clueFacts(where: {scenarioVersionId: {eq: $versionId}}) { clueExternalId factExternalId }
   documentDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
@@ -1102,22 +1102,33 @@ function playerObjectView(session,source,mediaMap,objectMap,row){
     objectVisualCode(def)
   ).trim().toUpperCase();
 
+  const linkedClues=
+    (source.clues??[])
+      .filter(clue=>
+        clue.active!==false &&
+        clue.objectExternalId===row.objectExternalId
+      );
+
+  const mediaOverrideCandidates=[
+    row.objectExternalId,
+    def?.logisticsCode,
+    ...linkedClues.map(clue=>clue.logisticsCode),
+  ]
+    .map(value=>String(value??'').trim())
+    .filter(Boolean)
+    .filter((value,index,array)=>array.indexOf(value)===index);
+
   const overrideMedia=
-    mediaOverrideVisual(
-      session,
-      'OBJECT',
-      row.objectExternalId
-    ) ??
-    (
-      def?.logisticsCode &&
-      String(def.logisticsCode)!==String(row.objectExternalId)
-        ? mediaOverrideVisual(
-            session,
-            'OBJECT',
-            def.logisticsCode
-          )
-        : null
-    );
+    mediaOverrideCandidates
+      .map(candidate=>
+        mediaOverrideVisual(
+          session,
+          'OBJECT',
+          candidate
+        )
+      )
+      .find(Boolean) ??
+    null;
 
   const dedicatedMedia=
     visualMedia(mediaMap,def?.mediaExternalId) ??
@@ -1125,11 +1136,7 @@ function playerObjectView(session,source,mediaMap,objectMap,row){
     visualMedia(mediaMap,`OBJECT_${row.objectExternalId}`);
 
   const linkedClueMedia=
-    (source.clues??[])
-      .filter(clue=>
-        clue.active!==false &&
-        clue.objectExternalId===row.objectExternalId
-      )
+    linkedClues
       .map(clue=>visualMedia(mediaMap,clue.mediaExternalId))
       .find(Boolean) ??
     null;
