@@ -14,7 +14,7 @@ import { listScenarioLibrary, getScenarioVersionOverview, getCharacterDetail, se
 import { getGmPack } from './gm-pack.mjs';
 import { listGameSessions, getGameSession, createGameSession, addGameSessionParticipant, assignCharacterToParticipant, setGameSessionStatus, updateGameSessionDetails, setGameSessionArchived, deleteGameSession, configureGameSessionPrecast, getPublicPrecastSession, submitPublicPrecast, getSessionSetupAssistant, applySessionCastingAssignments } from './sessions.mjs';
 import { initializeSessionRuntime, getSessionRuntime } from './runtime.mjs';
-import { getLiveDashboard, controlLiveSession, changeLiveResource, setLiveCharacterState, setLiveEventStatus } from './live.mjs';
+import { getLiveDashboard, controlLiveSession, changeLiveResource, setLiveCharacterState, setLiveEventStatus, validateBusinessDeal } from './live.mjs';
 import { getInteractionDashboard, executeInteraction, revealClueToCharacter, transferSessionObject } from './interactions.mjs';
 import { getVoteDashboard, openSessionVote, castSessionBallot, closeSessionVote } from './votes.mjs';
 import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, sharePlayerClue, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
@@ -739,6 +739,59 @@ export const updateLiveEvent = onRequest({ region:'europe-west1', cors:true, max
   try { return res.status(200).json({ok:true, result:await setLiveEventStatus(String(body.sessionId??'').trim(),body)}); }
   catch(error){ logger.error('Live event update failed',error); return res.status(400).json({error:'LIVE_EVENT_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
+
+export const validateLiveBusinessDeal = onRequest(
+  { region:'europe-west1', cors:true, invoker:'public', maxInstances:8, timeoutSeconds:60 },
+  async (req,res)=>{
+    const body=requirePostJson(req,res); if(!body)return;
+    if(!await requireOrganizerAuth(req,res)) return;
+
+    try{
+      const result=await validateBusinessDeal(
+        String(body.sessionId??'').trim(),
+        body
+      );
+
+      try{
+        const live=await getLiveDashboard(String(body.sessionId??'').trim());
+        const deal=(live.businessDeals??[]).find(d=>d.dealId===String(body.dealId??'').trim());
+        if(deal){
+          await sendPlayerNotification(String(body.sessionId??'').trim(),{
+            characterExternalId:deal.actorCharacterExternalId,
+            kind:'BUSINESS_DEAL',
+            title:'Accord officialisé',
+            titleEn:'Deal made official',
+            body:'Le MJ a validé votre accord avec '+deal.targetName+'. Il est désormais officiel.',
+            bodyEn:'The GM validated your deal with '+deal.targetName+'. It is now official.',
+            refExternalId:deal.dealId,
+            priority:'IMPORTANT'
+          });
+          await sendPlayerNotification(String(body.sessionId??'').trim(),{
+            characterExternalId:deal.targetCharacterExternalId,
+            kind:'BUSINESS_DEAL',
+            title:'Accord officialisé',
+            titleEn:'Deal made official',
+            body:'Le MJ a validé votre accord avec '+deal.actorName+'. Il est désormais officiel.',
+            bodyEn:'The GM validated your deal with '+deal.actorName+'. It is now official.',
+            refExternalId:deal.dealId,
+            priority:'IMPORTANT'
+          });
+        }
+      }catch(notificationError){
+        logger.warn('Business Deal official notification skipped',notificationError);
+      }
+
+      return res.status(200).json({ok:true,result});
+    }catch(error){
+      logger.error('Business Deal validation failed',error);
+      return res.status(400).json({
+        error:'BUSINESS_DEAL_VALIDATE_FAILED',
+        message:error instanceof Error?error.message:String(error),
+        details:error?.details??undefined
+      });
+    }
+  }
+);
 
 
 
