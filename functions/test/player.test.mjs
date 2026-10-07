@@ -132,6 +132,92 @@ test('player object visual inherits Media Library override from sibling scenario
  assert.equal(key.visualMedia.inherited,true);
 });
 
+test('player object visual accepts a media override keyed by logistics code',()=>{
+ const src=source();
+ src.gameObjects=src.gameObjects.map(o=>
+   o.externalId==='ITEM2'
+     ? {...o,logisticsCode:'SB-OBJ-005'}
+     : o
+ );
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.map(o=>
+   o.objectExternalId==='ITEM2'
+     ? {...o,holderType:'CHARACTER',holderExternalId:'CHAR_A'}
+     : o
+ );
+ const sess=session();
+ sess.scenarioVersion={
+   ...sess.scenarioVersion,
+   mediaOverridesJson:JSON.stringify({
+     'OBJECT:SB-OBJ-005':{
+       assetExternalId:'MEDIA_VOCAL_TONIC',
+       source:'https://example.test/vocal-tonic.png',
+       altText:'Flacon de tonic vocal',
+       mediaType:'IMAGE'
+     }
+   })
+ };
+
+ const out=shapePlayerPortal(
+   participant(),
+   sess,
+   src,
+   rt,
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const tonic=out.inventory.find(
+   o=>o.objectExternalId==='ITEM2'
+ );
+
+ assert.equal(
+   tonic.visualMedia.source,
+   'https://example.test/vocal-tonic.png'
+ );
+});
+
+test('player object visual falls back to the media of its linked clue',()=>{
+ const src=source();
+ src.mediaAssets=[
+   ...src.mediaAssets,
+   {
+     externalId:'MEDIA_LINKED_OBJECT',
+     mediaType:'IMAGE',
+     source:'/immersive/test/linked-object.png',
+     altText:'Linked object',
+     active:true
+   }
+ ];
+ src.clues=src.clues.map(c=>
+   c.externalId==='C2'
+     ? {...c,mediaExternalId:'MEDIA_LINKED_OBJECT'}
+     : c
+ );
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.map(o=>
+   o.objectExternalId==='ITEM2'
+     ? {...o,holderType:'CHARACTER',holderExternalId:'CHAR_A'}
+     : o
+ );
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   rt,
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const linked=out.inventory.find(
+   o=>o.objectExternalId==='ITEM2'
+ );
+
+ assert.equal(
+   linked.visualMedia.source,
+   '/immersive/test/linked-object.png'
+ );
+});
+
 test('Visual V1 exposes character portraits, relation portraits and object thumbnails',()=>{
  const out=shapePlayerPortal(participant(),session(),source(),runtime(),new Date('2026-09-21T18:05:00Z'));
  assert.equal(out.character.portrait.source,'/immersive/test/alice.png');
