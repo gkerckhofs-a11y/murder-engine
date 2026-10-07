@@ -568,6 +568,13 @@ function PlayerNotebook({portal}:{portal:Portal}){
               <small>{d.clueType||'INDICE'}</small>
               {d.owned&&<small className="ownedBadge">{tr(portal,'dans votre sac','in your bag')}</small>}
             </div>
+            {d.visualMedia?.source&&
+              <img
+                className="clueVisual"
+                src={d.visualMedia.source}
+                alt={d.visualMedia.altText||d.playerName}
+              />
+            }
             <strong>{d.playerName}</strong>
             <p>{d.playerText}</p>
             {d.immersiveDocument&&<ImmersiveDocument entry={d} language={portal.session?.language} buttonLabel={tr(portal,'Revoir le document original','View original document')} compact/>}
@@ -905,15 +912,19 @@ function PlayerBag({
                 <span className="bagOwnedBadge">✓ {tr(portal,'Dans votre sac','In your bag')}</span>
               </div>
 
-              {d.object?.visualMedia&&
+              {(d.object?.visualMedia||d.visualMedia)&&
                 <div className="bagLinkedObjectVisual">
                   <img
-                    src={d.object.visualMedia.source}
-                    alt={d.object.visualMedia.altText||d.object.name||d.playerName}
+                    src={(d.object?.visualMedia||d.visualMedia).source}
+                    alt={(d.object?.visualMedia||d.visualMedia).altText||d.object?.name||d.playerName}
                   />
                   <span>
-                    <small>{tr(portal,'Objet associé','Associated item')}</small>
-                    <strong>{d.object.name}</strong>
+                    <small>
+                      {d.object
+                        ? tr(portal,'Objet associé','Associated item')
+                        : tr(portal,'Indice illustré','Illustrated clue')}
+                    </small>
+                    <strong>{d.object?.name||d.playerName}</strong>
                   </span>
                 </div>
               }
