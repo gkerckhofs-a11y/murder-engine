@@ -1169,6 +1169,63 @@ function playerObjectView(session,source,mediaMap,objectMap,row){
   };
 }
 
+function clueVisualMedia(session,source,mediaMap,objectMap,clue){
+  if(!clue)return null;
+
+  const def=clue.objectExternalId
+    ? objectMap.get(clue.objectExternalId)
+    : null;
+
+  const overrideCandidates=[
+    ['CLUE',clue.externalId],
+    ['OBJECT',clue.objectExternalId],
+    ['OBJECT',def?.logisticsCode],
+    ['OBJECT',clue.logisticsCode],
+  ]
+    .map(([type,id])=>[type,String(id??'').trim()])
+    .filter(([,id])=>Boolean(id));
+
+  const overrideMedia=
+    overrideCandidates
+      .map(([type,id])=>mediaOverrideVisual(session,type,id))
+      .find(Boolean) ??
+    null;
+
+  const dedicatedMedia=
+    visualMedia(mediaMap,clue.mediaExternalId) ??
+    visualMedia(mediaMap,def?.mediaExternalId) ??
+    null;
+
+  const clueLooksLikeObject=
+    String(clue.clueType??'').trim().toUpperCase()==='OBJET' ||
+    Boolean(clue.objectExternalId) ||
+    Boolean(clue.logisticsCode);
+
+  const visualCode=String(
+    def?.visualArchetypeCode ??
+    objectVisualCode(
+      def ?? {
+        name:clue.playerName,
+        description:clue.playerText,
+        support:clue.support,
+      }
+    )
+  ).trim().toUpperCase();
+
+  const archetypeMedia=
+    clueLooksLikeObject
+      ? skinVisualMedia(
+          source,
+          mediaMap,
+          session,
+          'OBJECT',
+          visualCode
+        )
+      : null;
+
+  return overrideMedia ?? dedicatedMedia ?? archetypeMedia ?? null;
+}
+
 function immersiveDocumentForClue(clue, documentMap, mediaMap){
   if(!clue)return null;
   const doc=clue.documentExternalId?documentMap.get(clue.documentExternalId):null;
@@ -1311,6 +1368,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
           ? {
               ...clue,
               inBag:!clue.objectExternalId,
+              visualMedia:clueVisualMedia(session,source,mediaMap,objectMap,clue),
               immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap)
             }
           : null
@@ -1348,6 +1406,8 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
       clueType:c.clueType,
       support:c.support,
       presentationMode:c.presentationMode,
+      logisticsCode:c.logisticsCode??null,
+      visualMedia:clueVisualMedia(session,source,mediaMap,objectMap,c),
       immersiveDocument:immersiveDocumentForClue(c,documentMap,mediaMap),
       object:inventoryById.get(c.objectExternalId)??null,
       owned:true,
@@ -1833,6 +1893,14 @@ async function grantAutomaticLocationReward(loaded, locationExternalId, interact
       name:clue.playerName,
       text:clue.playerText,
       clueType:clue.clueType,
+      logisticsCode:clue.logisticsCode??null,
+      visualMedia:clueVisualMedia(
+        loaded.session,
+        loaded.source,
+        mediaMap,
+        objectMap,
+        clue
+      ),
       mode:isStaticLocationClue(clue)?'PERSISTENT':'TAKEABLE'
     }:null,
     object:objectView?{
