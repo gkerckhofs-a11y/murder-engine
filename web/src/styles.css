@@ -12979,3 +12979,31 @@ button.skinGalleryCard:disabled{
 .mediaPicker .mediaLibraryToolbar{order:3;}
 .mediaPicker .mediaAssetGrid{order:4;}
 .mediaPicker .mediaUpload{order:5;}
+
+
+.mediaSelectedActions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:0 0 auto;
+}
+
+.shell .mediaLibraryPanel .mediaAddButton{
+  min-height:32px;
+  padding:6px 11px;
+  border:1px solid #c69a49;
+  background:#3b3020;
+  color:#f2d28e;
+  font-weight:850;
+  white-space:nowrap;
+}
+
+.shell .mediaLibraryPanel .mediaAddButton:hover:not(:disabled){
+  background:#4a3b25;
+  border-color:#e0b968;
+}
+
+.mediaPicker .mediaUpload{order:2;}
+.mediaPicker .mediaExistingHead{order:3;}
+.mediaPicker .mediaLibraryToolbar{order:4;}
+.mediaPicker .mediaAssetGrid{order:5;}
