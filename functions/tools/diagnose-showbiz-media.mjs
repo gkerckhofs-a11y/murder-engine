@@ -172,6 +172,36 @@ for(const scenario of showbiz){
 }
 
 
+const RUNTIME_DIAG_QUERY=`
+query DiagnoseShowbizRuntime($sessionId: UUID!) {
+  sessionObjects(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      objectExternalId: {eq: "OBJ_SHW_COM_04"}
+    }
+  ) {
+    objectExternalId
+    holderType
+    holderExternalId
+    inPlay
+    identificationLevel
+    updatedAt
+  }
+  sessionClueDiscoveries(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      clueExternalId: {eq: "CLUE_SHW_COM_04"}
+    }
+  ) {
+    characterExternalId
+    clueExternalId
+    sourceInteractionExternalId
+    sourceRef
+    discoveredAt
+  }
+}
+`;
+
 const sessions=await listGameSessions();
 const showbizVersionIds=new Set(
   showbiz.flatMap(s=>s.versions.map(v=>v.id))
@@ -181,6 +211,18 @@ for(const summary of sessions.filter(s=>
   showbizVersionIds.has(s.scenarioVersion?.id)
 )){
   const detail=await getGameSession(summary.id);
+
+  const runtimeDiag=await read(
+    RUNTIME_DIAG_QUERY,
+    {sessionId:summary.id}
+  );
+
+  console.log('SHOWBIZ_RUNTIME_DIAG',JSON.stringify({
+    sessionId:summary.id,
+    status:summary.status,
+    tonicObjects:runtimeDiag.sessionObjects??[],
+    tonicDiscoveries:runtimeDiag.sessionClueDiscoveries??[],
+  },null,2));
 
   const rows=[];
 
