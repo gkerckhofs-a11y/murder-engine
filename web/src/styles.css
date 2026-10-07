@@ -13007,3 +13007,60 @@ button.skinGalleryCard:disabled{
 .mediaPicker .mediaExistingHead{order:3;}
 .mediaPicker .mediaLibraryToolbar{order:4;}
 .mediaPicker .mediaAssetGrid{order:5;}
+
+
+/* Live organizer priority: messaging stays visible before operational panels. */
+.liveCommunicationPanel{
+  border-color:#4b5d68;
+  background:linear-gradient(145deg,#182127,#12191e);
+}
+
+.liveCommunicationPanel .precastHead{
+  align-items:center;
+}
+
+.liveMessageComposer{
+  margin-top:14px;
+  padding:14px;
+  border:1px solid #53656f;
+  border-radius:12px;
+  background:#0f161a;
+}
+
+.liveMessageComposer .formGrid{
+  margin:10px 0;
+}
+
+.liveMessageComposer textarea{
+  min-height:88px;
+}
+
+.playerAccessLinks{
+  margin-top:12px;
+  border-top:1px solid #2e3b44;
+  padding-top:10px;
+}
+
+.playerAccessLinks summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  cursor:pointer;
+  color:#b9c7ce;
+  font-weight:800;
+}
+
+.playerAccessLinks summary b{
+  min-width:28px;
+  padding:3px 7px;
+  border-radius:999px;
+  background:#26323a;
+  color:#d9e2e7;
+  font-size:.7rem;
+  text-align:center;
+}
+
+.playerAccessLinks .playerLinkRows{
+  margin-top:10px;
+}
