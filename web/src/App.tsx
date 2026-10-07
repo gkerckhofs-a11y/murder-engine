@@ -649,6 +649,63 @@ function CreateSessionForm({version,onCreate}:{version:ScenarioVersionDetail;onC
   return <section className="sessionCta card sessionForm"><div><p className="eyebrow">NOUVELLE SESSION</p><h3>{version.scenario.title} · {version.variantName||`V${version.versionLabel}`}</h3><p>{version.genderComposition.label} · {genderProfileLabel(version.genderProfile)}</p></div><div className="formGrid"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label><label>Langue joueurs<select value={language} onChange={e=>setLanguage(e.target.value)}><option value="FR">Français</option><option value="EN">English</option></select></label></div><div className="formActions"><button className="secondary" onClick={()=>setOpen(false)}>Annuler</button><button disabled={!name.trim()||busy} onClick={async()=>{setBusy(true);try{await onCreate({name,scheduledAt,venue,language});}finally{setBusy(false);}}}>{busy?'Création…':'Créer et ouvrir'}</button></div></section>;
 }
 
+
+function OrganizerFold({
+  sessionId,
+  id,
+  title,
+  subtitle,
+  defaultOpen=true,
+  children,
+}:{
+  sessionId:string;
+  id:string;
+  title:string;
+  subtitle?:string;
+  defaultOpen?:boolean;
+  children:any;
+}){
+  const storageKey=`murderOrgaFold:${sessionId}:${id}`;
+  const [open,setOpen]=useState(defaultOpen);
+
+  useEffect(()=>{
+    try{
+      const stored=window.localStorage.getItem(storageKey);
+      setOpen(stored==null?defaultOpen:stored==='1');
+    }catch{
+      setOpen(defaultOpen);
+    }
+  },[storageKey,defaultOpen]);
+
+  function toggle(){
+    const next=!open;
+    setOpen(next);
+    try{
+      window.localStorage.setItem(storageKey,next?'1':'0');
+    }catch{}
+  }
+
+  return <section className={`orgaFold ${open?'open':'closed'}`}>
+    <button
+      type="button"
+      className="orgaFoldToggle"
+      aria-expanded={open}
+      onClick={toggle}
+    >
+      <span className="orgaFoldTitle">
+        <strong>{title}</strong>
+        {subtitle&&<small>{subtitle}</small>}
+      </span>
+      <span className="orgaFoldAction">
+        {open?'Masquer':'Afficher'} <b aria-hidden="true">{open?'▴':'▾'}</b>
+      </span>
+    </button>
+    <div className="orgaFoldBody" hidden={!open}>
+      {children}
+    </div>
+  </section>;
+}
+
 function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onPurge:(sessionId:string,name:string)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
   const [showArchived,setShowArchived]=useState(false);
   const listedSessions=showArchived?props.sessions:props.sessions.filter(s=>s.status!=='ARCHIVED');
@@ -670,12 +727,31 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
     }
   </section>;
 
-  const s=props.session; const archived=s.status==='ARCHIVED'; const assigned=new Map(s.participants.filter(p=>p.characterExternalId).map(p=>[p.characterExternalId!,p.id]));
+  const s=props.session;
+  const archived=s.status==='ARCHIVED';
+  const liveMode=['LIVE','PAUSED'].includes(s.status);
+  const assigned=new Map(s.participants.filter(p=>p.characterExternalId).map(p=>[p.characterExternalId!,p.id]));
   return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}<button className="backlink" onClick={props.onBack}>← Sessions</button>{props.loading?<section className="card emptyState">Chargement…</section>:<>
     <section className={`sessionHero ${archived?'archived':''}`}><div className="sessionHeroDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="sessionHeroMain"><p className="eyebrow">{s.scenarioVersion.scenario?.title} · V{s.scenarioVersion.versionLabel}</p><h2>{s.name||'Session'}</h2><p>{s.venue||'Lieu à définir'} · {s.language}</p></div><span className={`sessionStatus large ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></section>
     {!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
     <section className="metaStrip"><div><span>Participants</span><strong>{s.counts.participants}</strong></div><div><span>Castés</span><strong>{s.counts.assigned}</strong></div><div><span>Rôles disponibles</span><strong>{s.counts.playableCharacters}</strong></div><div><span>Sans rôle</span><strong>{s.counts.unassignedParticipants}</strong></div><div><span>Rôles libres</span><strong>{s.counts.unassignedCharacters}</strong></div></section>
-    {!archived&&<SessionPreparationPanel session={s} onApplied={()=>props.onOpen(s.id)} onMarkReady={()=>props.onStatus('READY')}/>}
+    {!archived&&<OrganizerFold
+      sessionId={s.id}
+      id="preparation"
+      title="Préparation de la session"
+      subtitle="Casting, vérifications et mise en état prête"
+      defaultOpen={!liveMode&&!s.runtimeInitializedAt}
+    >
+      <SessionPreparationPanel session={s} onApplied={()=>props.onOpen(s.id)} onMarkReady={()=>props.onStatus('READY')}/>
+    </OrganizerFold>}
+
+    <OrganizerFold
+      sessionId={s.id}
+      id="scenario-variant"
+      title="Variante de scénario"
+      subtitle="MASTER utilisé par cette session"
+      defaultOpen={false}
+    >
     <section className="card sessionVariantCard">
       <div>
         <p className="eyebrow">VARIANTE DE SCÉNARIO</p>
@@ -696,17 +772,48 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
         <strong>{s.scenarioVersion?.variantName || s.scenarioVersion?.versionLabel || '—'}</strong>
       </div>
     </section>
+    </OrganizerFold>
 
     {!archived&&s.runtimeInitializedAt&&
+      <OrganizerFold
+        sessionId={s.id}
+        id="player-communication"
+        title="Communication joueurs"
+        subtitle="Messages MJ, liens joueurs et suivi des ouvertures"
+        defaultOpen={liveMode}
+      >
       <PlayerAccessPanel
         session={s}
         onToggle={props.onPlayerAccess}
         onMessage={props.onPlayerMessage}
       />
+      </OrganizerFold>
     }
 
+    <OrganizerFold
+      sessionId={s.id}
+      id="session-lifecycle"
+      title="Gestion de la session"
+      subtitle="Archivage et suppression"
+      defaultOpen={false}
+    >
     <section className="card sessionLifecycle"><div><p className="eyebrow">GESTION DE LA SESSION</p><h3>{archived?'Session archivée':'Conserver ou supprimer'}</h3><p>{archived?'Elle est masquée de la liste active. Tu peux la réactiver en brouillon.':'Archive-la pour la conserver. En période de test, la suppression définitive efface aussi le runtime, les votes et les journaux.'}</p></div><div className="lifecycleButtons">{archived?<button className="secondary" onClick={()=>props.onArchive(false)}>Réactiver en brouillon</button>:<button className="secondary" onClick={()=>props.onArchive(true)}>Archiver la session</button>}<button className="danger" onClick={()=>props.onPurge(s.id,s.name||'Session')}>Supprimer définitivement (tests)</button></div></section>
-    {!archived&&['DRAFT','CASTING','READY'].includes(s.status)&&<section className="card sessionState"><div><p className="eyebrow">ÉTAT PRÉ-LIVE</p><h3>{statusLabel(s.status)}</h3><p>DRAFT = préparation · CASTING = attribution en cours · READY = distribution verrouillée et prête pour le briefing.</p></div><div className="statusButtons">{['DRAFT','CASTING','READY'].map(st=><button key={st} disabled={Boolean(s.runtimeInitializedAt)&&st!=='READY'} className={s.status===st?'active':''} onClick={()=>props.onStatus(st)}>{statusLabel(st)}</button>)}</div></section>}
+    </OrganizerFold>
+
+    {!archived&&['DRAFT','CASTING','READY'].includes(s.status)&&<OrganizerFold
+      sessionId={s.id}
+      id="session-state"
+      title="État pré-live"
+      subtitle={statusLabel(s.status)}
+      defaultOpen={false}
+    ><section className="card sessionState"><div><p className="eyebrow">ÉTAT PRÉ-LIVE</p><h3>{statusLabel(s.status)}</h3><p>DRAFT = préparation · CASTING = attribution en cours · READY = distribution verrouillée et prête pour le briefing.</p></div><div className="statusButtons">{['DRAFT','CASTING','READY'].map(st=><button key={st} disabled={Boolean(s.runtimeInitializedAt)&&st!=='READY'} className={s.status===st?'active':''} onClick={()=>props.onStatus(st)}>{statusLabel(st)}</button>)}</div></section></OrganizerFold>}
+    <OrganizerFold
+      sessionId={s.id}
+      id="gm-pack"
+      title="Pack MJ de session"
+      subtitle="Fiches, enveloppes, QR et installation"
+      defaultOpen={false}
+    >
     <section className="sessionPackShortcut card">
       <div>
         <p className="eyebrow">
@@ -733,11 +840,43 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
         📦 Ouvrir le Pack de session
       </button>
     </section>
+    </OrganizerFold>
 
-    <SessionIncarnationsPanel session={s}/>
-    <RuntimePanel session={s} runtime={props.runtime} loading={props.runtimeLoading} onInitialize={props.onInitializeRuntime}/>
+    <OrganizerFold
+      sessionId={s.id}
+      id="incarnations"
+      title="Incarnations de session"
+      subtitle="Personnages adaptés et fiches figées pour cette partie"
+      defaultOpen={!liveMode&&!s.runtimeInitializedAt}
+    >
+      <SessionIncarnationsPanel session={s}/>
+    </OrganizerFold>
+
+    <OrganizerFold
+      sessionId={s.id}
+      id="runtime"
+      title="Runtime de session"
+      subtitle="Ressources, objectifs, connaissances et objets"
+      defaultOpen={!liveMode&&!s.runtimeInitializedAt}
+    >
+      <RuntimePanel session={s} runtime={props.runtime} loading={props.runtimeLoading} onInitialize={props.onInitializeRuntime}/>
+    </OrganizerFold>
+
     {!archived&&s.runtimeInitializedAt&&<LivePanel session={s} live={props.live} loading={props.liveLoading} onControl={props.onLiveControl} onResource={props.onLiveResource} onState={props.onLiveState} onEvent={props.onLiveEvent} onInteractionMutation={props.onInteractionMutation}/>}
-    {!archived&&!s.runtimeInitializedAt?<AddParticipantForm onAdd={props.onAddParticipant}/>:!archived?<section className="card lockNotice"><strong>Préparation verrouillée</strong><p>Le runtime est initialisé : participants et casting ne peuvent plus être modifiés dans cette version.</p></section>:null}
+
+    {!archived&&!s.runtimeInitializedAt?
+      <OrganizerFold sessionId={s.id} id="add-participant" title="Ajouter un participant" defaultOpen={!liveMode}>
+        <AddParticipantForm onAdd={props.onAddParticipant}/>
+      </OrganizerFold>
+      :!archived?<section className="card lockNotice"><strong>Préparation verrouillée</strong><p>Le runtime est initialisé : participants et casting ne peuvent plus être modifiés dans cette version.</p></section>:null}
+
+    <OrganizerFold
+      sessionId={s.id}
+      id="casting"
+      title="Participants & rôles"
+      subtitle={`${s.counts.assigned}/${s.counts.participants} castés`}
+      defaultOpen={!liveMode}
+    >
     <section className="card castingBoard"><div className="paneHead"><div><p className="eyebrow">CASTING</p><h3>Participants & rôles</h3></div><span>{s.counts.assigned}/{s.counts.participants}</span></div>{s.participants.length===0?<p className="empty">Ajoute d’abord les participants.</p>:<div className="castingTable">{s.participants.map(p=><div className="castingRow" key={p.id}><div className="participantIdentity"><strong>{p.displayName}</strong><small>{p.email||'E-mail non renseigné'}{p.precastSubmittedAt?' · pré-casting ✓':''}</small><div className="participantBadges"><span className="ageBadge">{ageBracketLabel(p.ageBracket)}</span><span className="involvementBadge">{involvementLabel(p.desiredInvolvement)}</span></div></div><select
     disabled={Boolean(s.runtimeInitializedAt)||archived}
     value={p.characterExternalId??''}
@@ -768,6 +907,7 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
       </option>;
     })}
   </select><span className={`castDot ${p.characterExternalId?'done':''}`}>{p.characterExternalId?'✓':'…'}</span></div>)}</div>}</section>
+    </OrganizerFold>
   </>}</section>;
 }
 
@@ -1536,11 +1676,22 @@ function LivePanel({session,live,loading,onControl,onResource,onState,onEvent,on
         <strong>{new Set((live.logs??[]).filter((l:any)=>l.actionType==='LOCATION_EMPTY').map((l:any)=>l.refExternalId)).size}</strong>
       </div>
     </section>
+    <OrganizerFold sessionId={session.id} id="live-timeline" title="Timeline" subtitle="Événements de scénario" defaultOpen={true}>
     <section className="card liveTimeline"><div className="paneHead"><div><p className="eyebrow">TIMELINE</p><h3>Événements de scénario</h3></div><span>{live.events.filter(e=>e.status==='DONE').length}/{live.events.length}</span></div>{live.events.length===0?<p className="empty">Aucun événement structuré dans ce scénario.</p>:<div className="eventList">{live.events.map(e=>{const remain=e.dueElapsedSeconds==null?null:e.dueElapsedSeconds-elapsed;const urgent=e.status==='PENDING'&&remain!=null&&remain<=0;const soon=e.status==='PENDING'&&remain!=null&&remain>0&&remain<=600;return <article className={`eventRow ${e.status.toLowerCase()} ${urgent?'overdue':soon?'soon':''}`} key={e.externalId}><div className="eventWhen"><strong>{e.delayMinutes!=null?`+${e.delayMinutes} min`:'Manuel'}</strong>{remain!=null&&e.status==='PENDING'&&<small>{remain<=0?`retard ${formatElapsed(-remain)}`:`dans ${formatElapsed(remain)}`}</small>}</div><div className="eventBody"><strong>{e.title}</strong><p>{e.gmDescription}</p>{e.fallbackGm&&<small>Plan B : {e.fallbackGm}</small>}</div><div className="eventActions"><span className={`eventStatus ${e.status.toLowerCase()}`}>{e.status}</span>{running&&e.status==='PENDING'&&<><button onClick={()=>onEvent(e.externalId,'DONE')}>Fait ✓</button><button className="secondary" onClick={()=>onEvent(e.externalId,'SKIPPED')}>Ignorer</button></>}{running&&e.status!=='PENDING'&&<button className="secondary" onClick={()=>onEvent(e.externalId,'PENDING')}>Rouvrir</button>}</div></article>})}</div>}</section>
-    <InteractionPanel session={session} running={running} onMutated={onInteractionMutation}/>
-    <VotePanel session={session} running={running} onMutated={onInteractionMutation}/>
+    </OrganizerFold>
+
+    <OrganizerFold sessionId={session.id} id="live-actions" title="Actions, fouilles & objets" subtitle="Résolution et remises d’indices" defaultOpen={false}>
+      <InteractionPanel session={session} running={running} onMutated={onInteractionMutation}/>
+    </OrganizerFold>
+
+    <OrganizerFold sessionId={session.id} id="live-votes" title="Votes" subtitle="Scrutins & décisions collectives" defaultOpen={false}>
+      <VotePanel session={session} running={running} onMutated={onInteractionMutation}/>
+    </OrganizerFold>
+
+    <OrganizerFold sessionId={session.id} id="live-players" title="Joueurs live" subtitle="Ressources & états" defaultOpen={false}>
     <section className="card livePlayers"><div className="paneHead"><div><p className="eyebrow">JOUEURS LIVE</p><h3>Ressources & états</h3></div><span>{live.characters.length}</span></div><div className="livePlayerGrid">{live.characters.map(c=><article className="livePlayer" key={c.characterExternalId}><div className="livePlayerTitle"><div><strong>{c.characterName}</strong><small>{c.participantName?`Joueur : ${c.participantName}`:''}{c.participantName&&c.publicRole?' · ':''}{c.publicRole||''}</small></div>{c.states.length>0&&<span className="stateCount">{c.states.length} état{c.states.length>1?'s':''}</span>}</div><div className="liveResources">{c.resources.map(r=><div className="resourceControl" key={r.resourceExternalId}><span>{r.name}</span><div><button disabled={!running} className="mini" onClick={()=>onResource(c.characterExternalId,r.resourceExternalId,-1,'DELTA')}>−</button><strong>{r.currentValue}{r.maxValue!=null?`/${r.maxValue}`:''}</strong><button disabled={!running} className="mini" onClick={()=>onResource(c.characterExternalId,r.resourceExternalId,1,'DELTA')}>+</button></div></div>)}</div><StateControl character={c} definitions={live.stateDefinitions} disabled={!running} onState={onState}/></article>)}</div></section>
-    {live.logs.length>0&&<section className="card liveLog"><div className="paneHead"><div><p className="eyebrow">JOURNAL MJ</p><h3>Dernières actions</h3></div></div><div className="logList">{live.logs.slice(0,12).map(l=><div key={l.id}><time>{new Intl.DateTimeFormat('fr-BE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(l.createdAt))}</time><strong>{l.actionType.replaceAll('_',' ')}</strong><span>{l.characterExternalId||l.refExternalId||''}{l.beforeValue!=null||l.afterValue!=null?` · ${l.beforeValue??'—'} → ${l.afterValue??'—'}`:''}</span></div>)}</div></section>}
+    </OrganizerFold>
+    {live.logs.length>0&&<OrganizerFold sessionId={session.id} id="live-log" title="Journal MJ" subtitle="Dernières actions" defaultOpen={false}><section className="card liveLog"><div className="paneHead"><div><p className="eyebrow">JOURNAL MJ</p><h3>Dernières actions</h3></div></div><div className="logList">{live.logs.slice(0,12).map(l=><div key={l.id}><time>{new Intl.DateTimeFormat('fr-BE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(l.createdAt))}</time><strong>{l.actionType.replaceAll('_',' ')}</strong><span>{l.characterExternalId||l.refExternalId||''}{l.beforeValue!=null||l.afterValue!=null?` · ${l.beforeValue??'—'} → ${l.afterValue??'—'}`:''}</span></div>)}</div></section></OrganizerFold>}
   </section>;
 }
 
