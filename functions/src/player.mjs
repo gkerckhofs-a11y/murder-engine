@@ -234,12 +234,24 @@ function locationOwnerCharacter(location) {
   return match ? String(match[1]).trim() : null;
 }
 
-function persistentLocationClues(source,locationExternalId) {
+function isStaticLocationClue(clue) {
+  if(!clue || clue.objectExternalId)return false;
+
+  const mode=String(clue.presentationMode??'').trim().toUpperCase();
+
+  return [
+    'PERSISTENT',
+    'STATIC',
+    'PERMANENT',
+  ].includes(mode);
+}
+
+function staticLocationClues(source,locationExternalId) {
   return (source.clues??[]).filter(
     clue =>
       clue.active!==false &&
       clue.locationExternalId===locationExternalId &&
-      !clue.objectExternalId
+      isStaticLocationClue(clue)
   );
 }
 
@@ -249,13 +261,6 @@ function remainingLocationObjects(runtime,locationExternalId) {
       object.inPlay!==false &&
       object.holderType==='LOCATION' &&
       object.holderExternalId===locationExternalId
-  );
-}
-
-function locationIsGloballyEmpty(source,runtime,locationExternalId) {
-  return (
-    persistentLocationClues(source,locationExternalId).length===0 &&
-    remainingLocationObjects(runtime,locationExternalId).length===0
   );
 }
 
@@ -532,8 +537,9 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
   return (source.interactions??[]).filter(i=>i.active!==false&&(!i.abilityExternalId||abilityMap.has(i.abilityExternalId))).map(i=>{
     const ability=i.abilityExternalId?abilityMap.get(i.abilityExternalId):null;
     const uses=(runtime.sessionInteractionUses??[]).filter(u=>u.actorCharacterExternalId===characterExternalId&&u.interactionExternalId===i.externalId);
-    const maxUses=i.maxUses??ability?.maxUses??null;
-    const cooldownMinutes=i.cooldownMinutes??ability?.cooldownMinutes??null;
+    const repeatableLocationSearch=isLocationSearchInteraction(i);
+    const maxUses=repeatableLocationSearch?null:(i.maxUses??ability?.maxUses??null);
+    const cooldownMinutes=repeatableLocationSearch?null:(i.cooldownMinutes??ability?.cooldownMinutes??null);
     let cooldownRemainingSeconds=0;
     if(cooldownMinutes&&uses.length){const latest=Math.max(...uses.map(u=>new Date(u.createdAt).getTime()).filter(Number.isFinite));cooldownRemainingSeconds=Math.max(0,Math.ceil((Number(cooldownMinutes)*60000-(now.getTime()-latest))/1000));}
     const costRow=resources.find(r=>r.resourceExternalId===i.costResourceExternalId);
@@ -566,7 +572,7 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
         : noRumorTarget
           ? sessionText(session,'Aucune nouvelle rumeur disponible','No new rumour available')
           : null;
-    return {externalId:i.externalId,name:i.name,category:i.category,targetType:i.targetType,scanMode,resolution:i.resolution,directEnabled,blockedReason,clandestineKind,ability,costResourceExternalId:i.costResourceExternalId,costValue:i.costValue,currentCostResourceValue:costRow?.currentValue??null,diceCount:i.diceCount,diceSides:i.diceSides,difficulty:i.difficulty,usesCount:uses.length,maxUses,limitPerTarget:i.limitPerTarget??null,cooldownMinutes,cooldownRemainingSeconds,targets};
+    return {externalId:i.externalId,name:i.name,category:i.category,targetType:i.targetType,scanMode,resolution:i.resolution,directEnabled,blockedReason,clandestineKind,ability,costResourceExternalId:i.costResourceExternalId,costValue:i.costValue,currentCostResourceValue:costRow?.currentValue??null,diceCount:i.diceCount,diceSides:i.diceSides,difficulty:i.difficulty,usesCount:uses.length,maxUses,limitPerTarget:repeatableLocationSearch?null:(i.limitPerTarget??null),cooldownMinutes,cooldownRemainingSeconds,targets};
   });
 }
 
@@ -592,7 +598,7 @@ export function clandestineInteractionKind(interaction) {
 }
 
 
-export const LOCATION_SEARCH_COOLDOWN_SECONDS = 10 * 60;
+export const LOCATION_SEARCH_COOLDOWN_SECONDS = 0;
 
 export function isLocationSearchInteraction(interaction) {
   if (String(interaction?.targetType ?? '').toUpperCase() !== 'LOCATION') return false;
@@ -601,14 +607,8 @@ export function isLocationSearchInteraction(interaction) {
   return /(fouill|search|inspect|explor|chercher|investig)/.test(hay);
 }
 
-function globalLocationSearchCooldownRemaining(source, runtime, characterExternalId, now=new Date()) {
-  const searchIds=new Set(['SYSTEM_LOCATION_SEARCH', ...(source.interactions??[]).filter(isLocationSearchInteraction).map(i=>i.externalId)]);
-  const times=(runtime.sessionInteractionUses??[])
-    .filter(u=>u.actorCharacterExternalId===characterExternalId&&searchIds.has(u.interactionExternalId))
-    .map(u=>new Date(u.createdAt).getTime()).filter(Number.isFinite);
-  if(!times.length)return 0;
-  const latest=Math.max(...times);
-  return Math.max(0,Math.ceil((LOCATION_SEARCH_COOLDOWN_SECONDS*1000-(now.getTime()-latest))/1000));
+function globalLocationSearchCooldownRemaining() {
+  return 0;
 }
 export function isAutonomousLocationInteraction(interaction) {
   if (String(interaction?.targetType ?? '').toUpperCase() !== 'LOCATION' || interaction?.targetSecret) return false;
@@ -620,11 +620,85 @@ export function isAutonomousLocationInteraction(interaction) {
 }
 
 function availableLocationRewards(source,runtime,characterExternalId,locationExternalId) {
-  const discovered=new Set((runtime.sessionClueDiscoveries??[]).filter(d=>d.characterExternalId===characterExternalId).map(d=>d.clueExternalId));
-  const clues=(source.clues??[]).filter(c=>c.active!==false&&c.locationExternalId===locationExternalId&&!discovered.has(c.externalId)).sort((a,b)=>Number(Boolean(b.major))-Number(Boolean(a.major))||String(a.externalId).localeCompare(String(b.externalId)));
-  const objectDefs=new Map((source.gameObjects??[]).filter(o=>o.active!==false).map(o=>[o.externalId,o]));
-  const objects=(runtime.sessionObjects??[]).filter(o=>o.inPlay!==false&&o.holderType==='LOCATION'&&o.holderExternalId===locationExternalId&&objectDefs.has(o.objectExternalId)).sort((a,b)=>String(a.objectExternalId).localeCompare(String(b.objectExternalId)));
-  return {clues,objects,objectDefs};
+  const discoveredByCharacter=new Set(
+    (runtime.sessionClueDiscoveries??[])
+      .filter(d=>d.characterExternalId===characterExternalId)
+      .map(d=>d.clueExternalId)
+  );
+
+  const discoveredGlobally=new Set(
+    (runtime.sessionClueDiscoveries??[])
+      .map(d=>d.clueExternalId)
+  );
+
+  const objectDefs=new Map(
+    (source.gameObjects??[])
+      .filter(o=>o.active!==false)
+      .map(o=>[o.externalId,o])
+  );
+
+  const objects=remainingLocationObjects(runtime,locationExternalId)
+    .filter(o=>objectDefs.has(o.objectExternalId))
+    .sort((a,b)=>String(a.objectExternalId).localeCompare(String(b.objectExternalId)));
+
+  const objectIdsAtLocation=new Set(objects.map(o=>o.objectExternalId));
+
+  const locationClues=(source.clues??[])
+    .filter(clue=>
+      clue.active!==false &&
+      clue.locationExternalId===locationExternalId &&
+      !discoveredByCharacter.has(clue.externalId) &&
+      (!clue.objectExternalId || objectIdsAtLocation.has(clue.objectExternalId))
+    );
+
+  const takeableClues=locationClues
+    .filter(clue=>
+      !isStaticLocationClue(clue) &&
+      !discoveredGlobally.has(clue.externalId)
+    )
+    .sort((a,b)=>
+      Number(Boolean(b.major))-Number(Boolean(a.major)) ||
+      String(a.externalId).localeCompare(String(b.externalId))
+    );
+
+  const staticClues=locationClues
+    .filter(clue=>isStaticLocationClue(clue))
+    .sort((a,b)=>
+      Number(Boolean(b.major))-Number(Boolean(a.major)) ||
+      String(a.externalId).localeCompare(String(b.externalId))
+    );
+
+  const linkedObjectIds=new Set(
+    takeableClues
+      .map(clue=>clue.objectExternalId)
+      .filter(Boolean)
+  );
+
+  const standaloneObjects=objects.filter(
+    object=>!linkedObjectIds.has(object.objectExternalId)
+  );
+
+  return {
+    takeableClues,
+    staticClues,
+    clues:[...takeableClues,...staticClues],
+    objects,
+    standaloneObjects,
+    objectDefs,
+    rewardsRemaining:
+      takeableClues.length +
+      staticClues.length +
+      standaloneObjects.length,
+  };
+}
+
+function locationIsEmptyForCharacter(source,runtime,characterExternalId,locationExternalId) {
+  return availableLocationRewards(
+    source,
+    runtime,
+    characterExternalId,
+    locationExternalId
+  ).rewardsRemaining===0;
 }
 
 function locationActionShape(source,runtime,session,characterExternalId,locationExternalId,resources,now=new Date()) {
@@ -636,10 +710,11 @@ function locationActionShape(source,runtime,session,characterExternalId,location
     const uses=(runtime.sessionInteractionUses??[]).filter(u=>u.actorCharacterExternalId===characterExternalId&&u.interactionExternalId===i.externalId);
     const sameTarget=uses.filter(u=>u.targetExternalId===locationExternalId).length;
     const costBlocked=Boolean(i.costValue&&i.costResourceExternalId&&(i.currentCostResourceValue==null||Number(i.currentCostResourceValue)<Number(i.costValue)));
-    const maxBlocked=i.maxUses!=null&&uses.length>=Number(i.maxUses);
-    const targetBlocked=i.limitPerTarget!=null&&sameTarget>=Number(i.limitPerTarget);
-    const ownCooldown=Number(i.cooldownRemainingSeconds??0);
-    const searchCooldown=isLocationSearchInteraction(i)?searchCooldownRemainingSeconds:0;
+    const repeatableSearch=isLocationSearchInteraction(i);
+    const maxBlocked=!repeatableSearch&&i.maxUses!=null&&uses.length>=Number(i.maxUses);
+    const targetBlocked=!repeatableSearch&&i.limitPerTarget!=null&&sameTarget>=Number(i.limitPerTarget);
+    const ownCooldown=repeatableSearch?0:Number(i.cooldownRemainingSeconds??0);
+    const searchCooldown=0;
     const cooldownRemainingSeconds=Math.max(ownCooldown,searchCooldown);
     const cooldownBlocked=cooldownRemainingSeconds>0;
     const blockedReason=session.status!=='LIVE'
@@ -669,9 +744,9 @@ function locationActionShape(source,runtime,session,characterExternalId,location
           : searchCooldownRemainingSeconds>0
             ? sessionText(session,'Nouvelle fouille disponible dans quelques minutes','Next search available in a few minutes')
             : null;
-    actions.push({externalId:'SYSTEM_LOCATION_SEARCH',name:sessionText(session,'Fouiller','Search'),category:'INVESTIGATION',targetType:'LOCATION',resolution:'AUTO',validation:'AUTO',costResourceExternalId:'RES_PA',costValue:1,currentCostResourceValue:pa?.currentValue??null,diceCount:0,diceSides:0,difficulty:null,usesCount:(runtime.sessionInteractionUses??[]).filter(u=>u.actorCharacterExternalId===characterExternalId&&u.interactionExternalId==='SYSTEM_LOCATION_SEARCH'&&u.targetExternalId===locationExternalId).length,maxUses:null,cooldownMinutes:10,cooldownRemainingSeconds:searchCooldownRemainingSeconds,searchCooldownRemainingSeconds,targetExternalId:locationExternalId,autonomous:true,systemFallback:true,available:!blockedReason,blockedReason});
+    actions.push({externalId:'SYSTEM_LOCATION_SEARCH',name:sessionText(session,'Fouiller','Search'),category:'INVESTIGATION',targetType:'LOCATION',resolution:'AUTO',validation:'AUTO',costResourceExternalId:'RES_PA',costValue:1,currentCostResourceValue:pa?.currentValue??null,diceCount:0,diceSides:0,difficulty:null,usesCount:(runtime.sessionInteractionUses??[]).filter(u=>u.actorCharacterExternalId===characterExternalId&&u.interactionExternalId==='SYSTEM_LOCATION_SEARCH'&&u.targetExternalId===locationExternalId).length,maxUses:null,cooldownMinutes:null,cooldownRemainingSeconds:0,searchCooldownRemainingSeconds,targetExternalId:locationExternalId,autonomous:true,systemFallback:true,available:!blockedReason,blockedReason});
   }
-  return {location,actions,rewardsRemaining:rewards.clues.length+rewards.objects.length,searchCooldownRemainingSeconds};
+  return {location,actions,rewardsRemaining:rewards.rewardsRemaining,searchCooldownRemainingSeconds};
 }
 
 function playerVotes(source,runtime,session,characterExternalId) {
@@ -1317,12 +1392,21 @@ async function executeSystemLocationSearch(loaded, locationExternalId, {executor
 async function grantAutomaticLocationReward(loaded, locationExternalId, interactionExternalId, {clueReveal=revealClueToCharacter,objectTransfer=transferSessionObject}={}) {
   const actor=loaded.participant.characterExternalId;
   const rewards=availableLocationRewards(loaded.source,loaded.runtime,actor,locationExternalId);
-  const clue=rewards.clues[0]??null;
+
+  let clue=rewards.takeableClues[0]??null;
   let objectRow=null;
-  if(clue?.objectExternalId) objectRow=rewards.objects.find(o=>o.objectExternalId===clue.objectExternalId)??null;
-  else if(!clue) objectRow=rewards.objects[0]??null;
+
+  if(clue?.objectExternalId){
+    objectRow=rewards.objects.find(
+      o=>o.objectExternalId===clue.objectExternalId
+    )??null;
+  }else if(!clue && rewards.standaloneObjects.length){
+    objectRow=rewards.standaloneObjects[0];
+  }else if(!clue){
+    clue=rewards.staticClues[0]??null;
+  }
   if(clue) await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceInteractionExternalId:interactionExternalId,sourceRef:locationExternalId,note:sessionText(loaded.session,'Découverte automatique via QR','Automatic discovery via QR')});
-  if(objectRow) await objectTransfer(loaded.session.id,{objectExternalId:objectRow.objectExternalId,holderType:'CHARACTER',holderExternalId:actor,note:`Ramassé lors de la fouille de ${locationExternalId}`});
+  if(objectRow) await objectTransfer(loaded.session.id,{objectExternalId:objectRow.objectExternalId,holderType:'CHARACTER',holderExternalId:actor,note:sessionText(loaded.session,`Ramassé lors de la fouille de ${locationExternalId}`,`Picked up while searching ${locationExternalId}`)});
   const objectDef=objectRow?rewards.objectDefs.get(objectRow.objectExternalId):null;
   return {
     kind:clue&&objectRow?'CLUE_OBJECT':clue?'CLUE':objectRow?'OBJECT':'NONE',
@@ -1331,7 +1415,7 @@ async function grantAutomaticLocationReward(loaded, locationExternalId, interact
       name:clue.playerName,
       text:clue.playerText,
       clueType:clue.clueType,
-      mode:clue.objectExternalId?'TAKEABLE':'PERSISTENT'
+      mode:isStaticLocationClue(clue)?'PERSISTENT':'TAKEABLE'
     }:null,
     object:objectRow?{
       externalId:objectRow.objectExternalId,
@@ -1348,7 +1432,7 @@ export async function getPlayerLocation(token,locationExternalId,{reader=default
   const resources=(loaded.runtime.sessionResources??[]).filter(r=>r.characterExternalId===actor);
   const shaped=locationActionShape(loaded.source,loaded.runtime,loaded.session,actor,String(locationExternalId??'').trim(),resources,now instanceof Date?now:new Date(now));
   const forbidden=locationOwnerCharacter(shaped.location)===actor;
-  const empty=locationIsGloballyEmpty(loaded.source,loaded.runtime,shaped.location.externalId);
+  const empty=locationIsEmptyForCharacter(loaded.source,loaded.runtime,actor,shaped.location.externalId);
   return {
     presentation:scenarioPresentation(loaded.session,loaded.source),
     session:{
@@ -1385,24 +1469,13 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
   if(ownerCharacterExternalId===actor)
     throw new Error('LOCATION_OWNED_BY_CHARACTER');
 
-  if(locationIsGloballyEmpty(
+  if(locationIsEmptyForCharacter(
     loaded.source,
     loaded.runtime,
+    actor,
     locationExternalId
   ))
     throw new Error('LOCATION_EMPTY');
-
-  const takeableObjectsBefore=
-    remainingLocationObjects(
-      loaded.runtime,
-      locationExternalId
-    ).length;
-
-  const persistentCluesCount=
-    persistentLocationClues(
-      loaded.source,
-      locationExternalId
-    ).length;
 
   const resources=(loaded.runtime.sessionResources??[]).filter(r=>r.characterExternalId===actor); const shaped=locationActionShape(loaded.source,loaded.runtime,loaded.session,actor,locationExternalId,resources,now instanceof Date?now:new Date(now));
   const action=shaped.actions.find(a=>a.externalId===interactionExternalId); if(!action) throw new Error('LOCATION_ACTION_NOT_AVAILABLE'); if(!action.available) throw new Error(action.blockedReason||'LOCATION_ACTION_BLOCKED');
@@ -1415,32 +1488,6 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
   }
   const reward=result.success?await grantAutomaticLocationReward(loaded,locationExternalId,result.interactionExternalId,{clueReveal,objectTransfer}):{kind:'NONE',clue:null,object:null};
 
-  const locationEmptied=
-    Boolean(
-      result.success &&
-      reward?.object &&
-      takeableObjectsBefore===1 &&
-      persistentCluesCount===0
-    );
-
-  if(locationEmptied){
-    await executor(
-      INSERT_PLAYER_ACTION_LOG_MUTATION,
-      {
-        data:{
-          gameSessionId:loaded.session.id,
-          actionType:'LOCATION_EMPTY',
-          characterExternalId:actor,
-          refExternalId:locationExternalId,
-          beforeValue:'1',
-          afterValue:'0',
-          deltaValue:-1,
-          note:sessionText(loaded.session,`Lieu vide : ${location.name}. Le MJ peut barrer ou retirer son QR.`,`Location cleared: ${location.name}. The GM can cross out or remove its QR code.`),
-          createdAt:nowIso(now)
-        }
-      }
-    );
-  }
   const language=String(loaded.session?.language??'FR').trim().toUpperCase();
   const english=language==='EN';
   const physicalPickup=Boolean(
