@@ -35,7 +35,7 @@ const workbook = () => ({
     INTRIGUES: [{ plot_id:'PLOT_1', titre:'Meurtre', type_intrigue:'MAIN', importance:'CRITICAL', resume_mj:'x', actif:'TRUE' }],
     OBJECTIFS: [{ objective_id:'OBJ_1', owner_type:'CHARACTER', owner_id:'CHAR_A', titre:'Comprendre', description:'Découvrir la vérité', type_objectif:'PERSONAL', secret:'TRUE', statut_initial:'ACTIVE', importance:'MAIN', actif:'TRUE' }],
     RELATIONS: [{ relation_id:'REL_1', character_a_id:'CHAR_A', character_b_id:'CHAR_B', type_relation:'ALLY', texte_a:'Je lui fais confiance.', texte_b:'Elle me protège.', visibilite:'PRIVATE', plot_id:'PLOT_1', actif:'TRUE' }],
-    OBJETS: [{ object_id:'ITEM_1', nom:'Clé', description:'Une clé', support:'PHYSICAL', owner_initial_type:'CHARACTER', owner_initial_id:'CHAR_A', transferable:'TRUE', volable:'TRUE', consommable:'FALSE', charges_initiales:1, critique:'FALSE', actif:'TRUE' }],
+    OBJETS: [{ object_id:'ITEM_1', nom:'Clé', description:'Une clé', support:'PHYSICAL', owner_initial_type:'CHARACTER', owner_initial_id:'CHAR_A', code_logistique:'SB-OBJ-005', transferable:'TRUE', volable:'TRUE', consommable:'FALSE', charges_initiales:1, critique:'FALSE', actif:'TRUE' }],
     RESSOURCES: [{ resource_id:'RES_PA', nom:'Points d’action', scope_type:'PLAYER', unite:'PA', valeur_defaut:5, valeur_max:5, mode_physique:'HYBRID', public:'TRUE', actif:'TRUE' }],
     ATTRIB_RESSOURCES: [{ resource_assignment_id:'RA_1', owner_type:'CHARACTER', owner_id:'CHAR_A', resource_id:'RES_PA', initial_value:6, max_override:6, notes:'test' }],
     ETATS: [{ state_id:'STATE_BLESSE', nom:'Blessé', description:'Blessure', duree_defaut_secondes:600, visible_porteur:'TRUE', visible_public:'FALSE', actif:'TRUE' }],
@@ -78,6 +78,7 @@ test('buildImportPlan maps narrative entities and relationships', () => {
   assert.equal(plan.clues.length,1);
   assert.equal(plan.clueFacts.length,1);
   assert.equal(plan.gameObjects[0].ownerInitialExternalId,'CHAR_A');
+  assert.equal(plan.gameObjects[0].logisticsCode,'SB-OBJ-005');
   assert.equal(plan.resources[0].defaultValue,5);
   assert.equal(plan.resourceAssignments[0].initialValue,6);
   assert.equal(plan.stateDefinitions[0].externalId,'STATE_BLESSE');
@@ -299,6 +300,7 @@ test('physical documents may still synthesize transferable GameObjects', () => {
   const object=plan.gameObjects.find(o=>o.externalId==='DOC_OBJ_DOC_PHYSICAL');
   assert.ok(object);
   assert.equal(object.ownerInitialExternalId,'CHAR_A');
+  assert.equal(object.logisticsCode,'D-02');
   assert.equal(object.transferable,true);
   assert.equal(object.stealable,true);
 });
