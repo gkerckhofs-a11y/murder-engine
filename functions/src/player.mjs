@@ -1598,8 +1598,8 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
     body=
       discovery +
       (english
-        ? `Physical evidence unlocked: ${reward.object.name}. Show pickup code ${reward.object.logisticsCode} to the Game Master to receive the physical prop.`
-        : `Objet physique débloqué : ${reward.object.name}. Présentez le code ${reward.object.logisticsCode} au Maître du Jeu pour recevoir l'accessoire physique.`);
+        ? `Physical prop to collect: ${reward.object.name}. Go to the Game Master (GM) now and show pickup code ${reward.object.logisticsCode} to receive the physical item.`
+        : `Objet physique à récupérer : ${reward.object.name}. Allez maintenant voir le Maître du Jeu (GM) et montrez-lui le code ${reward.object.logisticsCode} pour recevoir l’objet.`);
   }else if(reward.kind==='CLUE_OBJECT'){
     body=english
       ? `You discover ${reward.clue.name} and receive ${reward.object.name}. The clue is saved in your Notebook and the item is now in your Bag.`
@@ -1619,7 +1619,7 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
   }
 
   const notificationTitle=physicalPickup
-    ? (english?'Physical prop ready':'Objet physique à retirer')
+    ? (english?'Collect your prop from the GM':'Objet à récupérer auprès du GM')
     : location.name;
 
   await executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:actor,kind:physicalPickup?'PHYSICAL_PICKUP':'LOCATION',title:notificationTitle,body,priority:physicalPickup?'IMPORTANT':'NORMAL',refExternalId:physicalPickup?reward.object.externalId:locationExternalId,createdAt:nowIso(now),readAt:null}});
