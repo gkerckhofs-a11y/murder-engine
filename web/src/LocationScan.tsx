@@ -365,7 +365,7 @@ export default function LocationScan({locationExternalId}:{locationExternalId:st
       </section>
     }
 
-    {cooldown>0&&
+    {cooldown>0&&!data.empty&&!data.forbidden&&
       <section className="playerCard searchCooldownCard">
         <p className="eyebrow">{tx(language,'PROCHAINE FOUILLE','NEXT SEARCH')}</p>
         <div className="searchCountdown">{formatCountdown(cooldown)}</div>
