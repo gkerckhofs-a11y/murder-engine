@@ -439,15 +439,17 @@ export default function App() {
   if (publicPrecastToken) return <PublicPrecastView token={publicPrecastToken}/>;
   if (publicPlayerToken) return <PlayerPortal token={publicPlayerToken}/>;
 
-  return <main className="shell">
-    <header className="topbar">
+  const liveOpsActive=view==='sessions'&&Boolean(session&&['LIVE','PAUSED'].includes(session.status));
+
+  return <main className={'shell '+(liveOpsActive?'liveOpsActive':'')}>
+    {!liveOpsActive&&<header className="topbar">
       <div><p className="eyebrow">LUDIFICATEUR</p><h1>Murder Engine</h1><p className="subtitle">Scénarios, sessions & casting assisté — V1.6.1</p></div>
       <nav className="mainnav" aria-label="Navigation principale">
         <button className={view==='library'?'active':''} onClick={()=>setView('library')}>Scénarios</button>
         <button className={view==='sessions'?'active':''} onClick={()=>{setView('sessions');void loadSessions();}}>Sessions</button>
         <button className={view==='import'?'active':''} onClick={()=>{setImportTargetScenario(null);choose(null);setView('import');}}>Importer</button>
       </nav>
-    </header>
+    </header>}
 
     {view === 'library' && version && <div className="gmPackShortcut"><button onClick={()=>window.open(`/?gmPack=${encodeURIComponent(version.id)}`,'_blank')}>📦 Ouvrir le Pack MJ</button></div>}
 
@@ -594,10 +596,15 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
   const [showArchived,setShowArchived]=useState(false);
   const listedSessions=showArchived?props.sessions:props.sessions.filter(s=>s.status!=='ARCHIVED');
 
-  if(!props.session) return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}<div className="sectionhead"><div><p className="eyebrow">EXPLOITATION</p><h2>Sessions</h2><p>La date est mise en avant pour identifier rapidement chaque prestation.</p></div><div className="sessionListActions"><button className={showArchived?'active secondary':'secondary'} onClick={()=>setShowArchived(v=>!v)}>{showArchived?'Masquer les archivées':'Voir les archivées'}</button><button className="secondary" onClick={props.onReload}>Actualiser</button></div></div>{listedSessions.length===0?<section className="card emptyState"><strong>{showArchived?'Aucune session.':'Aucune session active.'}</strong><p>Crée-la depuis une version de scénario.</p></section>:<div className="scenarioGrid">{listedSessions.map(s=><article className={`scenarioCard sessionCard ${s.status==='ARCHIVED'?'archived':''}`} key={s.id}><div className="sessionCardDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="scenarioTitleRow"><div><span className="micro">{s.scenarioVersion?.scenario?.title??'Scénario'}</span><h3>{s.name||'Session'}</h3></div><span className={`sessionStatus ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></div><p className="sessionMeta">{s.venue||'Lieu à définir'}</p><div className="sessionProgress"><span>{s.counts.assigned}/{s.counts.participants} castés</span><progress max={Math.max(1,s.counts.participants)} value={s.counts.assigned}/></div><button className="wide secondary" onClick={()=>props.onOpen(s.id)}>Ouvrir la préparation</button></article>)}</div>}</section>;
+  if(!props.session) return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}<div className="sectionhead"><div><p className="eyebrow">EXPLOITATION</p><h2>Sessions</h2><p>La date est mise en avant pour identifier rapidement chaque prestation.</p></div><div className="sessionListActions"><button className={showArchived?'active secondary':'secondary'} onClick={()=>setShowArchived(v=>!v)}>{showArchived?'Masquer les archivées':'Voir les archivées'}</button><button className="secondary" onClick={props.onReload}>Actualiser</button></div></div>{listedSessions.length===0?<section className="card emptyState"><strong>{showArchived?'Aucune session.':'Aucune session active.'}</strong><p>Crée-la depuis une version de scénario.</p></section>:<div className="scenarioGrid">{listedSessions.map(s=><article className={`scenarioCard sessionCard ${s.status==='ARCHIVED'?'archived':''}`} key={s.id}><div className="sessionCardDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="scenarioTitleRow"><div><span className="micro">{s.scenarioVersion?.scenario?.title??'Scénario'}</span><h3>{s.name||'Session'}</h3></div><span className={`sessionStatus ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></div><p className="sessionMeta">{s.venue||'Lieu à définir'}</p><div className="sessionProgress"><span>{s.counts.assigned}/{s.counts.participants} castés</span><progress max={Math.max(1,s.counts.participants)} value={s.counts.assigned}/></div><button className="wide secondary" onClick={()=>props.onOpen(s.id)}>{['LIVE','PAUSED'].includes(s.status)?'Ouvrir le poste MJ':s.status==='FINISHED'?'Voir le bilan':'Ouvrir la préparation'}</button></article>)}</div>}</section>;
 
   const s=props.session; const archived=s.status==='ARCHIVED'; const assigned=new Map(s.participants.filter(p=>p.characterExternalId).map(p=>[p.characterExternalId!,p.id]));
   const deleteLocked=Boolean(s.runtimeInitializedAt||s.startedAt||s.finishedAt);
+  const liveMode=!archived&&['LIVE','PAUSED'].includes(s.status);
+  const openedPlayers=s.participants.filter(p=>p.active!==false&&p.characterExternalId&&(p.playerFirstOpenedAt||p.playerLastOpenedAt)).length;
+  const activePlayers=s.participants.filter(p=>p.active!==false&&p.characterExternalId).length;
+  const remainingPa=(props.live?.characters??[]).reduce((total,c)=>total+Number(c.resources.find(r=>r.resourceExternalId==='RES_PA')?.currentValue??0),0);
+  const liveAlerts=(props.live?.alerts.overdueEvents??0)+(props.live?.alerts.soonEvents??0);
   return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}<button className="backlink" onClick={props.onBack}>← Sessions</button>{props.loading?<section className="card emptyState">Chargement…</section>:<>
     <section className={`sessionHero ${archived?'archived':''}`}><div className="sessionHeroDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="sessionHeroMain"><p className="eyebrow">{s.scenarioVersion.scenario?.title} · V{s.scenarioVersion.versionLabel}</p><h2>{s.name||'Session'}</h2><p>{s.venue||'Lieu à définir'} · {s.language}</p></div><span className={`sessionStatus large ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></section>
     {!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
