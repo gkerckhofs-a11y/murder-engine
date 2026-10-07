@@ -172,13 +172,14 @@ export default function PlayerPortal({token}:{token:string}){
     {flash&&<p className="playerFlash">{flash}</p>}{error&&<p className="playerError">{error}</p>}
     {tab==='fiche'&&<PlayerSheet portal={portal} busy={busy} onRead={()=>void act(()=>postJson('/api/player/briefing/read',{token}))}/>} 
     {tab==='carnet'&&<PlayerNotebook portal={portal}/>} 
-    {tab==='actions'&&<PlayerActions token={token} portal={portal} busy={busy} onRefresh={()=>load(false)} onExecute={async(interactionExternalId,targetExternalId,requestOnly)=>{
+    {tab==='actions'&&<PlayerActions token={token} portal={portal} busy={busy} onRefresh={()=>load(false)} onExecute={async(interactionExternalId,targetExternalId,requestOnly,options)=>{
       const response=await act(
         ()=>postJson('/api/player/interaction',{
           token,
           interactionExternalId,
           targetExternalId,
-          requestOnly
+          requestOnly,
+          offeredObjectExternalId:options?.offeredObjectExternalId??null
         }),
         requestOnly?tr(portal,'Demande envoyée au MJ ✓','Request sent to GM ✓'):''
       );
@@ -195,9 +196,15 @@ export default function PlayerPortal({token}:{token:string}){
               : tr(portal,'Échec','Failure'),
           body:r?.rumor?.text
             ? String(r.rumor.text)
-            : Boolean(r?.success)
-              ? tr(portal,'Votre action a réussi. Les effets ont été appliqués à votre personnage.','Your action succeeded. The effects have been applied to your character.')
-              : tr(portal,'Votre tentative échoue. Aucun effet positif n’est appliqué.','Your attempt failed. No positive effect was applied.')
+            : r?.pending
+              ? tr(
+                  portal,
+                  'Action lancée. La cible doit maintenant effectuer son choix dans son interface.',
+                  'Action started. The target must now make their choice in their interface.'
+                )
+              : Boolean(r?.success)
+                ? tr(portal,'Votre action a réussi. Les effets ont été appliqués à votre personnage.','Your action succeeded. The effects have been applied to your character.')
+                : tr(portal,'Votre tentative échoue. Aucun effet positif n’est appliqué.','Your attempt failed. No positive effect was applied.')
         });
       }
 
@@ -597,7 +604,7 @@ function isSearchLocationAction(i:any){
 }
 function playerCountdown(total:number){const sec=Math.max(0,Math.floor(total));return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;}
 
-function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:string;portal:Portal;busy:boolean;onExecute:(id:string,target:string|null,requestOnly:boolean)=>void;onRefresh:()=>Promise<void>;onVote:(id:string,round:number,selected:string[])=>void}){
+function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:string;portal:Portal;busy:boolean;onExecute:(id:string,target:string|null,requestOnly:boolean,options?:{offeredObjectExternalId?:string|null})=>Promise<any>|void;onRefresh:()=>Promise<void>;onVote:(id:string,round:number,selected:string[])=>void}){
   const [targets,setTargets]=useState<Record<string,string>>({});
   const [scannerOpen,setScannerOpen]=useState(false);
   const [scannedLocation,setScannedLocation]=useState<string|null>(null);
@@ -608,6 +615,9 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
   const [localError,setLocalError]=useState('');
   const [searchCooldown,setSearchCooldown]=useState(Number(portal.searchCooldownRemainingSeconds??0));
   const [paPrompt,setPaPrompt]=useState<PaPrompt|null>(null);
+  const [negotiationOffers,setNegotiationOffers]=useState<Record<string,string>>({});
+  const [abilityRequestSelections,setAbilityRequestSelections]=useState<Record<string,string>>({});
+  const [abilityRequestBusy,setAbilityRequestBusy]=useState(false);
   useEffect(()=>setSearchCooldown(Number(portal.searchCooldownRemainingSeconds??0)),[portal.searchCooldownRemainingSeconds]);
   useEffect(()=>{if(searchCooldown<=0)return;const id=window.setInterval(()=>setSearchCooldown(v=>Math.max(0,v-1)),1000);return()=>window.clearInterval(id);},[searchCooldown>0]);
 
@@ -627,6 +637,30 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     catch(e){setLocalError(e instanceof Error?e.message:String(e));}finally{setClandestineBusy(false);}
   }
 
+  async function respondAbilityRequest(request:any){
+    const selectionExternalId=abilityRequestSelections[request.grantToken]||'';
+    if(!selectionExternalId)return;
+    setAbilityRequestBusy(true);
+    setLocalError('');
+    try{
+      await postJson('/api/player/interaction',{
+        token,
+        grantToken:request.grantToken,
+        selectionExternalId
+      });
+      setAbilityRequestSelections(v=>{
+        const next={...v};
+        delete next[request.grantToken];
+        return next;
+      });
+      await onRefresh();
+    }catch(e){
+      setLocalError(e instanceof Error?e.message:String(e));
+    }finally{
+      setAbilityRequestBusy(false);
+    }
+  }
+
   const visibleInteractions=(portal.interactions??[]).filter((i:any)=>!isSearchLocationAction(i));
   const characterInteractions=visibleInteractions.filter((i:any)=>['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase()));
   const otherInteractions=visibleInteractions.filter((i:any)=>!['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase()));
@@ -641,7 +675,10 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     const needsTarget=Boolean(i.targets?.length>0);
     const targetId=targets[i.externalId]||'';
     const targetInfo=(i.targets??[]).find((t:any)=>t.id===targetId);
-    const disabled=busy||(!i.directEnabled&&!requestable)||(needsTarget&&!targetId)||i.cooldownRemainingSeconds>0;
+    const negotiationOfferId=negotiationOffers[i.externalId]||'';
+    const negotiationEvidence=(portal.inventory??[]).filter((o:any)=>o.transferable===true);
+    const needsNegotiationOffer=i.specialKind==='NEGOTIATION';
+    const disabled=busy||(!i.directEnabled&&!requestable)||(needsTarget&&!targetId)||(needsNegotiationOffer&&!negotiationOfferId)||i.cooldownRemainingSeconds>0;
     const modeLabel=scanMode==='DISCRET'
       ? tr(portal,'Discrètement','Discreetly')
       : scanMode==='SELECT'
@@ -694,8 +731,21 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
           {i.targets.map((t:any)=><option key={t.id} value={t.id}>{t.label}{t.subtitle?` — ${t.subtitle}`:''}</option>)}
         </select>}
 
+        {needsNegotiationOffer&&<div className="abilityOfferPicker">
+          <small>{tr(portal,'Preuve que vous mettez dans l’échange','Evidence you put into the exchange')}</small>
+          <select value={negotiationOfferId} onChange={e=>setNegotiationOffers(v=>({...v,[i.externalId]:e.target.value}))}>
+            <option value="">{tr(portal,'Choisir une preuve…','Choose evidence…')}</option>
+            {negotiationEvidence.map((o:any)=><option key={o.objectExternalId} value={o.objectExternalId}>{o.name}</option>)}
+          </select>
+        </div>}
+
         <button className={i.directEnabled?'playerPrimary playActionCta':'playerSecondary playActionCta'} disabled={disabled} onClick={()=>{
-          const run=()=>onExecute(i.externalId,targetId||null,requestable);
+          const run=()=>onExecute(
+            i.externalId,
+            targetId||null,
+            requestable,
+            {offeredObjectExternalId:needsNegotiationOffer?negotiationOfferId:null}
+          );
           if(requestable)run(); else withPaConfirmation(i,run);
         }}>
           {i.directEnabled?tr(portal,'Lancer l’action','Start action'):requestable?tr(portal,'Demander au MJ','Ask GM'):(i.blockedReason||tr(portal,'Indisponible','Unavailable'))}
@@ -733,6 +783,64 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     </section>
 
     {localError&&<p className="playerError">{localError}</p>}
+
+    {(portal.pendingAbilityRequests??[]).length>0&&<section className="playerCard playMainCard abilityRequestsCard">
+      <div className="playerSectionHead">
+        <div>
+          <p className="playerSectionKicker">{tr(portal,'RÉPONSE REQUISE','RESPONSE REQUIRED')}</p>
+          <h2>{tr(portal,'Une compétence vous cible','A skill targets you')}</h2>
+        </div>
+        <span>{portal.pendingAbilityRequests.length}</span>
+      </div>
+      <div className="playActionList">
+        {portal.pendingAbilityRequests.map((request:any)=>{
+          const selection=abilityRequestSelections[request.grantToken]||'';
+          const isCharm=request.kind==='CHARM';
+          return <article className="playerAction playActionCard abilityRequestCard" key={request.grantToken}>
+            <div className="playActionHeader">
+              <div>
+                <strong>{isCharm?tr(portal,'Charm','Charm'):tr(portal,'Négociation','Negotiation')}</strong>
+                <small>{request.actorName}</small>
+              </div>
+            </div>
+            <p className="playActionDescription">
+              {isCharm
+                ? tr(
+                    portal,
+                    'Cette personne utilise son charme sur vous. Vous devez choisir une information que vous connaissez à lui révéler.',
+                    'This person uses Charm on you. You must choose one piece of information you know to reveal.'
+                  )
+                : tr(
+                    portal,
+                    'Cette personne impose un échange de preuves. Choisissez la preuve que vous lui remettez.',
+                    'This person forces an evidence exchange. Choose the evidence you give them.'
+                  )}
+            </p>
+            {!isCharm&&request.offeredObject&&<div className="abilityOfferSummary">
+              <small>{tr(portal,'Vous recevrez','You will receive')}</small>
+              <strong>{request.offeredObject.name}</strong>
+              {request.offeredObject.description&&<span>{request.offeredObject.description}</span>}
+            </div>}
+            <select value={selection} onChange={e=>setAbilityRequestSelections(v=>({...v,[request.grantToken]:e.target.value}))}>
+              <option value="">{isCharm?tr(portal,'Choisir une information…','Choose information…'):tr(portal,'Choisir une preuve…','Choose evidence…')}</option>
+              {request.options.map((option:any)=>{
+                const id=isCharm?option.factExternalId:option.objectExternalId;
+                const label=isCharm?option.title:option.name;
+                return <option key={id} value={id}>{label}</option>;
+              })}
+            </select>
+            {selection&&isCharm&&<p className="abilityChoicePreview">{request.options.find((o:any)=>o.factExternalId===selection)?.text}</p>}
+            <button
+              className="playerPrimary playActionCta"
+              disabled={abilityRequestBusy||!selection}
+              onClick={()=>void respondAbilityRequest(request)}
+            >
+              {isCharm?tr(portal,'Révéler cette information','Reveal this information'):tr(portal,'Effectuer l’échange','Complete exchange')}
+            </button>
+          </article>;
+        })}
+      </div>
+    </section>}
 
     <section className="playerCard playMainCard">
       <div className="playerSectionHead"><div><p className="playerSectionKicker">{tr(portal,'INTERAGIR','INTERACT')}</p><h2>{tr(portal,'Agir sur quelqu’un','Act on someone')}</h2><p className="playSectionIntro">{tr(portal,'Choisissez votre action, puis scannez la personne concernée.','Choose your action, then scan the person concerned.')}</p></div><span>{characterInteractions.length}</span></div>
@@ -779,7 +887,11 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     {characterScanner&&<QrCharacterScanner title={characterScanner.scanMode==='DISCRET'?tr(portal,'Scanner la cible discrètement','Scan target discreetly'):tr(portal,'Scanner la cible','Scan target')} mode={characterScanner.scanMode} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setCharacterScanner(null)} onSelect={(target:any)=>{setTargets(v=>({...v,[characterScanner.interactionId]:target.characterExternalId}));setCharacterScanner(null);}}/>}
     {specialScanner&&<QrCharacterScanner title={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?tr(portal,'Scanner la cible discrètement','Scan target discreetly'):tr(portal,'Scanner la cible','Scan target')} mode={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT'} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setSpecialScanner(null)} onSelect={(target:any)=>{const interaction=specialScanner;setSpecialScanner(null);withPaConfirmation(interaction,()=>void attemptClandestine(interaction,target));}}/>}
     {paPrompt&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Confirmer la dépense de PA','Confirm AP spending')}><div className="qrScannerPanel paConfirmPanel"><p className="eyebrow">{tr(portal,'CONFIRMATION D’ACTION','ACTION CONFIRMATION')}</p><h2>{paPrompt.title}</h2><p>{tr(portal,'Voulez-vous dépenser','Do you want to spend')} <strong>{paPrompt.cost} {isEnglish(portal)?'AP':'PA'}</strong> {tr(portal,'pour tenter cette action ?','to attempt this action?')}</p>{paPrompt.current!=null&&<div className="paSpendPreview"><span>{tr(portal,'Avant','Before')} <strong>{paPrompt.current} {isEnglish(portal)?'AP':'PA'}</strong></span><span>{tr(portal,'Après','After')} <strong>{paPrompt.remaining} {isEnglish(portal)?'AP':'PA'}</strong></span></div>}<div className="giveConfirmActions"><button className="playerSecondary" onClick={()=>setPaPrompt(null)}>{tr(portal,'Non','No')}</button><button className="playerPrimary" onClick={()=>{const run=paPrompt.run;setPaPrompt(null);run();}}>{tr(portal,'Oui, continuer','Yes, continue')}</button></div></div></div>}
-    {clandestineResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Résultat action clandestine','Clandestine action result')}><div className="qrScannerPanel clandestineResultPanel"><p className="eyebrow">{tr(portal,'INTERACTION QR','QR INTERACTION')}</p><h2>{clandestineResult.success?tr(portal,'Réussite','Success'):tr(portal,'Échec','Failure')}</h2>{!clandestineResult.success?<p>{tr(portal,'La tentative échoue. La cible reçoit une notification anonyme indiquant qu’une action a été tentée sur elle.','The attempt fails. The target receives an anonymous notification that an action was attempted on them.')}</p>:clandestineResult.claimed?<p>{tr(portal,'Objet récupéré :','Item obtained:')} <strong>{clandestineResult.claimed.name}</strong>. {tr(portal,'La victime reçoit une notification sans identité de l’auteur.','The victim receives a notification without the author’s identity.')}</p>:<><p>{clandestineResult.kind==='STEAL'?tr(portal,'Choisissez maintenant un seul objet à subtiliser. Ce choix est à usage unique.','Choose one item to steal now. This choice can only be used once.'):tr(portal,'Vous identifiez les objets accessibles sur la cible.','You identify the items accessible on the target.')}</p>{clandestineResult.items?.length?<div className="clandestineItemList">{clandestineResult.items.map((o:any)=><article key={o.objectExternalId}><div><strong>{o.name}</strong>{o.description&&<small>{o.description}</small>}</div>{clandestineResult.kind==='STEAL'&&<button className="playerPrimary" disabled={clandestineBusy||!clandestineResult.grantToken} onClick={()=>void claimSteal(o)}>{tr(portal,'Voler cet objet','Steal this item')}</button>}</article>)}</div>:<p>{tr(portal,'Aucun objet accessible n’est trouvé.','No accessible item was found.')}</p>}</>}<button className="playerSecondary" disabled={clandestineBusy} onClick={()=>setClandestineResult(null)}>{tr(portal,'Fermer','Close')}</button></div></div>}
+    {clandestineResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Résultat action clandestine','Clandestine action result')}><div className="qrScannerPanel clandestineResultPanel"><p className="eyebrow">{tr(portal,'INTERACTION QR','QR INTERACTION')}</p><h2>{clandestineResult.success?tr(portal,'Réussite','Success'):tr(portal,'Échec','Failure')}</h2>{!clandestineResult.success?<p>{tr(portal,'La tentative échoue. La cible reçoit une notification anonyme indiquant qu’une action a été tentée sur elle.','The attempt fails. The target receives an anonymous notification that an action was attempted on them.')}</p>:clandestineResult.claimed?<p>{tr(portal,'Objet récupéré :','Item obtained:')} <strong>{clandestineResult.claimed.name}</strong>. {clandestineResult.kind==='INTIMIDATION'?tr(portal,'La cible est informée que vous avez pris cette preuve.','The target is informed that you took this evidence.'):tr(portal,'La victime reçoit une notification sans identité de l’auteur.','The victim receives a notification without the author’s identity.')}</p>:<><p>{clandestineResult.kind==='INTIMIDATION'
+          ? tr(portal,'Choisissez une preuve transférable à prendre à la cible.','Choose one transferable piece of evidence to take from the target.')
+          : clandestineResult.kind==='STEAL'
+            ? tr(portal,'Choisissez maintenant un seul objet à subtiliser. Ce choix est à usage unique.','Choose one item to steal now. This choice can only be used once.')
+            : tr(portal,'Vous identifiez les objets accessibles sur la cible.','You identify the items accessible on the target.')}</p>{clandestineResult.items?.length?<div className="clandestineItemList">{clandestineResult.items.map((o:any)=><article key={o.objectExternalId}><div><strong>{o.name}</strong>{o.description&&<small>{o.description}</small>}</div>{['STEAL','INTIMIDATION'].includes(clandestineResult.kind)&&<button className="playerPrimary" disabled={clandestineBusy||!clandestineResult.grantToken} onClick={()=>void claimSteal(o)}>{clandestineResult.kind==='INTIMIDATION'?tr(portal,'Prendre cette preuve','Take this evidence'):tr(portal,'Voler cet objet','Steal this item')}</button>}</article>)}</div>:<p>{tr(portal,'Aucun objet accessible n’est trouvé.','No accessible item was found.')}</p>}</>}<button className="playerSecondary" disabled={clandestineBusy} onClick={()=>setClandestineResult(null)}>{tr(portal,'Fermer','Close')}</button></div></div>}
   </div>;
 }
 
