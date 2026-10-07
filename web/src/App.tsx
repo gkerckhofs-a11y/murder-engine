@@ -717,7 +717,36 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
     {!archived&&s.runtimeInitializedAt&&<PlayerAccessPanel session={s} onToggle={props.onPlayerAccess} onMessage={props.onPlayerMessage}/>}
     {!archived&&s.runtimeInitializedAt&&<LivePanel session={s} live={props.live} loading={props.liveLoading} onControl={props.onLiveControl} onResource={props.onLiveResource} onState={props.onLiveState} onEvent={props.onLiveEvent} onInteractionMutation={props.onInteractionMutation}/>}
     {!archived&&!s.runtimeInitializedAt?<AddParticipantForm onAdd={props.onAddParticipant}/>:!archived?<section className="card lockNotice"><strong>Préparation verrouillée</strong><p>Le runtime est initialisé : participants et casting ne peuvent plus être modifiés dans cette version.</p></section>:null}
-    <section className="card castingBoard"><div className="paneHead"><div><p className="eyebrow">CASTING</p><h3>Participants & rôles</h3></div><span>{s.counts.assigned}/{s.counts.participants}</span></div>{s.participants.length===0?<p className="empty">Ajoute d’abord les participants.</p>:<div className="castingTable">{s.participants.map(p=><div className="castingRow" key={p.id}><div className="participantIdentity"><strong>{p.displayName}</strong><small>{p.email||'E-mail non renseigné'}{p.precastSubmittedAt?' · pré-casting ✓':''}</small><div className="participantBadges"><span className="ageBadge">{ageBracketLabel(p.ageBracket)}</span><span className="involvementBadge">{involvementLabel(p.desiredInvolvement)}</span></div></div><select disabled={Boolean(s.runtimeInitializedAt)||archived} value={p.characterExternalId??''} onChange={e=>props.onCast(p.id,e.target.value||null)}><option value="">— Aucun personnage —</option>{s.characters.map(c=><option key={c.externalId} value={c.externalId} disabled={assigned.has(c.externalId)&&assigned.get(c.externalId)!==p.id}>{c.name}{c.publicRole?` — ${c.publicRole}`:''}</option>)}</select><span className={`castDot ${p.characterExternalId?'done':''}`}>{p.characterExternalId?'✓':'…'}</span></div>)}</div>}</section>
+    <section className="card castingBoard"><div className="paneHead"><div><p className="eyebrow">CASTING</p><h3>Participants & rôles</h3></div><span>{s.counts.assigned}/{s.counts.participants}</span></div>{s.participants.length===0?<p className="empty">Ajoute d’abord les participants.</p>:<div className="castingTable">{s.participants.map(p=><div className="castingRow" key={p.id}><div className="participantIdentity"><strong>{p.displayName}</strong><small>{p.email||'E-mail non renseigné'}{p.precastSubmittedAt?' · pré-casting ✓':''}</small><div className="participantBadges"><span className="ageBadge">{ageBracketLabel(p.ageBracket)}</span><span className="involvementBadge">{involvementLabel(p.desiredInvolvement)}</span></div></div><select
+    disabled={Boolean(s.runtimeInitializedAt)||archived}
+    value={p.characterExternalId??''}
+    onChange={e=>{
+      const next=e.target.value||null;
+      if(next){
+        const holderId=assigned.get(next);
+        if(holderId&&holderId!==p.id){
+          const holderParticipant=s.participants.find(x=>x.id===holderId);
+          const currentRole=p.characterExternalId
+            ? s.characters.find(x=>x.externalId===p.characterExternalId)?.name||p.characterExternalId
+            : null;
+          const message=currentRole
+            ? `${s.characters.find(x=>x.externalId===next)?.name||next} est déjà attribué à ${holderParticipant?.displayName||'un autre joueur'}.\n\nContinuer échangera les rôles : ${holderParticipant?.displayName||'ce joueur'} recevra « ${currentRole} ».`
+            : `${s.characters.find(x=>x.externalId===next)?.name||next} est déjà attribué à ${holderParticipant?.displayName||'un autre joueur'}.\n\nContinuer déplacera ce rôle vers ${p.displayName} et laissera l’autre joueur sans rôle.`;
+          if(!window.confirm(message))return;
+        }
+      }
+      props.onCast(p.id,next);
+    }}
+  >
+    <option value="">— Aucun personnage —</option>
+    {s.characters.map(c=>{
+      const holderId=assigned.get(c.externalId);
+      const holder=holderId?s.participants.find(x=>x.id===holderId):null;
+      return <option key={c.externalId} value={c.externalId}>
+        {c.name}{c.publicRole?` — ${c.publicRole}`:''}{holder&&holder.id!==p.id?` · actuellement : ${holder.displayName}`:''}
+      </option>;
+    })}
+  </select><span className={`castDot ${p.characterExternalId?'done':''}`}>{p.characterExternalId?'✓':'…'}</span></div>)}</div>}</section>
   </>}</section>;
 }
 
@@ -1460,7 +1489,27 @@ function InteractionPanel({session,running,onMutated}:{session:SessionDetail;run
 
   async function execute(){if(!interaction||!actor)return;setBusy(true);setError('');try{const r=await postJson<{ok:boolean;result:InteractionResult}>('/api/sessions/interactions/execute',{sessionId:session.id,actorCharacterExternalId:actorId,interactionExternalId:interaction.externalId,targetExternalId:targetId||null,gmOutcome:interaction.resolution==='GM'?gmOutcome:null,note});setResult(r.result);await load();onMutated();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);} }
   async function reveal(){if(!clueId||!actorId)return;setBusy(true);setError('');try{await postJson('/api/sessions/interactions/clue',{sessionId:session.id,characterExternalId:actorId,clueExternalId:clueId,sourceInteractionExternalId:result?.interactionExternalId??null,sourceRef:result?.targetExternalId??null});await load();onMutated();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);} }
-  async function transfer(){if(!objectId||!holder)return;const [holderType,...parts]=holder.split(':');const holderExternalId=parts.join(':')||null;setBusy(true);setError('');try{await postJson('/api/sessions/interactions/object',{sessionId:session.id,objectExternalId:objectId,holderType,holderExternalId});await load();onMutated();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);} }
+  async function transfer(){
+    if(!objectId||!holder)return;
+    const [holderType,...parts]=holder.split(':');
+    const holderExternalId=parts.join(':')||null;
+    setBusy(true);
+    setError('');
+    try{
+      await organizerPostJson('/api/sessions/interactions/object',{
+        sessionId:session.id,
+        objectExternalId:objectId,
+        holderType,
+        holderExternalId
+      });
+      await load();
+      onMutated();
+    }catch(e){
+      setError(e instanceof Error?e.message:String(e));
+    }finally{
+      setBusy(false);
+    }
+  }
 
   if(loading&&!dashboard)return <section className="card interactionPanel">Chargement des interactions…</section>;
   return <section className="card interactionPanel">
