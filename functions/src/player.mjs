@@ -555,6 +555,57 @@ function availableRumorForTarget(source,runtime,actorCharacterExternalId,targetC
     .sort((a,b)=>String(a.externalId).localeCompare(String(b.externalId)))[0]??null;
 }
 
+const SPECIAL_PLAYER_ABILITY_KIND = new Map([
+  ['ABILITY_CHARM','CHARM'],
+  ['ABILITY_NEGOTIATION','NEGOTIATION'],
+  ['ABILITY_POLICE_INTIMIDATION','INTIMIDATION'],
+]);
+
+function specialPlayerAbilityKind(interaction) {
+  return SPECIAL_PLAYER_ABILITY_KIND.get(
+    String(interaction?.abilityExternalId??'').trim().toUpperCase()
+  )??null;
+}
+
+function transferableEvidenceForCharacter(source,runtime,characterExternalId) {
+  const defs=byId((source.gameObjects??[]).filter(o=>o.active!==false));
+  return (runtime.sessionObjects??[])
+    .filter(o=>
+      o.inPlay!==false &&
+      o.holderType==='CHARACTER' &&
+      o.holderExternalId===characterExternalId
+    )
+    .map(o=>({row:o,def:defs.get(o.objectExternalId)}))
+    .filter(x=>x.def?.transferable===true)
+    .map(x=>({
+      objectExternalId:x.row.objectExternalId,
+      name:x.def?.name??x.row.objectExternalId,
+      description:x.def?.description??null,
+    }));
+}
+
+function charmInformationForTarget(source,runtime,actorCharacterExternalId,targetCharacterExternalId) {
+  const facts=byId((source.facts??[]).filter(f=>f.active!==false));
+  const actorKnown=new Set(
+    (runtime.sessionKnowledges??[])
+      .filter(k=>k.characterExternalId===actorCharacterExternalId)
+      .map(k=>k.factExternalId)
+  );
+  return (runtime.sessionKnowledges??[])
+    .filter(k=>
+      k.characterExternalId===targetCharacterExternalId &&
+      !actorKnown.has(k.factExternalId)
+    )
+    .map(k=>({knowledge:k,fact:facts.get(k.factExternalId)}))
+    .filter(x=>Boolean(x.fact))
+    .map(x=>({
+      factExternalId:x.knowledge.factExternalId,
+      title:x.fact?.title??x.knowledge.factExternalId,
+      text:x.fact?.text??'',
+      category:x.fact?.notebookCategory??x.fact?.nature??null,
+    }));
+}
+
 function playerInteractions(source,runtime,session,characterExternalId,resources,now=new Date()) {
   const abilities=effectiveAbilities(source,characterExternalId);
   const abilityMap=new Map(abilities.map(a=>[a.externalId,a]));
@@ -566,17 +617,34 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
     const ability=i.abilityExternalId?abilityMap.get(i.abilityExternalId):null;
     const uses=(runtime.sessionInteractionUses??[]).filter(u=>u.actorCharacterExternalId===characterExternalId&&u.interactionExternalId===i.externalId);
     const repeatableLocationSearch=isLocationSearchInteraction(i);
+    const specialKind=specialPlayerAbilityKind(i);
     const maxUses=repeatableLocationSearch?null:(i.maxUses??ability?.maxUses??null);
-    const cooldownMinutes=repeatableLocationSearch?null:(i.cooldownMinutes??ability?.cooldownMinutes??null);
+    const cooldownMinutes=repeatableLocationSearch||specialKind?0:(i.cooldownMinutes??ability?.cooldownMinutes??null);
     let cooldownRemainingSeconds=0;
     if(cooldownMinutes&&uses.length){const latest=Math.max(...uses.map(u=>new Date(u.createdAt).getTime()).filter(Number.isFinite));cooldownRemainingSeconds=Math.max(0,Math.ceil((Number(cooldownMinutes)*60000-(now.getTime()-latest))/1000));}
     const costRow=resources.find(r=>r.resourceExternalId===i.costResourceExternalId);
     const targetType=String(i.targetType??'NONE').toUpperCase();
     let targets=[];
     if(['PLAYER','CHARACTER'].includes(targetType)){
-      const targetRows=isInformantInteraction(i)
-        ? otherPlayers.filter(p=>availableRumorForTarget(source,runtime,characterExternalId,p.characterExternalId))
-        : otherPlayers;
+      const usedTargets=new Set(
+        uses
+          .filter(u=>u.targetExternalId)
+          .map(u=>u.targetExternalId)
+      );
+      let targetRows=otherPlayers.filter(p=>!usedTargets.has(p.characterExternalId));
+
+      if(isInformantInteraction(i))
+        targetRows=targetRows.filter(p=>availableRumorForTarget(source,runtime,characterExternalId,p.characterExternalId));
+      else if(specialKind==='CHARM')
+        targetRows=targetRows.filter(p=>charmInformationForTarget(source,runtime,characterExternalId,p.characterExternalId).length>0);
+      else if(specialKind==='INTIMIDATION')
+        targetRows=targetRows.filter(p=>transferableEvidenceForCharacter(source,runtime,p.characterExternalId).length>0);
+      else if(specialKind==='NEGOTIATION'){
+        const actorHasEvidence=transferableEvidenceForCharacter(source,runtime,characterExternalId).length>0;
+        targetRows=actorHasEvidence
+          ? targetRows.filter(p=>transferableEvidenceForCharacter(source,runtime,p.characterExternalId).length>0)
+          : [];
+      }
 
       targets=targetRows.map(p=>({
         id:p.characterExternalId,
@@ -586,21 +654,50 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
     }
     else if(targetType==='LOCATION') targets=(source.gameLocations??[]).filter(x=>x.active!==false).map(x=>({id:x.externalId,label:x.name,subtitle:null}));
     else if(targetType==='OBJECT'&&!i.targetSecret) targets=inPlayObjects.map(o=>({id:o.objectExternalId,label:objectMap.get(o.objectExternalId)?.name??o.objectExternalId,subtitle:null}));
-    const clandestineKind=clandestineInteractionKind(i);
+
+    const clandestineKind=specialKind==='INTIMIDATION'?'INTIMIDATION':clandestineInteractionKind(i);
     const scanMode=interactionScanMode(i);
     const characterTarget=['PLAYER','CHARACTER'].includes(targetType);
-    const requiresGm=String(i.resolution).toUpperCase()==='GM'||String(i.validation??'').toUpperCase()==='GM'||(Boolean(i.targetSecret)&&!characterTarget&&!clandestineKind);
+    const requiresGm=!specialKind&&(String(i.resolution).toUpperCase()==='GM'||String(i.validation??'').toUpperCase()==='GM'||(Boolean(i.targetSecret)&&!characterTarget&&!clandestineKind));
     const running=session.status==='LIVE';
     const noRumorTarget=isInformantInteraction(i)&&targets.length===0;
-    const directEnabled=running&&!requiresGm&&!noRumorTarget;
+    const noSpecialTarget=Boolean(specialKind)&&characterTarget&&targets.length===0;
+    const directEnabled=running&&!requiresGm&&!noRumorTarget&&!noSpecialTarget;
     const blockedReason=!running
       ? sessionText(session,'Disponible pendant le live','Available during live play')
       : requiresGm
         ? sessionText(session,'À demander au MJ','Ask the GM')
         : noRumorTarget
           ? sessionText(session,'Aucune nouvelle rumeur disponible','No new rumour available')
-          : null;
-    return {externalId:i.externalId,name:i.name,category:i.category,targetType:i.targetType,scanMode,resolution:i.resolution,directEnabled,blockedReason,clandestineKind,ability,costResourceExternalId:i.costResourceExternalId,costValue:i.costValue,currentCostResourceValue:costRow?.currentValue??null,diceCount:i.diceCount,diceSides:i.diceSides,difficulty:i.difficulty,usesCount:uses.length,maxUses,limitPerTarget:repeatableLocationSearch?null:(i.limitPerTarget??null),cooldownMinutes,cooldownRemainingSeconds,targets};
+          : noSpecialTarget
+            ? sessionText(session,'Aucune cible éligible pour cette compétence','No eligible target for this skill')
+            : null;
+
+    return {
+      externalId:i.externalId,
+      name:i.name,
+      category:i.category,
+      targetType:i.targetType,
+      scanMode,
+      resolution:i.resolution,
+      directEnabled,
+      blockedReason,
+      clandestineKind,
+      specialKind,
+      ability,
+      costResourceExternalId:i.costResourceExternalId,
+      costValue:i.costValue,
+      currentCostResourceValue:costRow?.currentValue??null,
+      diceCount:i.diceCount,
+      diceSides:i.diceSides,
+      difficulty:i.difficulty,
+      usesCount:uses.length,
+      maxUses,
+      limitPerTarget:repeatableLocationSearch?null:(specialKind?(i.limitPerTarget??1):(i.limitPerTarget??null)),
+      cooldownMinutes,
+      cooldownRemainingSeconds,
+      targets
+    };
   });
 }
 
