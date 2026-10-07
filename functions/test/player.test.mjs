@@ -48,6 +48,42 @@ test('player portal exposes only own runtime state and safe actions',()=>{
  assert.equal(out.votes.length,1);assert.equal(out.otherCharacters[0].characterExternalId,'CHAR_B');
 });
 
+test('player notebook knowledge and discoveries are newest first',()=>{
+ const src=source();
+ src.facts=[
+   ...src.facts,
+   {externalId:'F2',title:'Older',text:'Older info',nature:'FACT',importance:'NORMAL',notebookCategory:'Test',active:true},
+   {externalId:'F3',title:'Newest',text:'Newest info',nature:'FACT',importance:'NORMAL',notebookCategory:'Test',active:true},
+ ];
+ src.clues=[
+   ...src.clues,
+   {externalId:'C3',playerName:'Older clue',clueType:'INFO',playerText:'Older clue',active:true},
+   {externalId:'C4',playerName:'Newest clue',clueType:'INFO',playerText:'Newest clue',active:true},
+ ];
+ const rt=runtime();
+ rt.sessionKnowledges=[
+   ...rt.sessionKnowledges,
+   {characterExternalId:'CHAR_A',factExternalId:'F2',sourceType:'TEST',learnedAt:'2026-09-21T18:01:00Z'},
+   {characterExternalId:'CHAR_A',factExternalId:'F3',sourceType:'TEST',learnedAt:'2026-09-21T18:06:00Z'},
+ ];
+ rt.sessionClueDiscoveries=[
+   ...rt.sessionClueDiscoveries,
+   {characterExternalId:'CHAR_A',clueExternalId:'C3',discoveredAt:'2026-09-21T18:02:00Z'},
+   {characterExternalId:'CHAR_A',clueExternalId:'C4',discoveredAt:'2026-09-21T18:07:00Z'},
+ ];
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   rt,
+   new Date('2026-09-21T18:08:00Z')
+ );
+
+ assert.equal(out.knowledge[0].factExternalId,'F3');
+ assert.equal(out.discoveries[0].clueExternalId,'C4');
+});
+
 test('player sheet exposes only clues targeted at the current character',()=>{
  const src=source();
  src.clues.push(
