@@ -84,7 +84,7 @@ jobs:
         run: |
           case "$DEPLOY_TARGET" in
             player-media-and-hosting)
-              ONLY="functions:getPublicPlayerPortal,functions:executePublicPlayerInteraction,functions:attemptPublicPlayerClandestineAction,functions:claimPublicPlayerStolenObject,functions:executePublicPlayerLocationAction,functions:validateLiveBusinessDeal,functions:setScenarioMediaOverrideView,hosting"
+              ONLY="functions:getPublicPlayerPortal,functions:executePublicPlayerInteraction,functions:attemptPublicPlayerClandestineAction,functions:claimPublicPlayerStolenObject,functions:executePublicPlayerLocationAction,functions:getSessionGmPackView,functions:validateLiveBusinessDeal,functions:setScenarioMediaOverrideView,hosting"
               ;;
             hosting-only)
               ONLY="hosting"
