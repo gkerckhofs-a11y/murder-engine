@@ -199,7 +199,22 @@ export default function PlayerPortal({token}:{token:string}){
 
       return response;
     }} onVote={(voteExternalId,round,selectedOptionExternalIds)=>act(()=>postJson('/api/player/vote',{token,voteExternalId,round,selectedOptionExternalIds}),tr(portal,'Vote enregistré ✓','Vote recorded ✓'))}/>} 
-    {tab==='sac'&&<PlayerBag portal={portal} busy={busy} onGive={(objectExternalId,targetCharacterExternalId)=>act(()=>postJson('/api/player/object',{token,objectExternalId,targetCharacterExternalId}),tr(portal,'Objet transféré ✓','Item transferred ✓'))} onCashTransfer={(targetCharacterExternalId,amount)=>act(()=>postJson('/api/player/cash',{token,targetCharacterExternalId,amount}),tr(portal,'Virement effectué ✓','Transfer completed ✓'))}/>} 
+    {tab==='sac'&&<PlayerBag
+      portal={portal}
+      busy={busy}
+      onGive={(objectExternalId,targetCharacterExternalId)=>act(
+        ()=>postJson('/api/player/object',{token,objectExternalId,targetCharacterExternalId}),
+        tr(portal,'Objet transféré ✓','Item transferred ✓')
+      )}
+      onShareClue={(clueExternalId,targetCharacterExternalId)=>act(
+        ()=>postJson('/api/player/clue/share',{token,clueExternalId,targetCharacterExternalId}),
+        tr(portal,'Indice partagé ✓','Clue shared ✓')
+      )}
+      onCashTransfer={(targetCharacterExternalId,amount)=>act(
+        ()=>postJson('/api/player/cash',{token,targetCharacterExternalId,amount}),
+        tr(portal,'Virement effectué ✓','Transfer completed ✓')
+      )}
+    />} 
     {tab==='news'&&<PlayerNews portal={portal} busy={busy} onRead={id=>act(()=>postJson('/api/player/notification/read',{token,notificationId:id}),tr(portal,'Notification lue','Notification read'))}/>} 
     {introOpen&&<div className="qrScannerOverlay playerStoryOverlay" role="dialog" aria-modal="true" aria-label="Introduction"><div className="qrScannerPanel playerStoryPanel"><p className="eyebrow">{tr(portal,'L’HISTOIRE COMMENCE','THE STORY BEGINS')}</p><h2>{s.scenarioTitle}</h2><div className="playerStoryText">{s.playerSummary}</div><button className="playerPrimary" onClick={closeIntro}>{tr(portal,'Entrer dans l’histoire','Enter the story')}</button></div></div>}
 
@@ -325,7 +340,7 @@ function PlayerNotebook({portal}:{portal:Portal}){
   const clueRows=useMemo(()=>{
     const map=new Map<string,any>();
     for(const d of portal.discoveries??[])
-      map.set(d.clueExternalId,{...d.clue,externalId:d.clueExternalId,discoveredAt:d.discoveredAt,owned:false});
+      map.set(d.clueExternalId,{...d.clue,externalId:d.clueExternalId,discoveredAt:d.discoveredAt,owned:Boolean(d.clue?.inBag)});
     for(const d of portal.documentEntries??[]){
       const previous=map.get(d.clueExternalId);
       map.set(d.clueExternalId,{...(previous??{}),...d,externalId:d.clueExternalId,owned:true});
@@ -600,9 +615,23 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
   </div>;
 }
 
-function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boolean;onGive:(objectId:string,targetId:string)=>void;onCashTransfer:(targetId:string,amount:number)=>Promise<any>|void}){
+function PlayerBag({
+  portal,
+  busy,
+  onGive,
+  onShareClue,
+  onCashTransfer,
+}:{
+  portal:Portal;
+  busy:boolean;
+  onGive:(objectId:string,targetId:string)=>void;
+  onShareClue:(clueExternalId:string,targetId:string)=>Promise<any>|void;
+  onCashTransfer:(targetId:string,amount:number)=>Promise<any>|void;
+}){
   const [scanObject,setScanObject]=useState<any|null>(null);
   const [pending,setPending]=useState<{object:any;target:any}|null>(null);
+  const [scanClue,setScanClue]=useState<any|null>(null);
+  const [pendingClue,setPendingClue]=useState<{clue:any;target:any}|null>(null);
   const [cashScannerOpen,setCashScannerOpen]=useState(false);
   const [cashTarget,setCashTarget]=useState<any|null>(null);
   const [cashAmount,setCashAmount]=useState('');
@@ -614,12 +643,30 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
 
   const documentRows=useMemo(()=>{
     const map=new Map<string,any>();
+
     for(const d of portal.documentEntries??[])
-      map.set(d.clueExternalId,{...d,owned:true,object:inventoryMap.get(d.objectExternalId)??null});
+      map.set(d.clueExternalId,{
+        ...d,
+        owned:true,
+        object:inventoryMap.get(d.objectExternalId)??null
+      });
+
     for(const discovery of portal.discoveries??[]){
-      if(!map.has(discovery.clueExternalId)&&isPhysicalClue(discovery.clue)&&!discovery.clue?.objectExternalId)
-        map.set(discovery.clueExternalId,{...discovery.clue,clueExternalId:discovery.clueExternalId,owned:true,object:null});
+      const clue=discovery.clue;
+      if(
+        !map.has(discovery.clueExternalId) &&
+        clue?.inBag &&
+        !clue?.objectExternalId
+      ){
+        map.set(discovery.clueExternalId,{
+          ...clue,
+          clueExternalId:discovery.clueExternalId,
+          owned:true,
+          object:null
+        });
+      }
     }
+
     return [...map.values()];
   },[portal.documentEntries,portal.discoveries,portal.inventory]);
 
@@ -698,16 +745,36 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
         : <div className="bagPossessionList">
           {documentRows.map((d:any)=>
             <article className={`bagDocument bagPossessionItem ${d.immersiveDocument?'immersiveBagDocument':''}`} key={d.clueExternalId}>
-              <div className="bagPossessionType">📄 {tr(portal,'Document / indice','Document / clue')}</div>
+              <div className="bagPossessionType">
+                📄 {tr(portal,'Indice / document','Clue / document')}
+                <span className="bagOwnedBadge">✓ {tr(portal,'Dans votre sac','In your bag')}</span>
+              </div>
               {d.immersiveDocument&&<ImmersiveDocument entry={d} language={portal.session?.language}/>} 
               <div className="bagDocumentMeta">
                 <strong>{d.playerName}</strong>
                 <p>{d.playerText}</p>
-                <em>{tr(portal,'Cette information reste mémorisée dans votre Carnet.','This information remains saved in your Notebook.')}</em>
+                <em>{tr(
+                  portal,
+                  'Cet indice reste aussi mémorisé dans votre Carnet.',
+                  'This clue also remains saved in your Notebook.'
+                )}</em>
               </div>
-              {d.object?.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow">
-                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(d.object)}>📷 {tr(portal,'Donner','Give')}</button>
-              </div>}
+
+              {!d.object && d.shareable!==false && portal.otherCharacters.length>0&&
+                <div className="giveRow giveQrRow">
+                  <button className="playerSecondary" disabled={busy} onClick={()=>setScanClue(d)}>
+                    📷 {tr(portal,'Partager','Share')}
+                  </button>
+                </div>
+              }
+
+              {d.object?.transferable&&portal.otherCharacters.length>0&&
+                <div className="giveRow giveQrRow">
+                  <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(d.object)}>
+                    📷 {tr(portal,'Donner','Give')}
+                  </button>
+                </div>
+              }
             </article>
           )}
 
@@ -731,6 +798,58 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
           )}
         </div>}
     </section>
+
+    {scanClue&&<QrCharacterScanner
+      title={tr(portal,'Partager cet indice','Share this clue')}
+      mode="DIRECT"
+      targets={portal.otherCharacters}
+      language={portal.session?.language}
+      onClose={()=>setScanClue(null)}
+      onSelect={(target:any)=>{
+        setPendingClue({clue:scanClue,target});
+        setScanClue(null);
+      }}
+    />}
+
+    {pendingClue&&
+      <div
+        className="qrScannerOverlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label={tr(portal,'Confirmer le partage','Confirm sharing')}
+      >
+        <div className="qrScannerPanel giveConfirmPanel">
+          <p className="eyebrow">{tr(portal,'PARTAGE D’INDICE','CLUE SHARING')}</p>
+          <h2>{pendingClue.clue.playerName}</h2>
+          <p>
+            {tr(portal,'Partager avec :','Share with:')}{' '}
+            <strong>{pendingClue.target.name}</strong>
+            {pendingClue.target.publicRole?` · ${pendingClue.target.publicRole}`:''}
+          </p>
+          <p className="playerHelp">
+            {tr(
+              portal,
+              'Vous garderez cet indice dans votre Sac et votre Carnet après le partage.',
+              'You will keep this clue in your Bag and Notebook after sharing it.'
+            )}
+          </p>
+          <div className="giveConfirmActions">
+            <button className="playerSecondary" disabled={busy} onClick={()=>setPendingClue(null)}>
+              {tr(portal,'Annuler','Cancel')}
+            </button>
+            <button className="playerPrimary" disabled={busy} onClick={async()=>{
+              await onShareClue(
+                pendingClue.clue.clueExternalId,
+                pendingClue.target.characterExternalId
+              );
+              setPendingClue(null);
+            }}>
+              {tr(portal,'Partager l’indice','Share clue')}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
 
     {scanObject&&<QrCharacterScanner
       title={isEnglish(portal)?`Give ${scanObject.name}`:`Donner ${scanObject.name}`}
