@@ -453,7 +453,9 @@ function PlayerNotebook({portal}:{portal:Portal}){
 
   const rows=useMemo(
     ()=>[...(portal.knowledge??[])].sort(
-      (a:any,b:any)=>String(a.fact?.notebookCategory||'').localeCompare(String(b.fact?.notebookCategory||''))
+      (a:any,b:any)=>
+        new Date(b.learnedAt??0).getTime()-
+        new Date(a.learnedAt??0).getTime()
     ),
     [portal.knowledge]
   );
@@ -475,7 +477,11 @@ function PlayerNotebook({portal}:{portal:Portal}){
       const previous=map.get(d.clueExternalId);
       map.set(d.clueExternalId,{...(previous??{}),...d,externalId:d.clueExternalId,owned:true});
     }
-    return [...map.values()];
+    return [...map.values()].sort(
+      (a:any,b:any)=>
+        new Date(b.discoveredAt??0).getTime()-
+        new Date(a.discoveredAt??0).getTime()
+    );
   },[portal.discoveries,portal.documentEntries]);
 
   const tabs:[
