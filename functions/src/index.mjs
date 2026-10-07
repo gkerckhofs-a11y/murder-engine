@@ -772,8 +772,9 @@ export const revealLiveClue = onRequest({ region:'europe-west1', cors:true, maxI
   catch(error){ logger.error('Clue reveal failed',error); return res.status(400).json({error:'CLUE_REVEAL_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const transferLiveObject = onRequest({ region:'europe-west1', cors:true, maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
+export const transferLiveObject = onRequest({ region:'europe-west1', cors:true, invoker:'public', maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
+  if(!await requireOrganizerAuth(req,res)) return;
   const sessionId=String(body.sessionId??'').trim();
   try { const result=await transferSessionObject(sessionId,body); if(String(body.holderType??'').toUpperCase()==='CHARACTER'&&body.holderExternalId){try{await sendPlayerNotification(sessionId,{characterExternalId:String(body.holderExternalId),kind:'OBJECT',title:'Objet reçu',body:'Un objet vient d’être ajouté à votre inventaire.',refExternalId:String(body.objectExternalId??'').trim(),priority:'NORMAL'});}catch(notificationError){logger.warn('Player object notification skipped',notificationError);}} return res.status(200).json({ok:true,result}); }
   catch(error){ logger.error('Object transfer failed',error); return res.status(400).json({error:'OBJECT_TRANSFER_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
