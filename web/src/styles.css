@@ -14001,3 +14001,186 @@ button.skinGalleryCard:disabled{
     grid-template-columns:1fr;
   }
 }
+
+
+/* ==========================================================
+   GM PACK — PRODUCTION DE SESSION
+   ========================================================== */
+
+.gmPackProduction{
+  margin:18px 0;
+  padding:18px;
+  border:1px solid #3c4d56;
+  border-radius:14px;
+  background:#121b20;
+}
+
+.gmPackProductionHead{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:14px;
+}
+
+.gmPackProductionHead h2{
+  margin:.2rem 0 .35rem;
+}
+
+.gmPackProductionHead p{
+  margin:0;
+  color:#93a4ae;
+}
+
+.gmPackProductionGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:10px;
+}
+
+.gmPackProductionGrid article{
+  display:grid;
+  gap:8px;
+  align-content:start;
+  min-height:150px;
+  padding:14px;
+  border:1px solid #32424c;
+  border-radius:12px;
+  background:#172127;
+}
+
+.gmPackProductionGrid article>strong{
+  color:#f0dfb5;
+  font-size:1rem;
+}
+
+.gmPackProductionGrid article>span{
+  min-height:2.5em;
+  color:#91a2ac;
+  font-size:.78rem;
+  line-height:1.4;
+}
+
+.gmPackProductionGrid article>div{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-top:auto;
+}
+
+.gmPackProductionGrid button{
+  margin-top:auto;
+}
+
+.gmPackProductionDossier{
+  border-color:#8a7342!important;
+  background:rgba(138,115,66,.12)!important;
+}
+
+.gmPackProductionBusy{
+  margin:12px 0 0;
+  color:#d5c18b;
+  font-weight:800;
+}
+
+
+/* ==========================================================
+   GM PACK — QR A4 & DOSSIER MJ
+   ========================================================== */
+
+.gmQrSheetGrid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:8mm 5mm;
+  align-items:start;
+}
+
+.gmQrSheetGrid.illustrated{
+  grid-template-columns:repeat(3,1fr);
+  gap:8mm 6mm;
+}
+
+.gmQrSheetCard{
+  display:grid;
+  justify-items:center;
+  align-content:start;
+  gap:2mm;
+  padding:4mm 3mm;
+  border:1px solid #b8b8b8;
+  border-radius:3mm;
+  text-align:center;
+  break-inside:avoid;
+  background:white;
+}
+
+.gmQrSheetCard strong{
+  max-width:100%;
+  font-size:10pt;
+  line-height:1.15;
+}
+
+.gmQrSheetCard small{
+  max-width:100%;
+  color:#555;
+  font-size:7.5pt;
+  line-height:1.15;
+}
+
+.gmQrSheetPortrait{
+  width:100%;
+  height:32mm;
+  object-fit:cover;
+  border-radius:2mm;
+}
+
+.gmDossierCharacter section,
+.gmDossierCover section{
+  margin-top:6mm;
+}
+
+.gmClueIndex{
+  display:grid;
+  gap:4mm;
+}
+
+.gmClueIndexRow{
+  break-inside:avoid;
+  padding:3mm 0;
+  border-bottom:1px solid #d8d8d8;
+}
+
+.gmClueIndexRow h3{
+  margin:0 0 1mm;
+}
+
+.gmClueIndexRow p{
+  margin:1.5mm 0;
+}
+
+.gmCluePlacement{
+  color:#666;
+  font-size:8pt;
+}
+
+@media(max-width:800px){
+  .gmPackProductionGrid{
+    grid-template-columns:1fr;
+  }
+}
+
+@media print{
+  .gmQrSheetPage{
+    page-break-after:auto;
+  }
+
+  .gmQrSheetGrid{
+    gap:5mm 3mm;
+  }
+
+  .gmQrSheetGrid.illustrated{
+    gap:5mm 4mm;
+  }
+
+  .gmDossierClues{
+    page-break-after:auto;
+  }
+}
