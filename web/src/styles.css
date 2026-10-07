@@ -13100,3 +13100,32 @@ button.skinGalleryCard:disabled{
   font-size:.78rem;
   font-weight:750;
 }
+
+
+/* In-app location search: keep the player inside Murder Engine */
+.locationInlineOverlay{
+  position:fixed;
+  inset:0;
+  z-index:1800;
+  overflow:auto;
+  background:rgba(7,8,10,.94);
+  backdrop-filter:blur(10px);
+  padding:10px;
+}
+.locationInlineStage{
+  width:min(760px,100%);
+  margin:0 auto;
+}
+.embeddedLocationScan{
+  min-height:auto;
+  padding-top:8px;
+  padding-bottom:28px;
+}
+.embeddedLocationClose{
+  width:auto;
+  display:block;
+  margin:4px 0 10px auto;
+  position:sticky;
+  top:6px;
+  z-index:5;
+}
