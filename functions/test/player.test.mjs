@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shapePlayerPortal, configureSessionPlayerAccess, getPlayerPortal, executePlayerInteraction, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, isAutonomousLocationInteraction, interactionScanMode, clandestineInteractionKind, attemptPlayerClandestineAction, claimPlayerStolenObject, __playerOps } from '../src/player.mjs';
+import { shapePlayerPortal, configureSessionPlayerAccess, getPlayerPortal, executePlayerInteraction, sharePlayerClue, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, isAutonomousLocationInteraction, interactionScanMode, clandestineInteractionKind, attemptPlayerClandestineAction, claimPlayerStolenObject, __playerOps } from '../src/player.mjs';
 
 const participant=()=>({id:'P1',displayName:'Gael',active:true,characterExternalId:'CHAR_A',briefingStatus:'NOT_SENT',playerAccessToken:'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef1234567890_-',playerAccessEnabled:true,playerFirstOpenedAt:null,playerLastOpenedAt:null,playerOpenCount:0,briefingReadAt:null});
 const session=()=>({id:'S1',name:'Cosa',status:'LIVE',runtimeInitializedAt:'2026-09-21T18:00:00Z',scenarioVersion:{id:'V1',versionLabel:'2.3',playerSummary:'Pitch',scenario:{title:'Cosa Nostra'}},sessionParticipants_on_gameSession:[participant(),{id:'P2',displayName:'Bob',active:true,characterExternalId:'CHAR_B'}]});
@@ -99,6 +99,109 @@ test('player interaction actor identity is forced from token',async()=>{
  const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();};let captured;
  const out=await executePlayerInteraction(participant().playerAccessToken,{interactionExternalId:'ACT1',actorCharacterExternalId:'CHAR_B',targetExternalId:'LOC1'},{reader,executor:async()=>({}),interactionExecutor:async(sid,input)=>{captured=input;return{interactionName:'Fouiller',success:true};}});
  assert.equal(captured.actorCharacterExternalId,'CHAR_A');assert.equal(out.success,true);
+});
+
+test('discovered non-object clue is exposed as being in the player bag',()=>{
+ const src=source();
+ src.clues.push({
+   externalId:'C3',
+   playerName:'Whispered note',
+   clueType:'INFO',
+   playerText:'A private piece of information.',
+   shareable:true,
+   transferable:true,
+   addToNotebook:true,
+   active:true
+ });
+ const rt=runtime();
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_A',
+   clueExternalId:'C3',
+   discoveredAt:'2026-09-21T18:04:30Z'
+ });
+ const out=shapePlayerPortal(participant(),session(),src,rt,new Date('2026-09-21T18:05:00Z'));
+ const discovery=out.discoveries.find(d=>d.clueExternalId==='C3');
+ assert.equal(discovery.clue.inBag,true);
+ assert.equal(discovery.clue.shareable,true);
+});
+
+test('player can share a discovered clue directly with another player',async()=>{
+ const src=source();
+ src.clues.push({
+   externalId:'C3',
+   playerName:'Whispered note',
+   clueType:'INFO',
+   playerText:'A private piece of information.',
+   shareable:true,
+   transferable:true,
+   addToNotebook:true,
+   active:true
+ });
+ const rt=runtime();
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_A',
+   clueExternalId:'C3',
+   discoveredAt:'2026-09-21T18:04:30Z'
+ });
+
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+
+ const revealed=[];
+ const writes=[];
+ const out=await sharePlayerClue(
+   participant().playerAccessToken,
+   {clueExternalId:'C3',targetCharacterExternalId:'CHAR_B'},
+   {
+     reader,
+     executor:async(op,vars)=>{writes.push({op,vars});return{};},
+     clueReveal:async(sid,input)=>{revealed.push({sid,input});return{};},
+     now:new Date('2026-09-21T18:08:00Z')
+   }
+ );
+
+ assert.equal(out.shared,true);
+ assert.equal(out.alreadyKnown,false);
+ assert.equal(revealed.length,1);
+ assert.equal(revealed[0].input.characterExternalId,'CHAR_B');
+ assert.equal(revealed[0].input.clueExternalId,'C3');
+ assert.equal(writes.length,2);
+ assert.equal(writes[0].vars.data.characterExternalId,'CHAR_B');
+ assert.equal(writes[0].vars.data.kind,'CLUE');
+ assert.match(writes[0].vars.data.body,/Sac et à votre Carnet/);
+ assert.equal(writes[1].vars.data.characterExternalId,'CHAR_A');
+});
+
+test('player cannot share a clue they have not discovered',async()=>{
+ const src=source();
+ src.clues.push({
+   externalId:'C3',
+   playerName:'Whispered note',
+   clueType:'INFO',
+   playerText:'A private piece of information.',
+   shareable:true,
+   active:true
+ });
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();
+   throw new Error('bad op');
+ };
+ await assert.rejects(
+   ()=>sharePlayerClue(
+     participant().playerAccessToken,
+     {clueExternalId:'C3',targetCharacterExternalId:'CHAR_B'},
+     {reader,executor:async()=>({}),clueReveal:async()=>({})}
+   ),
+   /CLUE_NOT_OWNED_BY_PLAYER/
+ );
 });
 
 test('player may give only an object they own',async()=>{
