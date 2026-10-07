@@ -13690,3 +13690,94 @@ button.skinGalleryCard:disabled{
   background:#211815;
   box-shadow:0 8px 22px rgba(0,0,0,.18);
 }
+
+
+/* ORGANIZER FOLDS — accessibility contrast fix */
+.shell .orgaFold{
+  border-color:#3a4a54;
+  background:#0f171c;
+  color:#e8eef1;
+}
+
+.shell .orgaFoldToggle{
+  border:0;
+  background:#1a252c;
+  color:#f5f8fa;
+  box-shadow:none;
+}
+
+.shell .orgaFoldToggle:hover:not(:disabled){
+  background:#223139;
+  color:#fff;
+  filter:none;
+  transform:none;
+}
+
+.shell .orgaFold.closed .orgaFoldToggle{
+  background:#151f25;
+  color:#eef4f7;
+}
+
+.shell .orgaFoldTitle strong{
+  color:#f7fafb;
+}
+
+.shell .orgaFoldTitle small{
+  color:#b4c2ca;
+}
+
+.shell .orgaFoldAction{
+  color:#d2dde2;
+}
+
+.shell .orgaFoldAction b{
+  border-color:#647680;
+  background:#0f171c;
+  color:#f5f8fa;
+}
+
+.shell .orgaFoldBody{
+  border-top-color:#34454f;
+  background:#0d1419;
+  color:#e8eef1;
+}
+
+.shell .orgaFoldBody>.card,
+.shell .orgaFoldBody>.sessionPackShortcut,
+.shell .orgaFoldBody>.incarnationPanel,
+.shell .orgaFoldBody>.runtimePanel{
+  color:#e8eef1;
+}
+
+.shell .orgaFoldBody h2,
+.shell .orgaFoldBody h3,
+.shell .orgaFoldBody h4,
+.shell .orgaFoldBody legend{
+  color:#f7fafb;
+}
+
+.shell .orgaFoldBody p,
+.shell .orgaFoldBody li,
+.shell .orgaFoldBody td,
+.shell .orgaFoldBody label{
+  color:#d5dfe4;
+}
+
+.shell .orgaFoldBody small,
+.shell .orgaFoldBody .micro,
+.shell .orgaFoldBody .microNote{
+  color:#a9b8c1;
+}
+
+.shell .orgaFoldBody input,
+.shell .orgaFoldBody select,
+.shell .orgaFoldBody textarea{
+  border-color:#435660;
+  background:#10191e;
+  color:#eef4f7;
+}
+
+.shell .orgaFoldBody input::placeholder,
+.shell .orgaFoldBody textarea::placeholder{
+  color:#81929c;
+}
