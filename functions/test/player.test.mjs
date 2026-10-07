@@ -287,11 +287,57 @@ test('QR location view exposes only autonomous actions for scanned location',asy
  assert.equal(out.location.name,'Bureau');assert.equal(out.actions.length,1);assert.equal(out.actions[0].externalId,'ACT1');assert.equal(out.actions[0].available,true);
 });
 
-test('QR location action forces player identity and automatically grants linked clue and object',async()=>{
- const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();throw new Error('bad op')};
- let interactionInput,clueInput,objectInput,notifications=0;
- const out=await executePlayerLocationAction(participant().playerAccessToken,{interactionExternalId:'ACT1',locationExternalId:'LOC1',actorCharacterExternalId:'CHAR_B'},{reader,executor:async()=>{notifications++;return{};},interactionExecutor:async(sid,input)=>{interactionInput=input;return{interactionExternalId:'ACT1',interactionName:'Fouiller',actorCharacterExternalId:input.actorCharacterExternalId,targetType:'LOCATION',targetExternalId:input.targetExternalId,success:true,resolution:'DICE',actorRoll:{rolls:[4,4],sum:8},actorTotal:10,targetTotal:8,abilityLevel:2,cost:{resourceExternalId:'RES_PA',value:1,remaining:3}};},clueReveal:async(sid,input)=>{clueInput=input;return{};},objectTransfer:async(sid,input)=>{objectInput=input;return{};}});
- assert.equal(interactionInput.actorCharacterExternalId,'CHAR_A');assert.equal(interactionInput.targetExternalId,'LOC1');assert.equal(clueInput.clueExternalId,'C2');assert.equal(objectInput.objectExternalId,'ITEM2');assert.equal(objectInput.holderExternalId,'CHAR_A');assert.equal(out.reward.kind,'CLUE_OBJECT');assert.equal(notifications,2);
+test('QR room search is normalized to automatic 1 PA and grants one reward',async()=>{
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();
+   throw new Error('bad op');
+ };
+
+ let interactionCalls=0;
+ let clueInput;
+ let objectInput;
+ const writes=[];
+
+ const view=await getPlayerLocation(
+   participant().playerAccessToken,
+   'LOC1',
+   {reader,now:new Date('2026-09-21T18:20:00Z')}
+ );
+
+ assert.equal(view.actions[0].resolution,'AUTO');
+ assert.equal(view.actions[0].costResourceExternalId,'RES_PA');
+ assert.equal(view.actions[0].costValue,1);
+ assert.equal(view.actions[0].diceCount,0);
+
+ const out=await executePlayerLocationAction(
+   participant().playerAccessToken,
+   {
+     interactionExternalId:'ACT1',
+     locationExternalId:'LOC1',
+     actorCharacterExternalId:'CHAR_B'
+   },
+   {
+     reader,
+     executor:async(op,vars)=>{writes.push({op,vars});return{};},
+     interactionExecutor:async()=>{interactionCalls++;throw new Error('should not run');},
+     clueReveal:async(sid,input)=>{clueInput=input;return{};},
+     objectTransfer:async(sid,input)=>{objectInput=input;return{};},
+     now:new Date('2026-09-21T18:20:00Z')
+   }
+ );
+
+ assert.equal(interactionCalls,0);
+ assert.equal(clueInput.clueExternalId,'C2');
+ assert.equal(objectInput.objectExternalId,'ITEM2');
+ assert.equal(objectInput.holderExternalId,'CHAR_A');
+ assert.equal(out.result.success,true);
+ assert.equal(out.result.resolution,'AUTO');
+ assert.equal(out.result.cost.value,1);
+ assert.equal(out.reward.kind,'CLUE_OBJECT');
+ assert.ok(writes.length>=2);
 });
 
 test('QR location provides standard 1 PA fallback when no explicit automatic action exists',async()=>{
