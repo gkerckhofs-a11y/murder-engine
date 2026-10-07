@@ -1,6 +1,9 @@
 name: Deploy Firebase
 
 on:
+  push:
+    branches:
+      - deploy/firebase-production
   workflow_dispatch:
     inputs:
       ref:
@@ -30,7 +33,7 @@ jobs:
       - name: Checkout requested version
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
@@ -72,12 +75,12 @@ jobs:
           test -n "$FIREBASE_PROJECT_ID" || (echo "Missing FIREBASE_PROJECT_ID repository variable" && exit 1)
           test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur" || (echo "Unexpected Firebase project: $FIREBASE_PROJECT_ID" && exit 1)
           echo "Firebase project: $FIREBASE_PROJECT_ID"
-          echo "Deploying ref: ${{ inputs.ref }}"
+          echo "Deploying ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}"
 
       - name: Deploy selected scope
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-          DEPLOY_TARGET: ${{ inputs.target }}
+          DEPLOY_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'player-media-and-hosting' }}
         run: |
           case "$DEPLOY_TARGET" in
             player-media-and-hosting)
@@ -103,6 +106,6 @@ jobs:
       - name: Deployment summary
         run: |
           echo "### Firebase deployment" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Ref: \`${{ inputs.ref }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Scope: \`${{ inputs.target }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ref: \`${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Scope: \`${{ github.event_name == 'workflow_dispatch' && inputs.target || 'player-media-and-hosting' }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Project: \`${{ vars.FIREBASE_PROJECT_ID }}\`" >> "$GITHUB_STEP_SUMMARY"
