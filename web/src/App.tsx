@@ -158,6 +158,15 @@ function niceDate(value?: string | null) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('fr-BE', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
+function publicNiceDate(value?:string|null,language='FR'){
+  if(!value)return String(language).toUpperCase()==='EN'?'Date to be confirmed':'Date à confirmer';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return String(value);
+  return new Intl.DateTimeFormat(
+    String(language).toUpperCase()==='EN'?'en-GB':'fr-BE',
+    {dateStyle:'medium',timeStyle:'short'}
+  ).format(date);
+}
 function importanceLabel(value?: string | null) {
   const map: Record<string, string> = { STRUCTURAL: 'Structurel', MAIN: 'Principal', SECONDARY: 'Secondaire', SIDEKICK: 'Sidekick', CRITICAL: 'Critique', IMPORTANT: 'Important', FLAVOR: 'Ambiance' };
   return value ? (map[value] ?? value) : '—';
@@ -1727,7 +1736,7 @@ function PublicPrecastView({token}:{token:string}) {
       <p className="eyebrow">{session.scenario.title}</p>
       <h1>{session.name||t('Pré-casting','Pre-casting')}</h1>
       <p className="publicMeta">
-        {niceDate(session.scheduledAt,session.language)}
+        {publicNiceDate(session.scheduledAt,session.language)}
         {session.venue?` · ${session.venue}`:''}
       </p>
 
