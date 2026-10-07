@@ -148,6 +148,31 @@ test('GM action can be requested by player and is logged instead of executed',as
 });
 
 
+test('English player portal localizes system blocked reasons',()=>{
+ const src=source();
+ const sess=session();
+ sess.language='EN';
+ const out=shapePlayerPortal(participant(),sess,src,runtime(),new Date('2026-09-21T18:05:00Z'));
+ const gm=out.interactions.find(x=>x.externalId==='ACT_GM');
+ assert.equal(gm.blockedReason,'Ask the GM');
+});
+
+test('English location fallback uses Search instead of Fouiller',async()=>{
+ const src=source();
+ src.interactions=[];
+ const sess=session();
+ sess.language='EN';
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:sess}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();
+   throw new Error('bad op');
+ };
+ const view=await getPlayerLocation(participant().playerAccessToken,'LOC1',{reader});
+ assert.equal(view.session.language,'EN');
+ assert.equal(view.actions[0].name,'Search');
+});
+
 test('location search interactions can be autonomous even when legacy resolution is GM',()=>{
  assert.equal(isAutonomousLocationInteraction({targetType:'LOCATION',name:'Fouiller le bureau',category:'INVESTIGATION',resolution:'GM',validation:'GM',targetSecret:false}),true);
  assert.equal(isAutonomousLocationInteraction({targetType:'CHARACTER',name:'Intimider',category:'SOCIAL',resolution:'GM',validation:'GM',targetSecret:false}),false);
