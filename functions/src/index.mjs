@@ -785,8 +785,8 @@ export const revealLiveClue = onRequest({ region:'europe-west1', cors:true, maxI
         kind:'CLUE',
         title:'Nouvel indice',
         titleEn:'New clue',
-        body:'Un nouvel indice a été ajouté à votre carnet.',
-        bodyEn:'A new clue has been added to your notebook.',
+        body:'Un nouvel indice a été ajouté à votre Sac et à votre Carnet.',
+        bodyEn:'A new clue has been added to your Bag and Notebook.',
         refExternalId:String(body.clueExternalId??'').trim(),
         priority:'IMPORTANT'
       });
