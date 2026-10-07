@@ -13781,3 +13781,69 @@ button.skinGalleryCard:disabled{
 .shell .orgaFoldBody textarea::placeholder{
   color:#81929c;
 }
+
+
+/* BUSINESS DEAL — GM validation */
+.businessDealList{
+  display:grid;
+  gap:10px;
+}
+
+.businessDealRow{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:14px;
+  align-items:center;
+  padding:14px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:12px;
+  background:rgba(255,255,255,.035);
+}
+
+.businessDealRow.accepted{
+  border-color:#b99055;
+  background:rgba(185,144,85,.10);
+}
+
+.businessDealRow.official{
+  border-color:#668774;
+  background:rgba(102,135,116,.10);
+}
+
+.businessDealRow.declined{
+  opacity:.72;
+}
+
+.businessDealPeople{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.businessDealMain p{
+  margin:8px 0 4px;
+  white-space:pre-wrap;
+}
+
+.businessDealActions{
+  display:grid;
+  justify-items:end;
+  gap:8px;
+}
+
+.abilityOfferPicker textarea{
+  width:100%;
+  min-height:110px;
+  resize:vertical;
+}
+
+@media(max-width:720px){
+  .businessDealRow{
+    grid-template-columns:1fr;
+  }
+
+  .businessDealActions{
+    justify-items:stretch;
+  }
+}
