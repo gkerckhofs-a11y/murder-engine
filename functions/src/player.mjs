@@ -888,7 +888,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
         clue:clue
           ? {
               ...clue,
-              inBag:clue.shareable!==false && !clue.objectExternalId,
+              inBag:!clue.objectExternalId,
               immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap)
             }
           : null
@@ -1466,12 +1466,12 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
         : `Objet physique débloqué : ${reward.object.name}. Présentez le code ${reward.object.logisticsCode} au Maître du Jeu pour recevoir l'accessoire physique.`);
   }else if(reward.kind==='CLUE_OBJECT'){
     body=english
-      ? `You discover ${reward.clue.name} and receive ${reward.object.name}.`
-      : `Vous découvrez ${reward.clue.name} et récupérez ${reward.object.name}.`;
+      ? `You discover ${reward.clue.name} and receive ${reward.object.name}. The clue is saved in your Notebook and the item is now in your Bag.`
+      : `Vous découvrez ${reward.clue.name} et récupérez ${reward.object.name}. L’indice est mémorisé dans votre Carnet et l’objet se trouve maintenant dans votre Sac.`;
   }else if(reward.kind==='CLUE'){
     body=english
-      ? `You discover: ${reward.clue.name}.`
-      : `Vous découvrez : ${reward.clue.name}.`;
+      ? `You discover: ${reward.clue.name}. It is now in your Bag and Notebook.`
+      : `Vous découvrez : ${reward.clue.name}. Il se trouve maintenant dans votre Sac et votre Carnet.`;
   }else if(reward.kind==='OBJECT'){
     body=english
       ? `You receive: ${reward.object.name}.`
