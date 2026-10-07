@@ -205,6 +205,24 @@ function participantByCharacter(session, characterExternalId) {
   return (session.sessionParticipants_on_gameSession ?? []).find(p => p.active !== false && p.characterExternalId === characterExternalId) ?? null;
 }
 
+function normalizedSearchText(value) {
+  return String(value??'')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase();
+}
+
+function isRepeatableLocationSearch(interaction) {
+  if(String(interaction?.targetType??'').toUpperCase()!=='LOCATION')
+    return false;
+
+  const hay=normalizedSearchText(
+    `${interaction?.externalId??''} ${interaction?.name??''} ${interaction?.category??''}`
+  );
+
+  return /(fouill|search|inspect|explor|chercher|investig)/.test(hay);
+}
+
 function validateTarget(source, session, targetType, targetExternalId) {
   const type = String(targetType ?? 'NONE').toUpperCase();
   if (type === 'NONE') return null;
@@ -220,10 +238,21 @@ function validateTarget(source, session, targetType, targetExternalId) {
 }
 
 function limitConfig(interaction, ability) {
+  const repeatableLocationSearch=isRepeatableLocationSearch(interaction);
+
   return {
-    maxUses: interaction.maxUses ?? ability?.maxUses ?? null,
-    cooldownMinutes: interaction.cooldownMinutes ?? ability?.cooldownMinutes ?? null,
-    limitPerTarget: interaction.limitPerTarget ?? null,
+    maxUses: repeatableLocationSearch
+      ? null
+      : (interaction.maxUses ?? ability?.maxUses ?? null),
+
+    cooldownMinutes:
+      interaction.cooldownMinutes ??
+      ability?.cooldownMinutes ??
+      null,
+
+    limitPerTarget: repeatableLocationSearch
+      ? null
+      : (interaction.limitPerTarget ?? null),
   };
 }
 
