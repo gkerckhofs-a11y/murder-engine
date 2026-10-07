@@ -27,6 +27,13 @@ test('media override parser tolerates empty and invalid JSON',()=>{
   );
 });
 
+test('media library can resolve object logistics codes for stable aliases',()=>{
+  assert.match(
+    __mediaLibraryOps.OBJECT_TARGET_QUERY,
+    /logisticsCode/
+  );
+});
+
 test('mediaOverrideFor resolves presentation targets',()=>{
   const map={
     'CHARACTER:CHAR_RUBY':{
