@@ -13232,3 +13232,65 @@ button.skinGalleryCard:disabled{
   border-color:#7f6a3f;
   color:#f3e4c2;
 }
+
+
+/* HOLLYWOOD 1930 — high contrast player feedback on parchment cards */
+.skin-hollywood-1930 .clueBagNotice{
+  background:#261b18;
+  border:1px solid #8f7044;
+  color:#fff3d6;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+}
+
+.skin-hollywood-1930 .bagOwnedBadge{
+  background:#261b18;
+  border:1px solid #8f7044;
+  color:#fff3d6;
+}
+
+.skin-hollywood-1930 .immersiveCostBadge,
+.skin-hollywood-1930 .immersiveSearchCost span{
+  background:#261b18!important;
+  border-color:#8f7044!important;
+  color:#fff3d6!important;
+}
+
+.skin-hollywood-1930 .immersiveDiscoveryLead{
+  color:#65461f;
+}
+
+.skin-hollywood-1930 .persistentClueNote,
+.skin-hollywood-1930 .searchCostRecap{
+  color:#49382c;
+  border-color:rgba(72,50,34,.24);
+}
+
+.skin-hollywood-1930 .physicalPickupCallout{
+  border:2px solid #c6a25c;
+  background:linear-gradient(145deg,#351d21,#1c1412);
+  color:#fff5df;
+  box-shadow:0 8px 24px rgba(42,20,18,.22);
+}
+
+.skin-hollywood-1930 .physicalPickupCallout span{
+  color:#f2c96d;
+  opacity:1;
+}
+
+.skin-hollywood-1930 .physicalPickupCallout strong{
+  color:#fff7e6;
+  font-size:1.02rem;
+  line-height:1.35;
+}
+
+.skin-hollywood-1930 .physicalPickupCallout p{
+  color:#f4e6ca;
+  opacity:1;
+}
+
+.skin-hollywood-1930 .physicalPickupCallout b{
+  background:#090706;
+  border:1px solid #c6a25c;
+  color:#fff3c7;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+}
