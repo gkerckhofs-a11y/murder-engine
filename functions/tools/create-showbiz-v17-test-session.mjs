@@ -3,7 +3,7 @@ import {
   listGameSessions,
   createGameSession,
   addGameSessionParticipant,
-  applySessionCastingAssignments,
+  assignCharacterToParticipant,
   setGameSessionStatus,
   getGameSession,
 } from '../src/sessions.mjs';
@@ -84,21 +84,29 @@ if(characters.length!==21){
   throw new Error('EXPECTED_21_PLAYABLE_CHARACTERS_GOT_'+characters.length);
 }
 
-// Create missing test participants only.
-const participantsByCharacter=new Map(
+// Reuse existing test participants from a previous partial run when possible.
+detail=await getGameSession(sessionId);
+
+const participantByCharacter=new Map(
   (detail.participants??[])
     .filter(p=>p.characterExternalId)
     .map(p=>[p.characterExternalId,p])
 );
 
-const assignments=[];
+const participantByName=new Map(
+  (detail.participants??[])
+    .map(p=>[p.displayName,p])
+);
 
 for(let i=0;i<characters.length;i++){
   const character=characters[i];
-  let participant=participantsByCharacter.get(character.externalId);
+  const displayName='TEST – '+character.name;
+
+  let participant=participantByCharacter.get(character.externalId)
+    ?? participantByName.get(displayName)
+    ?? null;
 
   if(!participant){
-    const displayName='TEST – '+character.name;
     const email=`showbiz.test.${String(i+1).padStart(2,'0')}@example.invalid`;
 
     const createdParticipant=await addGameSessionParticipant(sessionId,{
@@ -116,16 +124,34 @@ for(let i=0;i<characters.length;i++){
       displayName,
       characterExternalId:null,
     };
+
+    participantByName.set(displayName,participant);
   }
 
-  assignments.push({
-    participantId:participant.id,
-    characterExternalId:character.externalId,
-  });
+  if(participant.characterExternalId!==character.externalId){
+    await assignCharacterToParticipant(
+      sessionId,
+      participant.id,
+      character.externalId
+    );
+    participant.characterExternalId=character.externalId;
+    participantByCharacter.set(character.externalId,participant);
+  }
 }
 
-// Apply one-to-one casting in a single validated batch.
-await applySessionCastingAssignments(sessionId,assignments);
+detail=await getGameSession(sessionId);
+
+if(
+  detail.counts.participants!==21 ||
+  detail.counts.assigned!==21 ||
+  detail.counts.unassignedParticipants!==0 ||
+  detail.counts.unassignedCharacters!==0
+){
+  throw new Error(
+    'TEST_SESSION_CASTING_COUNTS_INVALID_'+
+    JSON.stringify(detail.counts)
+  );
+}
 
 // Freeze canonical character sheets for this test session.
 const frozen=await freezeSessionIncarnations(sessionId);
