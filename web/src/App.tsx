@@ -1660,13 +1660,186 @@ function StateControl({character,definitions,disabled,onState}:{character:LiveCh
 }
 
 function PublicPrecastView({token}:{token:string}) {
-  const [session,setSession]=useState<PublicPrecastSession|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState(''); const [submitted,setSubmitted]=useState(false); const [busy,setBusy]=useState(false);
-  const [displayName,setDisplayName]=useState(''); const [email,setEmail]=useState(''); const [ageBracket,setAgeBracket]=useState(''); const [genderPreference,setGenderPreference]=useState('SANS_PREFERENCE'); const [desiredInvolvement,setDesiredInvolvement]=useState('ACTIF'); const [notes,setNotes]=useState('');
-  useEffect(()=>{(async()=>{try{const result=await fetchJson<{ok:boolean;session:PublicPrecastSession}>(`/api/public/precast/session?token=${encodeURIComponent(token)}`);setSession(result.session);}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setLoading(false);}})();},[token]);
-  if(loading)return <main className="publicShell"><section className="publicCard card">Chargement du pré-casting…</section></main>;
-  if(error||!session)return <main className="publicShell"><section className="publicCard card"><p className="eyebrow">MURDER ENGINE</p><h1>Lien indisponible</h1><p>Ce lien de pré-casting n’est plus actif ou n’est pas valide.</p></section></main>;
-  if(submitted)return <main className="publicShell"><section className="publicCard card successPublic"><span className="successGlyph">✓</span><p className="eyebrow">PRÉ-CASTING ENVOYÉ</p><h1>Merci {displayName} !</h1><p>Tes préférences ont bien été transmises à l’organisateur. Le rôle sera attribué séparément.</p></section></main>;
-  return <main className="publicShell"><section className="publicCard card"><p className="eyebrow">{session.scenario.title}</p><h1>{session.name||'Pré-casting'}</h1><p className="publicMeta">{niceDate(session.scheduledAt)}{session.venue?` · ${session.venue}`:''}</p>{session.scenario.playerSummary&&<p className="publicPitch">{session.scenario.playerSummary}</p>}<div className="privacyNote">Ces informations servent uniquement à aider l’organisateur à attribuer les rôles. Aucun choix ne garantit un personnage précis.</div><div className="publicForm"><label>Prénom / nom<input autoComplete="name" value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Ton prénom…"/></label><label>E-mail <span>(obligatoire)</span><input required autoComplete="email" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="ton@email.be"/></label><label>Tranche d’âge <span>(obligatoire)</span><select required value={ageBracket} onChange={e=>setAgeBracket(e.target.value)}><option value="" disabled>Choisis ta tranche d’âge</option><option value="MOINS_18">Moins de 18 ans</option><option value="18_25">18–25 ans</option><option value="26_40">26–40 ans</option><option value="41_60">41–60 ans</option><option value="60_PLUS">60 ans et +</option></select></label><label>Préférence de personnage<select value={genderPreference} onChange={e=>setGenderPreference(e.target.value)}><option value="SANS_PREFERENCE">Aucune préférence</option><option value="MASCULIN">Je préfère un personnage masculin</option><option value="FEMININ">Je préfère un personnage féminin</option><option value="A_DISCUTER">À discuter avec l’organisateur</option></select></label><label>Implication souhaitée<select value={desiredInvolvement} onChange={e=>setDesiredInvolvement(e.target.value)}><option value="TRANQUILLE">Tranquille — jouer sans trop de pression</option><option value="ACTIF">Actif — participer pleinement</option><option value="TRES_IMPLIQUE">Très impliqué — beaucoup de jeu</option><option value="PREMIER_ROLE">Premier rôle — j’aime être au centre de l’action</option></select></label><label>Envie particulière de jeu <span>(facultatif)</span><textarea maxLength={500} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex. : j’aime négocier, enquêter, jouer un personnage théâtral…"/></label><button disabled={busy||displayName.trim().length<2||!isValidEmail(email)||!ageBracket} onClick={async()=>{setBusy(true);setError('');try{await postJson('/api/public/precast/submit',{token,displayName,email,ageBracket,genderPreference,desiredInvolvement,notes});setSubmitted(true);}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}}>{busy?'Envoi…':'Envoyer mes préférences'}</button>{error&&<p className="errorbox">{error}</p>}</div></section></main>;
+  const [session,setSession]=useState<PublicPrecastSession|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState('');
+  const [submitted,setSubmitted]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const [displayName,setDisplayName]=useState('');
+  const [email,setEmail]=useState('');
+  const [ageBracket,setAgeBracket]=useState('');
+  const [genderPreference,setGenderPreference]=useState('SANS_PREFERENCE');
+  const [desiredInvolvement,setDesiredInvolvement]=useState('ACTIF');
+  const [notes,setNotes]=useState('');
+
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const result=await fetchJson<{ok:boolean;session:PublicPrecastSession}>(
+          `/api/public/precast/session?token=${encodeURIComponent(token)}`
+        );
+        setSession(result.session);
+      }catch(e){
+        setError(e instanceof Error?e.message:String(e));
+      }finally{
+        setLoading(false);
+      }
+    })();
+  },[token]);
+
+  const en=String(session?.language??'FR').toUpperCase()==='EN';
+  const t=(fr:string,enText:string)=>en?enText:fr;
+
+  if(loading)
+    return <main className="publicShell">
+      <section className="publicCard card">
+        {t('Chargement du pré-casting…','Loading pre-casting…')}
+      </section>
+    </main>;
+
+  if(error||!session)
+    return <main className="publicShell">
+      <section className="publicCard card">
+        <p className="eyebrow">MURDER ENGINE</p>
+        <h1>{t('Lien indisponible','Link unavailable')}</h1>
+        <p>{t(
+          'Ce lien de pré-casting n’est plus actif ou n’est pas valide.',
+          'This pre-casting link is no longer active or valid.'
+        )}</p>
+      </section>
+    </main>;
+
+  if(submitted)
+    return <main className="publicShell">
+      <section className="publicCard card successPublic">
+        <span className="successGlyph">✓</span>
+        <p className="eyebrow">{t('PRÉ-CASTING ENVOYÉ','PRE-CASTING SUBMITTED')}</p>
+        <h1>{t(`Merci ${displayName} !`,`Thank you, ${displayName}!`)}</h1>
+        <p>{t(
+          'Tes préférences ont bien été transmises à l’organisateur. Le rôle sera attribué séparément.',
+          'Your preferences have been sent to the organizer. Your role will be assigned separately.'
+        )}</p>
+      </section>
+    </main>;
+
+  return <main className="publicShell">
+    <section className="publicCard card">
+      <p className="eyebrow">{session.scenario.title}</p>
+      <h1>{session.name||t('Pré-casting','Pre-casting')}</h1>
+      <p className="publicMeta">
+        {niceDate(session.scheduledAt,session.language)}
+        {session.venue?` · ${session.venue}`:''}
+      </p>
+
+      {session.scenario.playerSummary&&
+        <p className="publicPitch">{session.scenario.playerSummary}</p>
+      }
+
+      <div className="privacyNote">
+        {t(
+          'Ces informations servent uniquement à aider l’organisateur à attribuer les rôles. Aucun choix ne garantit un personnage précis.',
+          'This information is only used to help the organizer assign roles. No preference guarantees a specific character.'
+        )}
+      </div>
+
+      <div className="publicForm">
+        <label>
+          {t('Prénom / nom','Name')}
+          <input
+            autoComplete="name"
+            value={displayName}
+            onChange={e=>setDisplayName(e.target.value)}
+            placeholder={t('Ton prénom…','Your name…')}
+          />
+        </label>
+
+        <label>
+          {t('E-mail','Email')} <span>({t('obligatoire','required')})</span>
+          <input
+            required
+            autoComplete="email"
+            type="email"
+            value={email}
+            onChange={e=>setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </label>
+
+        <label>
+          {t('Tranche d’âge','Age range')} <span>({t('obligatoire','required')})</span>
+          <select required value={ageBracket} onChange={e=>setAgeBracket(e.target.value)}>
+            <option value="" disabled>{t('Choisis ta tranche d’âge','Choose your age range')}</option>
+            <option value="MOINS_18">{t('Moins de 18 ans','Under 18')}</option>
+            <option value="18_25">18–25</option>
+            <option value="26_40">26–40</option>
+            <option value="41_60">41–60</option>
+            <option value="60_PLUS">{t('60 ans et +','60+')}</option>
+          </select>
+        </label>
+
+        <label>
+          {t('Préférence de personnage','Character preference')}
+          <select value={genderPreference} onChange={e=>setGenderPreference(e.target.value)}>
+            <option value="SANS_PREFERENCE">{t('Aucune préférence','No preference')}</option>
+            <option value="MASCULIN">{t('Je préfère un personnage masculin','I prefer a male character')}</option>
+            <option value="FEMININ">{t('Je préfère un personnage féminin','I prefer a female character')}</option>
+            <option value="A_DISCUTER">{t('À discuter avec l’organisateur','Discuss with the organizer')}</option>
+          </select>
+        </label>
+
+        <label>
+          {t('Implication souhaitée','Desired involvement')}
+          <select value={desiredInvolvement} onChange={e=>setDesiredInvolvement(e.target.value)}>
+            <option value="TRANQUILLE">{t('Tranquille — jouer sans trop de pression','Relaxed — play without too much pressure')}</option>
+            <option value="ACTIF">{t('Actif — participer pleinement','Active — take a full part in the game')}</option>
+            <option value="TRES_IMPLIQUE">{t('Très impliqué — beaucoup de jeu','Highly involved — lots of interaction')}</option>
+            <option value="PREMIER_ROLE">{t('Premier rôle — j’aime être au centre de l’action','Leading role — I like being at the centre of the action')}</option>
+          </select>
+        </label>
+
+        <label>
+          {t('Envie particulière de jeu','Anything you especially enjoy')} <span>({t('facultatif','optional')})</span>
+          <textarea
+            maxLength={500}
+            value={notes}
+            onChange={e=>setNotes(e.target.value)}
+            placeholder={t(
+              'Ex. : j’aime négocier, enquêter, jouer un personnage théâtral…',
+              'E.g. I enjoy negotiating, investigating, playing theatrical characters…'
+            )}
+          />
+        </label>
+
+        <button
+          disabled={busy||displayName.trim().length<2||!isValidEmail(email)||!ageBracket}
+          onClick={async()=>{
+            setBusy(true);
+            setError('');
+            try{
+              await postJson('/api/public/precast/submit',{
+                token,
+                displayName,
+                email,
+                ageBracket,
+                genderPreference,
+                desiredInvolvement,
+                notes
+              });
+              setSubmitted(true);
+            }catch(e){
+              setError(e instanceof Error?e.message:String(e));
+            }finally{
+              setBusy(false);
+            }
+          }}
+        >
+          {busy?t('Envoi…','Sending…'):t('Envoyer mes préférences','Submit my preferences')}
+        </button>
+
+        {error&&<p className="errorbox">{error}</p>}
+      </div>
+    </section>
+  </main>;
 }
 
 function AddParticipantForm({onAdd}:{onAdd:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>}) {
