@@ -12970,3 +12970,12 @@ button.skinGalleryCard:disabled{
   font-size:.7rem;
   text-align:center;
 }
+
+
+/* Prefer reusing the organization library before showing upload controls. */
+.mediaPicker .mediaSelectedTarget{order:0;}
+.mediaPicker .mediaCurrentPreview{order:1;}
+.mediaPicker .mediaExistingHead{order:2;}
+.mediaPicker .mediaLibraryToolbar{order:3;}
+.mediaPicker .mediaAssetGrid{order:4;}
+.mediaPicker .mediaUpload{order:5;}
