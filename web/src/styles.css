@@ -11675,17 +11675,18 @@ button.skinGalleryCard:disabled{
 }
 
 .playerRelation.hasPortrait{
-  grid-template-columns:54px minmax(0,1fr);
+  grid-template-columns:64px minmax(0,1fr);
   align-items:start;
-  gap:11px;
+  gap:12px;
 }
 .relationPortrait{
-  width:54px;
-  height:64px;
-  object-fit:cover;
+  width:64px;
+  height:78px;
+  object-fit:contain;
+  object-position:center bottom;
   border:1px solid color-mix(in srgb,currentColor 18%,transparent);
   border-radius:9px;
-  background:color-mix(in srgb,currentColor 5%,transparent);
+  background:transparent;
 }
 .relationContent{
   display:grid;
@@ -13546,4 +13547,128 @@ button.skinGalleryCard:disabled{
 }
 .skin-hollywood-1930 .voteResultNews b{
   color:#6a202c;
+}
+
+
+/* ORGANIZER DASHBOARD — collapsible blocks remembered per session */
+.orgaFold{
+  margin:12px 0;
+  border:1px solid var(--line);
+  border-radius:13px;
+  overflow:hidden;
+  background:#0f1519;
+}
+
+.orgaFoldToggle{
+  width:100%;
+  min-height:52px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:10px 14px;
+  border:0;
+  border-radius:0;
+  background:#151d22;
+  color:var(--text);
+  text-align:left;
+}
+
+.orgaFoldToggle:hover{
+  background:#19242a;
+}
+
+.orgaFold.closed .orgaFoldToggle{
+  background:#11181c;
+}
+
+.orgaFoldTitle{
+  min-width:0;
+  display:grid;
+  gap:2px;
+}
+
+.orgaFoldTitle strong{
+  font-size:.9rem;
+  line-height:1.2;
+}
+
+.orgaFoldTitle small{
+  overflow:hidden;
+  color:var(--muted);
+  font-size:.7rem;
+  font-weight:600;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.orgaFoldAction{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  color:#aab9c1;
+  font-size:.68rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+
+.orgaFoldAction b{
+  width:20px;
+  height:20px;
+  display:grid;
+  place-items:center;
+  border:1px solid #40505a;
+  border-radius:50%;
+  font-size:.72rem;
+}
+
+.orgaFoldBody{
+  padding:10px;
+  border-top:1px solid #263139;
+}
+
+.orgaFoldBody[hidden]{
+  display:none!important;
+}
+
+.orgaFoldBody>.card,
+.orgaFoldBody>.sessionPackShortcut,
+.orgaFoldBody>.incarnationPanel,
+.orgaFoldBody>.runtimePanel{
+  margin-top:0;
+  margin-bottom:0;
+}
+
+.liveDashboard>.orgaFold{
+  margin:10px 0;
+}
+
+@media(max-width:620px){
+  .orgaFoldToggle{
+    align-items:flex-start;
+  }
+
+  .orgaFoldTitle small{
+    white-space:normal;
+  }
+
+  .orgaFoldAction{
+    font-size:0;
+  }
+
+  .orgaFoldAction b{
+    font-size:.72rem;
+  }
+
+  .playerRelation.hasPortrait{
+    grid-template-columns:58px minmax(0,1fr);
+    gap:10px;
+  }
+
+  .relationPortrait{
+    width:58px;
+    height:72px;
+  }
 }
