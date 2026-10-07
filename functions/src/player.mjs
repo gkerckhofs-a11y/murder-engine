@@ -1716,7 +1716,184 @@ export async function sendPlayerNotification(sessionId,input,{reader=defaultRead
   return{sent:true,characterExternalId,title};
 }
 
+
+async function respondPlayerAbilityGrant(token,input,{reader=defaultReader,executor=defaultExecutor,clueReveal=revealClueToCharacter,now=new Date()}={}) {
+  const loaded=await loadPlayerData(token,reader);
+  if(loaded.session.status!=='LIVE')throw new Error('PLAYER_ACTIONS_NOT_LIVE');
+  const target=loaded.participant.characterExternalId;
+  const grantToken=String(input?.grantToken??'').trim();
+  const selectionExternalId=String(input?.selectionExternalId??'').trim();
+  if(!grantToken||!selectionExternalId)throw new Error('ABILITY_RESPONSE_REQUIRED');
+
+  const grant=(loaded.runtime.sessionStealGrants??[]).find(g=>g.grantToken===grantToken);
+  if(!grant||grant.status!=='OPEN'||grant.targetCharacterExternalId!==target)
+    throw new Error('ABILITY_REQUEST_NOT_AVAILABLE');
+
+  const nowDate=now instanceof Date?now:new Date(now);
+  if(new Date(grant.expiresAt).getTime()<=nowDate.getTime())
+    throw new Error('ABILITY_REQUEST_EXPIRED');
+
+  const actor=grant.actorCharacterExternalId;
+  const actorDef=(loaded.source.characters??[]).find(c=>c.externalId===actor);
+  const targetDef=(loaded.source.characters??[]).find(c=>c.externalId===target);
+  const actorName=actorDef?.name??actor;
+  const targetName=targetDef?.name??target;
+  const usedAt=nowIso(nowDate);
+  const kind=String(grant.kind??'').toUpperCase();
+
+  if(kind==='CHARM'){
+    const option=charmInformationForTarget(
+      loaded.source,
+      loaded.runtime,
+      actor,
+      target
+    ).find(x=>x.factExternalId===selectionExternalId);
+    if(!option)throw new Error('CHARM_INFORMATION_NOT_AVAILABLE');
+
+    const actorNotification={
+      gameSessionId:loaded.session.id,
+      characterExternalId:actor,
+      kind:'CHARM',
+      title:sessionText(loaded.session,'Information obtenue de '+targetName,'Information obtained from '+targetName),
+      body:option.text||option.title,
+      priority:'IMPORTANT',
+      refExternalId:selectionExternalId,
+      createdAt:usedAt,
+      readAt:null,
+    };
+    const targetNotification={
+      gameSessionId:loaded.session.id,
+      characterExternalId:target,
+      kind:'CHARM',
+      title:sessionText(loaded.session,'Information révélée','Information revealed'),
+      body:sessionText(
+        loaded.session,
+        'Vous avez révélé « '+option.title+' » à '+actorName+'.',
+        'You revealed “'+option.title+'” to '+actorName+'.'
+      ),
+      priority:'NORMAL',
+      refExternalId:selectionExternalId,
+      createdAt:usedAt,
+      readAt:null,
+    };
+    const log={
+      gameSessionId:loaded.session.id,
+      actionType:'CHARM_INFORMATION_SHARED',
+      characterExternalId:actor,
+      refExternalId:selectionExternalId,
+      beforeValue:target,
+      afterValue:actor,
+      deltaValue:null,
+      note:sessionText(loaded.session,'Charm : information choisie par '+targetName,'Charm: information chosen by '+targetName),
+      createdAt:usedAt,
+    };
+    await executor(RESOLVE_CHARM_MUTATION,{
+      sessionId:loaded.session.id,
+      grantToken,
+      factExternalId:selectionExternalId,
+      usedAt,
+      knowledge:{
+        gameSessionId:loaded.session.id,
+        characterExternalId:actor,
+        factExternalId:selectionExternalId,
+        sourceType:'CHARM',
+        learnedAt:usedAt,
+      },
+      actorNotification,
+      targetNotification,
+      log,
+    });
+    return {success:true,kind:'CHARM',fact:{factExternalId:selectionExternalId,title:option.title,text:option.text},actorCharacterExternalId:actor,targetCharacterExternalId:target};
+  }
+
+  if(kind==='NEGOTIATION'){
+    const actorObjectExternalId=String(grant.chosenObjectExternalId??'').trim();
+    const actorOption=transferableEvidenceForCharacter(loaded.source,loaded.runtime,actor)
+      .find(x=>x.objectExternalId===actorObjectExternalId);
+    const targetOption=transferableEvidenceForCharacter(loaded.source,loaded.runtime,target)
+      .find(x=>x.objectExternalId===selectionExternalId);
+    if(!actorOption)throw new Error('NEGOTIATION_OFFER_NO_LONGER_AVAILABLE');
+    if(!targetOption)throw new Error('NEGOTIATION_RESPONSE_NO_LONGER_AVAILABLE');
+    if(actorObjectExternalId===selectionExternalId)throw new Error('NEGOTIATION_SAME_OBJECT');
+
+    const sourceClues=(loaded.source.clues??[]).filter(c=>c.active!==false&&c.addToNotebook!==false);
+    const actorLinked=sourceClues.filter(c=>c.objectExternalId===actorObjectExternalId);
+    const targetLinked=sourceClues.filter(c=>c.objectExternalId===selectionExternalId);
+
+    for(const clue of actorLinked)
+      await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceRef:actorObjectExternalId,note:sessionText(loaded.session,'Preuve conservée au carnet avant échange','Evidence retained in notebook before exchange')});
+    for(const clue of targetLinked)
+      await clueReveal(loaded.session.id,{characterExternalId:target,clueExternalId:clue.externalId,sourceRef:selectionExternalId,note:sessionText(loaded.session,'Preuve conservée au carnet avant échange','Evidence retained in notebook before exchange')});
+
+    const actorNotification={
+      gameSessionId:loaded.session.id,
+      characterExternalId:actor,
+      kind:'NEGOTIATION',
+      title:sessionText(loaded.session,'Échange conclu','Exchange completed'),
+      body:sessionText(
+        loaded.session,
+        targetName+' vous remet « '+targetOption.name+' » en échange de « '+actorOption.name+' ».',
+        targetName+' gives you “'+targetOption.name+'” in exchange for “'+actorOption.name+'”.'
+      ),
+      priority:'IMPORTANT',
+      refExternalId:selectionExternalId,
+      createdAt:usedAt,
+      readAt:null,
+    };
+    const targetNotification={
+      gameSessionId:loaded.session.id,
+      characterExternalId:target,
+      kind:'NEGOTIATION',
+      title:sessionText(loaded.session,'Échange imposé','Forced exchange'),
+      body:sessionText(
+        loaded.session,
+        'Vous remettez « '+targetOption.name+' » à '+actorName+' et recevez « '+actorOption.name+' ».',
+        'You give “'+targetOption.name+'” to '+actorName+' and receive “'+actorOption.name+'”.'
+      ),
+      priority:'IMPORTANT',
+      refExternalId:actorObjectExternalId,
+      createdAt:usedAt,
+      readAt:null,
+    };
+    const log={
+      gameSessionId:loaded.session.id,
+      actionType:'NEGOTIATION_EXCHANGE',
+      characterExternalId:actor,
+      refExternalId:grant.interactionExternalId,
+      beforeValue:actorObjectExternalId,
+      afterValue:selectionExternalId,
+      deltaValue:null,
+      note:sessionText(loaded.session,'Échange forcé avec '+targetName,'Forced exchange with '+targetName),
+      createdAt:usedAt,
+    };
+    await executor(RESOLVE_NEGOTIATION_MUTATION,{
+      sessionId:loaded.session.id,
+      grantToken,
+      actorObjectExternalId,
+      targetObjectExternalId:selectionExternalId,
+      actorCharacterExternalId:actor,
+      targetCharacterExternalId:target,
+      usedAt,
+      actorNotification,
+      targetNotification,
+      log,
+    });
+
+    for(const clue of actorLinked)
+      await clueReveal(loaded.session.id,{characterExternalId:target,clueExternalId:clue.externalId,sourceRef:actorObjectExternalId,note:sessionText(loaded.session,'Preuve reçue par négociation','Evidence received through negotiation')});
+    for(const clue of targetLinked)
+      await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceRef:selectionExternalId,note:sessionText(loaded.session,'Preuve reçue par négociation','Evidence received through negotiation')});
+
+    return {success:true,kind:'NEGOTIATION',received:targetOption,given:actorOption,actorCharacterExternalId:actor,targetCharacterExternalId:target};
+  }
+
+  throw new Error('UNSUPPORTED_ABILITY_REQUEST');
+}
+
 export async function executePlayerInteraction(token,input,{reader=defaultReader,executor=defaultExecutor,interactionExecutor=executeInteraction,clueReveal=revealClueToCharacter,now=new Date()}={}) {
+  if(input?.grantToken)
+    return respondPlayerAbilityGrant(token,input,{reader,executor,clueReveal,now});
+
   const loaded=await loadPlayerData(token,reader);
   if(loaded.session.status!=='LIVE')throw new Error('PLAYER_ACTIONS_NOT_LIVE');
   const actor=loaded.participant.characterExternalId;
@@ -1729,6 +1906,98 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
     if(!targetExternalId) throw new Error('INTERACTION_TARGET_REQUIRED');
     if(targetExternalId===actor) throw new Error('PLAYER_INTERACTION_SELF_TARGET_FORBIDDEN');
     if(!(loaded.session.sessionParticipants_on_gameSession??[]).some(p=>p.active!==false&&p.characterExternalId===targetExternalId)) throw new Error('TARGET_CHARACTER_NOT_IN_SESSION');
+  }
+
+  const specialKind=specialPlayerAbilityKind(interaction);
+  if(['CHARM','NEGOTIATION'].includes(specialKind)){
+    const targetCharacter=(loaded.source.characters??[]).find(c=>c.externalId===targetExternalId);
+    const targetName=targetCharacter?.name??targetExternalId;
+    const actorCharacter=(loaded.source.characters??[]).find(c=>c.externalId===actor);
+    const actorName=actorCharacter?.name??actor;
+
+    if(specialKind==='CHARM'){
+      if(!charmInformationForTarget(loaded.source,loaded.runtime,actor,targetExternalId).length)
+        throw new Error('CHARM_NO_INFORMATION_AVAILABLE');
+    }
+
+    let offeredObjectExternalId=null;
+    if(specialKind==='NEGOTIATION'){
+      const actorEvidence=transferableEvidenceForCharacter(loaded.source,loaded.runtime,actor);
+      const targetEvidence=transferableEvidenceForCharacter(loaded.source,loaded.runtime,targetExternalId);
+      if(!actorEvidence.length||!targetEvidence.length)
+        throw new Error('NEGOTIATION_NO_EVIDENCE_AVAILABLE');
+      offeredObjectExternalId=String(input?.offeredObjectExternalId??'').trim();
+      if(!actorEvidence.some(x=>x.objectExternalId===offeredObjectExternalId))
+        throw new Error('NEGOTIATION_OFFER_REQUIRED');
+    }
+
+    const result=await interactionExecutor(loaded.session.id,{
+      actorCharacterExternalId:actor,
+      interactionExternalId:id,
+      targetExternalId,
+      gmOutcome:'SUCCESS',
+      note:sessionText(loaded.session,'Compétence directe · '+specialKind,'Direct skill · '+specialKind),
+    });
+
+    const grantToken=randomBytes(24).toString('base64url');
+    const createdAt=nowIso(now);
+    const expiresAt=new Date((now instanceof Date?now:new Date(now)).getTime()+6*60*60*1000).toISOString();
+    await executor(INSERT_STEAL_GRANT_MUTATION,{data:{
+      gameSessionId:loaded.session.id,
+      grantToken,
+      interactionExternalId:id,
+      actorCharacterExternalId:actor,
+      targetCharacterExternalId:targetExternalId,
+      kind:specialKind,
+      status:'OPEN',
+      createdAt,
+      expiresAt,
+      usedAt:null,
+      chosenObjectExternalId:offeredObjectExternalId,
+    }});
+
+    const body=specialKind==='CHARM'
+      ? sessionText(
+          loaded.session,
+          actorName+' utilise son charme sur vous. Choisissez une information que vous connaissez à lui révéler.',
+          actorName+' uses Charm on you. Choose one piece of information you know to reveal.'
+        )
+      : sessionText(
+          loaded.session,
+          actorName+' impose un échange de preuves. Choisissez une preuve transférable à lui remettre en retour.',
+          actorName+' forces an evidence exchange. Choose one transferable piece of evidence to give in return.'
+        );
+
+    await executor(INSERT_NOTIFICATION_MUTATION,{data:{
+      gameSessionId:loaded.session.id,
+      characterExternalId:targetExternalId,
+      kind:specialKind,
+      title:specialKind==='CHARM'
+        ? sessionText(loaded.session,'Charm — réponse requise','Charm — response required')
+        : sessionText(loaded.session,'Négociation — échange requis','Negotiation — exchange required'),
+      body,
+      priority:'IMPORTANT',
+      refExternalId:id,
+      createdAt,
+      readAt:null,
+    }});
+    await executor(INSERT_NOTIFICATION_MUTATION,{data:{
+      gameSessionId:loaded.session.id,
+      characterExternalId:actor,
+      kind:specialKind,
+      title:sessionText(loaded.session,'Action lancée','Action started'),
+      body:sessionText(
+        loaded.session,
+        'Votre action sur '+targetName+' est lancée. La cible doit maintenant faire son choix.',
+        'Your action on '+targetName+' has started. The target must now make their choice.'
+      ),
+      priority:'NORMAL',
+      refExternalId:id,
+      createdAt,
+      readAt:null,
+    }});
+
+    return {...result,success:true,specialKind,pending:true,grantToken,targetExternalId};
   }
 
   const rumorInteraction=isInformantInteraction(interaction);
@@ -1744,11 +2013,11 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
   const requiresGm=String(interaction.resolution).toUpperCase()==='GM'||String(interaction.validation??'').toUpperCase()==='GM'||(Boolean(interaction.targetSecret)&&!characterTarget);
   if(requiresGm){
     if(!input?.requestOnly)throw new Error('PLAYER_INTERACTION_REQUIRES_GM');
-    await executor(INSERT_PLAYER_ACTION_LOG_MUTATION,{data:{gameSessionId:loaded.session.id,actionType:'PLAYER_INTERACTION_REQUEST',characterExternalId:actor,refExternalId:id,beforeValue:null,afterValue:targetExternalId,deltaValue:null,note:sessionText(loaded.session,`Demande joueur : ${interaction.name}`,`Player request: ${interaction.name}`),createdAt:nowIso(now)}});
+    await executor(INSERT_PLAYER_ACTION_LOG_MUTATION,{data:{gameSessionId:loaded.session.id,actionType:'PLAYER_INTERACTION_REQUEST',characterExternalId:actor,refExternalId:id,beforeValue:null,afterValue:targetExternalId,deltaValue:null,note:sessionText(loaded.session,'Demande joueur : '+interaction.name,'Player request: '+interaction.name),createdAt:nowIso(now)}});
     return {requested:true,interactionExternalId:id,interactionName:interaction.name,targetExternalId,scanMode:interactionScanMode(interaction)};
   }
 
-  const result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId:id,targetExternalId,note:sessionText(loaded.session,`Action joueur · ciblage ${interactionScanMode(interaction)??'N/A'}`,`Player action · targeting ${interactionScanMode(interaction)??'N/A'}`)});
+  const result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId:id,targetExternalId,note:sessionText(loaded.session,'Action joueur · ciblage '+(interactionScanMode(interaction)??'N/A'),'Player action · targeting '+(interactionScanMode(interaction)??'N/A'))});
   const createdAt=nowIso(now);
   const targetCharacter=(loaded.source.characters??[]).find(c=>c.externalId===targetExternalId);
   let rumor=null;
@@ -1759,7 +2028,7 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
       clueExternalId:rumorClue.externalId,
       sourceInteractionExternalId:id,
       sourceRef:targetExternalId,
-      note:sessionText(loaded.session,`Rumeur obtenue sur ${targetExternalId}`,`Rumour obtained about ${targetExternalId}`),
+      note:sessionText(loaded.session,'Rumeur obtenue sur '+targetExternalId,'Rumour obtained about '+targetExternalId),
     });
 
     rumor={
@@ -1776,7 +2045,7 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
         gameSessionId:loaded.session.id,
         characterExternalId:actor,
         kind:'RUMOR',
-        title:sessionText(loaded.session,`Rumeur — ${rumor.targetName}`,`Rumour — ${rumor.targetName}`),
+        title:sessionText(loaded.session,'Rumeur — '+rumor.targetName,'Rumour — '+rumor.targetName),
         body:rumor.text,
         priority:'NORMAL',
         refExternalId:rumor.clueExternalId,
@@ -1823,8 +2092,8 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
           title:sessionText(loaded.session,'Action sur votre personnage','Action targeting your character'),
           body:sessionText(
             loaded.session,
-            `Une action « ${interaction.name} » vient d’être exercée sur votre personnage. ${result.success?'Elle a réussi.':'Elle a échoué.'} Murder Engine ne révèle pas son auteur.`,
-            `An action “${interaction.name}” has just been used on your character. ${result.success?'It succeeded.':'It failed.'} Murder Engine does not reveal who performed it.`
+            'Une action « '+interaction.name+' » vient d’être exercée sur votre personnage. '+(result.success?'Elle a réussi.':'Elle a échoué.')+' Murder Engine ne révèle pas son auteur.',
+            'An action “'+interaction.name+'” has just been used on your character. '+(result.success?'It succeeded.':'It failed.')+' Murder Engine does not reveal who performed it.'
           ),
           priority:'NORMAL',
           refExternalId:id,
