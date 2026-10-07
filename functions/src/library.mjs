@@ -116,6 +116,7 @@ query ScenarioVersionOverview($versionId: UUID!) {
     name
     description
     support
+    logisticsCode
     mediaExternalId
     visualArchetypeCode
     active
