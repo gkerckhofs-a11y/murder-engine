@@ -13510,3 +13510,20 @@ button.skinGalleryCard:disabled{
     padding:24px 20px;
   }
 }
+
+
+.discoveredObjectVisual{
+  display:block;
+  width:min(260px,100%);
+  max-height:300px;
+  object-fit:contain;
+  margin:12px auto 14px;
+  border-radius:10px;
+  background:rgba(0,0,0,.08);
+}
+
+.skin-hollywood-1930 .discoveredObjectVisual{
+  border:1px solid #9b7b4c;
+  background:#211815;
+  box-shadow:0 8px 24px rgba(0,0,0,.2);
+}
