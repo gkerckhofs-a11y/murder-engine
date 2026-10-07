@@ -1,6 +1,8 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getDataConnect } from 'firebase-admin/data-connect';
 import { listScenarioLibrary } from '../src/library.mjs';
+import { listGameSessions, getGameSession } from '../src/sessions.mjs';
+import { getPlayerPortal } from '../src/player.mjs';
 
 if(!getApps().length) initializeApp();
 
@@ -167,4 +169,108 @@ for(const scenario of showbiz){
       overrideKeyCount:keys.length,
     },null,2));
   }
+}
+
+
+const sessions=await listGameSessions();
+const showbizVersionIds=new Set(
+  showbiz.flatMap(s=>s.versions.map(v=>v.id))
+);
+
+for(const summary of sessions.filter(s=>
+  showbizVersionIds.has(s.scenarioVersion?.id)
+)){
+  const detail=await getGameSession(summary.id);
+
+  const rows=[];
+
+  for(const participant of detail?.participants??[]){
+    if(
+      participant.active===false ||
+      !participant.characterExternalId ||
+      !participant.playerAccessEnabled ||
+      !participant.playerAccessToken
+    ) continue;
+
+    try{
+      const portal=await getPlayerPortal(
+        participant.playerAccessToken,
+        {trackOpen:false}
+      );
+
+      const tonicObject=(portal.inventory??[]).find(o=>
+        o.objectExternalId==='OBJ_SHW_COM_04' ||
+        /tonic|vocal/i.test(String(o.name??''))
+      )??null;
+
+      const tonicDiscovery=(portal.discoveries??[]).find(d=>
+        d.clueExternalId==='CLUE_SHW_COM_04' ||
+        /tonic|vocal/i.test(String(d.clue?.playerName??''))
+      )??null;
+
+      const tonicEntry=(portal.documentEntries??[]).find(d=>
+        d.clueExternalId==='CLUE_SHW_COM_04' ||
+        d.objectExternalId==='OBJ_SHW_COM_04' ||
+        /tonic|vocal/i.test(String(d.playerName??''))
+      )??null;
+
+      if(tonicObject||tonicDiscovery||tonicEntry){
+        rows.push({
+          characterExternalId:participant.characterExternalId,
+          inventory:tonicObject?{
+            objectExternalId:tonicObject.objectExternalId,
+            name:tonicObject.name,
+            logisticsCode:tonicObject.logisticsCode??null,
+            visualMedia:tonicObject.visualMedia?{
+              sourcePresent:Boolean(tonicObject.visualMedia.source),
+              externalId:tonicObject.visualMedia.externalId??null,
+              override:Boolean(tonicObject.visualMedia.override),
+              inherited:Boolean(tonicObject.visualMedia.inherited),
+            }:null,
+          }:null,
+          discovery:tonicDiscovery?{
+            clueExternalId:tonicDiscovery.clueExternalId,
+            inBag:Boolean(tonicDiscovery.clue?.inBag),
+            objectExternalId:tonicDiscovery.clue?.objectExternalId??null,
+            logisticsCode:tonicDiscovery.clue?.logisticsCode??null,
+            visualMedia:tonicDiscovery.clue?.visualMedia?{
+              sourcePresent:Boolean(tonicDiscovery.clue.visualMedia.source),
+              externalId:tonicDiscovery.clue.visualMedia.externalId??null,
+              override:Boolean(tonicDiscovery.clue.visualMedia.override),
+              inherited:Boolean(tonicDiscovery.clue.visualMedia.inherited),
+            }:null,
+          }:null,
+          documentEntry:tonicEntry?{
+            clueExternalId:tonicEntry.clueExternalId,
+            objectExternalId:tonicEntry.objectExternalId??null,
+            hasObject:Boolean(tonicEntry.object),
+            visualMedia:tonicEntry.visualMedia?{
+              sourcePresent:Boolean(tonicEntry.visualMedia.source),
+              externalId:tonicEntry.visualMedia.externalId??null,
+              override:Boolean(tonicEntry.visualMedia.override),
+              inherited:Boolean(tonicEntry.visualMedia.inherited),
+            }:null,
+            objectVisualMedia:tonicEntry.object?.visualMedia?{
+              sourcePresent:Boolean(tonicEntry.object.visualMedia.source),
+              externalId:tonicEntry.object.visualMedia.externalId??null,
+              override:Boolean(tonicEntry.object.visualMedia.override),
+              inherited:Boolean(tonicEntry.object.visualMedia.inherited),
+            }:null,
+          }:null,
+        });
+      }
+    }catch(error){
+      rows.push({
+        characterExternalId:participant.characterExternalId,
+        error:error instanceof Error?error.message:String(error),
+      });
+    }
+  }
+
+  console.log('SHOWBIZ_PORTAL_DIAG',JSON.stringify({
+    sessionId:summary.id,
+    status:summary.status,
+    versionId:summary.scenarioVersion?.id,
+    matches:rows,
+  },null,2));
 }
