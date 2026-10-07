@@ -213,6 +213,11 @@ function characterGenderLabel(value?:string|null) {
   if(!v||['NEUTRE','ADAPTABLE','UNISEXE','LIBRE','ANY'].includes(v)) return 'Adapt.';
   return value||'—';
 }
+function safeDecodePathSegment(value:string|null){
+  if(!value)return null;
+  try{return decodeURIComponent(value)}catch{return value}
+}
+
 function versionCountCompatible(v:VersionSummary,count:number){const min=v.minPlayers??v.counts.playableCharacters;const max=v.maxPlayers??v.counts.playableCharacters;return count>=min&&count<=max;}
 function versionGenderCompatible(v:VersionSummary,count:number,women:number|null,men:number|null){
   if(women===null||men===null||women+men!==count)return true;
@@ -226,7 +231,7 @@ export default function App() {
   const publicRegistrationToken = params.get('register');
   const publicPlayerToken = params.get('player');
   const scanMatch = window.location.pathname.match(/^\/scan\/([^/]+)\/?$/);
-  const scanLocationExternalId = scanMatch ? decodeURIComponent(scanMatch[1]) : null;
+  const scanLocationExternalId = scanMatch ? safeDecodePathSegment(scanMatch[1]) : null;
   const [view, setView] = useState<'library' | 'registrations' | 'sessions' | 'import'>('library');
   const [registrationScenarioId,setRegistrationScenarioId]=useState<string|null>(null);
   const [scenarios, setScenarios] = useState<ScenarioLibraryItem[]>([]);
