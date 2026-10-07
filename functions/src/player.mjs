@@ -598,7 +598,7 @@ export function clandestineInteractionKind(interaction) {
 }
 
 
-export const LOCATION_SEARCH_COOLDOWN_SECONDS = 0;
+export const LOCATION_SEARCH_COOLDOWN_SECONDS = 10 * 60;
 
 export function isLocationSearchInteraction(interaction) {
   if (String(interaction?.targetType ?? '').toUpperCase() !== 'LOCATION') return false;
@@ -607,8 +607,36 @@ export function isLocationSearchInteraction(interaction) {
   return /(fouill|search|inspect|explor|chercher|investig)/.test(hay);
 }
 
-function globalLocationSearchCooldownRemaining() {
-  return 0;
+function globalLocationSearchCooldownRemaining(source, runtime, characterExternalId, now=new Date()) {
+  const searchIds=new Set([
+    'SYSTEM_LOCATION_SEARCH',
+    ...(source.interactions??[])
+      .filter(isLocationSearchInteraction)
+      .map(i=>i.externalId)
+  ]);
+
+  const times=(runtime.sessionInteractionUses??[])
+    .filter(
+      u=>
+        u.actorCharacterExternalId===characterExternalId &&
+        searchIds.has(u.interactionExternalId)
+    )
+    .map(u=>new Date(u.createdAt).getTime())
+    .filter(Number.isFinite);
+
+  if(!times.length)return 0;
+
+  const latest=Math.max(...times);
+
+  return Math.max(
+    0,
+    Math.ceil(
+      (
+        LOCATION_SEARCH_COOLDOWN_SECONDS*1000 -
+        (now.getTime()-latest)
+      )/1000
+    )
+  );
 }
 export function isAutonomousLocationInteraction(interaction) {
   if (String(interaction?.targetType ?? '').toUpperCase() !== 'LOCATION' || interaction?.targetSecret) return false;
@@ -714,7 +742,7 @@ function locationActionShape(source,runtime,session,characterExternalId,location
     const maxBlocked=!repeatableSearch&&i.maxUses!=null&&uses.length>=Number(i.maxUses);
     const targetBlocked=!repeatableSearch&&i.limitPerTarget!=null&&sameTarget>=Number(i.limitPerTarget);
     const ownCooldown=repeatableSearch?0:Number(i.cooldownRemainingSeconds??0);
-    const searchCooldown=0;
+    const searchCooldown=repeatableSearch?searchCooldownRemainingSeconds:0;
     const cooldownRemainingSeconds=Math.max(ownCooldown,searchCooldown);
     const cooldownBlocked=cooldownRemainingSeconds>0;
     const blockedReason=session.status!=='LIVE'
@@ -744,7 +772,7 @@ function locationActionShape(source,runtime,session,characterExternalId,location
           : searchCooldownRemainingSeconds>0
             ? sessionText(session,'Nouvelle fouille disponible dans quelques minutes','Next search available in a few minutes')
             : null;
-    actions.push({externalId:'SYSTEM_LOCATION_SEARCH',name:sessionText(session,'Fouiller','Search'),category:'INVESTIGATION',targetType:'LOCATION',resolution:'AUTO',validation:'AUTO',costResourceExternalId:'RES_PA',costValue:1,currentCostResourceValue:pa?.currentValue??null,diceCount:0,diceSides:0,difficulty:null,usesCount:(runtime.sessionInteractionUses??[]).filter(u=>u.actorCharacterExternalId===characterExternalId&&u.interactionExternalId==='SYSTEM_LOCATION_SEARCH'&&u.targetExternalId===locationExternalId).length,maxUses:null,cooldownMinutes:null,cooldownRemainingSeconds:0,searchCooldownRemainingSeconds,targetExternalId:locationExternalId,autonomous:true,systemFallback:true,available:!blockedReason,blockedReason});
+    actions.push({externalId:'SYSTEM_LOCATION_SEARCH',name:sessionText(session,'Fouiller','Search'),category:'INVESTIGATION',targetType:'LOCATION',resolution:'AUTO',validation:'AUTO',costResourceExternalId:'RES_PA',costValue:1,currentCostResourceValue:pa?.currentValue??null,diceCount:0,diceSides:0,difficulty:null,usesCount:(runtime.sessionInteractionUses??[]).filter(u=>u.actorCharacterExternalId===characterExternalId&&u.interactionExternalId==='SYSTEM_LOCATION_SEARCH'&&u.targetExternalId===locationExternalId).length,maxUses:null,cooldownMinutes:10,cooldownRemainingSeconds:searchCooldownRemainingSeconds,searchCooldownRemainingSeconds,targetExternalId:locationExternalId,autonomous:true,systemFallback:true,available:!blockedReason,blockedReason});
   }
   return {location,actions,rewardsRemaining:rewards.rewardsRemaining,searchCooldownRemainingSeconds};
 }
