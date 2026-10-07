@@ -7,6 +7,8 @@ import {
   INSERT_ORGANIZATION_MUTATION,
   INSERT_SCENARIO_MUTATION,
   INSERT_SCENARIO_SNAPSHOT_MUTATION,
+  INSERT_CLUES_BATCH_MUTATION,
+  INSERT_CLUE_FACTS_BATCH_MUTATION,
   INSERT_OBJECTIVE_MUTATION,
   INSERT_RELATIONSHIP_MUTATION,
   INSERT_GAME_OBJECT_MUTATION,
@@ -103,11 +105,15 @@ test('snapshot import uses inserts, never upserts', () => {
   assert.match(INSERT_SCENARIO_SNAPSHOT_MUTATION,/mutation InsertScenarioSnapshot/);
   assert.match(INSERT_SCENARIO_SNAPSHOT_MUTATION,/@transaction/);
   assert.match(INSERT_SCENARIO_SNAPSHOT_MUTATION,/character_insertMany/);
-  assert.match(INSERT_SCENARIO_SNAPSHOT_MUTATION,/clueFact_insertMany/);
+  assert.doesNotMatch(INSERT_SCENARIO_SNAPSHOT_MUTATION,/clue_insertMany/);
+  assert.match(INSERT_CLUES_BATCH_MUTATION,/clue_insertMany/);
+  assert.match(INSERT_CLUE_FACTS_BATCH_MUTATION,/clueFact_insertMany/);
   for (const operation of [
     INSERT_ORGANIZATION_MUTATION,
     INSERT_SCENARIO_MUTATION,
     INSERT_SCENARIO_SNAPSHOT_MUTATION,
+    INSERT_CLUES_BATCH_MUTATION,
+    INSERT_CLUE_FACTS_BATCH_MUTATION,
     INSERT_OBJECTIVE_MUTATION,
     INSERT_RELATIONSHIP_MUTATION,
     INSERT_GAME_OBJECT_MUTATION,
@@ -135,7 +141,7 @@ test('first import inserts parents, snapshot and enrichment', async () => {
     reader: async (operation) => {
       reads += 1;
       if (operation === IMPORT_PREFLIGHT_QUERY) return { data:{ organization:null, scenario:null, scenarioVersion:null } };
-      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[] } };
+      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[], clues:[], clueFacts:[] } };
       assert.fail('Unexpected read operation');
     },
     executor: async (operation, variables) => {
@@ -144,28 +150,30 @@ test('first import inserts parents, snapshot and enrichment', async () => {
     },
   });
   assert.equal(reads,2);
-  assert.equal(writes.length,18);
+  assert.equal(writes.length,20);
   assert.equal(writes[0].operation, INSERT_ORGANIZATION_MUTATION);
   assert.equal(writes[1].operation, INSERT_SCENARIO_MUTATION);
   assert.equal(writes[2].operation, INSERT_SCENARIO_SNAPSHOT_MUTATION);
   assert.equal(JSON.parse(writes[2].variables.scenarioVersion.importReportJson).counts.ERROR,0);
-  assert.equal(writes[3].operation, INSERT_OBJECTIVE_MUTATION);
-  assert.equal(writes[4].operation, INSERT_RELATIONSHIP_MUTATION);
-  assert.equal(writes[5].operation, INSERT_GAME_OBJECT_MUTATION);
-  assert.equal(writes[6].operation, INSERT_RESOURCE_MUTATION);
-  assert.equal(writes[7].operation, INSERT_RESOURCE_ASSIGNMENT_MUTATION);
-  assert.equal(writes[8].operation, INSERT_STATE_DEFINITION_MUTATION);
-  assert.equal(writes[9].operation, INSERT_ABILITY_MUTATION);
-  assert.equal(writes[10].operation, INSERT_ABILITY_ASSIGNMENT_MUTATION);
-  assert.equal(writes[11].operation, INSERT_INTERACTION_MUTATION);
-  assert.equal(writes[12].operation, INSERT_LOCATION_MUTATION);
-  assert.equal(writes[13].operation, INSERT_PHASE_DEFINITION_MUTATION);
-  assert.equal(writes[14].operation, INSERT_EVENT_DEFINITION_MUTATION);
-  assert.equal(writes[15].operation, INSERT_VOTE_DEFINITION_MUTATION);
-  assert.equal(writes[16].operation, INSERT_VOTE_OPTION_DEFINITION_MUTATION);
-  assert.equal(writes[17].operation, MARK_RUNTIME_SOURCE_MUTATION);
+  assert.equal(writes[3].operation, INSERT_CLUES_BATCH_MUTATION);
+  assert.equal(writes[4].operation, INSERT_CLUE_FACTS_BATCH_MUTATION);
+  assert.equal(writes[5].operation, INSERT_OBJECTIVE_MUTATION);
+  assert.equal(writes[6].operation, INSERT_RELATIONSHIP_MUTATION);
+  assert.equal(writes[7].operation, INSERT_GAME_OBJECT_MUTATION);
+  assert.equal(writes[8].operation, INSERT_RESOURCE_MUTATION);
+  assert.equal(writes[9].operation, INSERT_RESOURCE_ASSIGNMENT_MUTATION);
+  assert.equal(writes[10].operation, INSERT_STATE_DEFINITION_MUTATION);
+  assert.equal(writes[11].operation, INSERT_ABILITY_MUTATION);
+  assert.equal(writes[12].operation, INSERT_ABILITY_ASSIGNMENT_MUTATION);
+  assert.equal(writes[13].operation, INSERT_INTERACTION_MUTATION);
+  assert.equal(writes[14].operation, INSERT_LOCATION_MUTATION);
+  assert.equal(writes[15].operation, INSERT_PHASE_DEFINITION_MUTATION);
+  assert.equal(writes[16].operation, INSERT_EVENT_DEFINITION_MUTATION);
+  assert.equal(writes[17].operation, INSERT_VOTE_DEFINITION_MUTATION);
+  assert.equal(writes[18].operation, INSERT_VOTE_OPTION_DEFINITION_MUTATION);
+  assert.equal(writes[19].operation, MARK_RUNTIME_SOURCE_MUTATION);
   assert.equal(result.baseInserted,true);
-  assert.deepEqual(result.imported,{ objectives:1, relationships:1, documents:0, mediaAssets:0, skinVisualDefinitions:0, gameObjects:1, resources:1, resourceAssignments:1, stateDefinitions:1, abilities:1, abilityAssignments:1, interactions:1, locations:1, phaseDefinitions:1, eventDefinitions:1, voteDefinitions:1, voteOptionDefinitions:1 });
+  assert.deepEqual(result.imported,{ clues:1, clueFacts:1, objectives:1, relationships:1, documents:0, mediaAssets:0, skinVisualDefinitions:0, gameObjects:1, resources:1, resourceAssignments:1, stateDefinitions:1, abilities:1, abilityAssignments:1, interactions:1, locations:1, phaseDefinitions:1, eventDefinitions:1, voteDefinitions:1, voteOptionDefinitions:1 });
 });
 
 test('re-import of same immutable version skips base and only inserts missing enrichment', async () => {
@@ -174,7 +182,7 @@ test('re-import of same immutable version skips base and only inserts missing en
   const result = await persistImportPlan(plan, {}, {
     reader: async (operation) => {
       if (operation === IMPORT_PREFLIGHT_QUERY) return { data:{ organization:{id:plan.ids.organizationId}, scenario:{id:plan.ids.scenarioId}, scenarioVersion:{id:plan.ids.scenarioVersionId} } };
-      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[] } };
+      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[], clues:[{externalId:'CLUE_1'}], clueFacts:[{clueExternalId:'CLUE_1',factExternalId:'FACT_1'}] } };
       assert.fail('Unexpected read operation');
     },
     executor: async (operation, variables) => {
@@ -195,14 +203,76 @@ test('fully imported immutable version becomes a safe no-op', async () => {
   const result = await persistImportPlan(plan, {}, {
     reader: async (operation) => {
       if (operation === IMPORT_PREFLIGHT_QUERY) return { data:{ organization:{id:'o'}, scenario:{id:'s'}, scenarioVersion:{id:'v',runtimeDataVersion:'0.9',skinId:'CONTEMPORARY_1980_2000',accentColor:null,logoMediaExternalId:null,backgroundMediaExternalId:null} } };
-      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[{externalId:'OBJ_1'}], relationships:[{externalId:'REL_1'}], gameObjects:[{externalId:'ITEM_1'}], resources:[{externalId:'RES_PA'}], resourceAssignments:[{externalId:'RA_1'}], gameStateDefinitions:[{externalId:'STATE_BLESSE'}], abilities:[{externalId:'ABILITY_FOUILLE'}], abilityAssignments:[{externalId:'ASSIGN_A_FOUILLE'}], interactions:[{externalId:'ACT_FOUILLE'}], gameLocations:[{externalId:'LOC_BUREAU'}], gamePhaseDefinitions:[{externalId:'PHASE_1'}], gameEventDefinitions:[{externalId:'EVENT_1'}], voteDefinitions:[{externalId:'VOTE_1'}], voteOptionDefinitions:[{externalId:'OPT_1'}] } };
+      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[{externalId:'OBJ_1'}], relationships:[{externalId:'REL_1'}], gameObjects:[{externalId:'ITEM_1'}], resources:[{externalId:'RES_PA'}], resourceAssignments:[{externalId:'RA_1'}], gameStateDefinitions:[{externalId:'STATE_BLESSE'}], abilities:[{externalId:'ABILITY_FOUILLE'}], abilityAssignments:[{externalId:'ASSIGN_A_FOUILLE'}], interactions:[{externalId:'ACT_FOUILLE'}], gameLocations:[{externalId:'LOC_BUREAU'}], gamePhaseDefinitions:[{externalId:'PHASE_1'}], gameEventDefinitions:[{externalId:'EVENT_1'}], voteDefinitions:[{externalId:'VOTE_1'}], voteOptionDefinitions:[{externalId:'OPT_1'}], clues:[{externalId:'CLUE_1'}], clueFacts:[{clueExternalId:'CLUE_1',factExternalId:'FACT_1'}] } };
       assert.fail('Unexpected read operation');
     },
     executor: async () => { writes += 1; return { data:{} }; },
   });
   assert.equal(writes,0);
   assert.equal(result.baseInserted,false);
-  assert.deepEqual(result.imported,{ objectives:0, relationships:0, documents:0, mediaAssets:0, skinVisualDefinitions:0, gameObjects:0, resources:0, resourceAssignments:0, stateDefinitions:0, abilities:0, abilityAssignments:0, interactions:0, locations:0, phaseDefinitions:0, eventDefinitions:0, voteDefinitions:0, voteOptionDefinitions:0 });
+  assert.deepEqual(result.imported,{ clues:0, clueFacts:0, objectives:0, relationships:0, documents:0, mediaAssets:0, skinVisualDefinitions:0, gameObjects:0, resources:0, resourceAssignments:0, stateDefinitions:0, abilities:0, abilityAssignments:0, interactions:0, locations:0, phaseDefinitions:0, eventDefinitions:0, voteDefinitions:0, voteOptionDefinitions:0 });
+});
+
+test('clue imports are split into Data Connect batches of at most 100 rows', async () => {
+  const plan = buildImportPlan(workbook(), { sourceBuffer:Buffer.from('large-clues') });
+  const baseClue = plan.clues[0];
+  plan.clues = Array.from({length:136},(_,i)=>({...baseClue,externalId:`CLUE_${String(i+1).padStart(3,'0')}`}));
+  plan.clueFacts = plan.clues.map(clue=>({
+    scenarioVersionId:plan.ids.scenarioVersionId,
+    clueExternalId:clue.externalId,
+    factExternalId:'FACT_1',
+  }));
+
+  const calls=[];
+  const result=await persistImportPlan(plan,{},{
+    reader:async operation=>{
+      if(operation===IMPORT_PREFLIGHT_QUERY)return {data:{
+        organization:{id:plan.ids.organizationId},
+        scenario:{id:plan.ids.scenarioId},
+        scenarioVersion:{
+          id:plan.ids.scenarioVersionId,
+          runtimeDataVersion:'0.9',
+          skinId:plan.scenarioVersion.skinId,
+          accentColor:plan.scenarioVersion.accentColor,
+          logoMediaExternalId:plan.scenarioVersion.logoMediaExternalId,
+          backgroundMediaExternalId:plan.scenarioVersion.backgroundMediaExternalId,
+        },
+      }};
+      if(operation===EXISTING_ENRICHMENT_QUERY)return {data:{
+        objectives:plan.objectives.map(x=>({externalId:x.externalId})),
+        relationships:plan.relationships.map(x=>({externalId:x.externalId})),
+        documentDefinitions:[],
+        mediaAssets:[],
+        skinVisualDefinitions:[],
+        gameObjects:plan.gameObjects.map(x=>({externalId:x.externalId})),
+        resources:plan.resources.map(x=>({externalId:x.externalId})),
+        resourceAssignments:plan.resourceAssignments.map(x=>({externalId:x.externalId})),
+        gameStateDefinitions:plan.stateDefinitions.map(x=>({externalId:x.externalId})),
+        abilities:plan.abilities.map(x=>({externalId:x.externalId})),
+        abilityAssignments:plan.abilityAssignments.map(x=>({externalId:x.externalId})),
+        interactions:plan.interactions.map(x=>({externalId:x.externalId})),
+        gameLocations:plan.locations.map(x=>({externalId:x.externalId})),
+        gamePhaseDefinitions:plan.phaseDefinitions.map(x=>({externalId:x.externalId})),
+        gameEventDefinitions:plan.eventDefinitions.map(x=>({externalId:x.externalId})),
+        voteDefinitions:plan.voteDefinitions.map(x=>({externalId:x.externalId})),
+        voteOptionDefinitions:plan.voteOptionDefinitions.map(x=>({externalId:x.externalId})),
+        clues:[],
+        clueFacts:[],
+      }};
+      assert.fail('Unexpected read operation');
+    },
+    executor:async(operation,variables)=>{
+      calls.push({operation,variables});
+      return {data:{}};
+    },
+  });
+
+  const clueCalls=calls.filter(x=>x.operation===INSERT_CLUES_BATCH_MUTATION);
+  const clueFactCalls=calls.filter(x=>x.operation===INSERT_CLUE_FACTS_BATCH_MUTATION);
+  assert.deepEqual(clueCalls.map(x=>x.variables.data.length),[100,36]);
+  assert.deepEqual(clueFactCalls.map(x=>x.variables.data.length),[100,36]);
+  assert.equal(result.imported.clues,136);
+  assert.equal(result.imported.clueFacts,136);
 });
 
 test('immersive documents import media and synthesize a transferable object', () => {

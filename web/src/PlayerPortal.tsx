@@ -24,9 +24,11 @@ async function fetchJson<T>(url:string, init?:RequestInit):Promise<T>{
   return data as T;
 }
 async function postJson<T=any>(url:string,body:any):Promise<T>{return fetchJson<T>(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});}
-function niceDate(v?:string|null){if(!v)return 'Date à confirmer';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString('fr-BE',{dateStyle:'full',timeStyle:'short'});}
-function niceTime(v?:string|null){if(!v)return '';const d=new Date(v);return Number.isNaN(d.getTime())?'':d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});}
-function resourceLabel(id:string){return ({RES_PA:'PA',RES_CASH:'Argent',RES_BANK:'Banque',RES_INFLUENCE:'Influence'} as Record<string,string>)[id]??id.replace(/^RES_/,'');}
+function niceDate(v?:string|null,language='FR'){if(!v)return String(language).toUpperCase()==='EN'?'Date to be confirmed':'Date à confirmer';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString(String(language).toUpperCase()==='EN'?'en-GB':'fr-BE',{dateStyle:'full',timeStyle:'short'});}
+function niceTime(v?:string|null,language='FR'){if(!v)return '';const d=new Date(v);return Number.isNaN(d.getTime())?'':d.toLocaleTimeString(String(language).toUpperCase()==='EN'?'en-GB':'fr-BE',{hour:'2-digit',minute:'2-digit'});}
+function isEnglish(portal:any){return String(portal?.session?.language??'FR').trim().toUpperCase()==='EN';}
+function tr(portal:any,fr:string,en:string){return isEnglish(portal)?en:fr;}
+function resourceLabel(id:string,portal?:any){return (isEnglish(portal)?{RES_PA:'AP',RES_CASH:'Cash',RES_BANK:'Bank',RES_INFLUENCE:'Influence'}:{RES_PA:'PA',RES_CASH:'Argent',RES_BANK:'Banque',RES_INFLUENCE:'Influence'} as Record<string,string>)[id]??id.replace(/^RES_/,'');}
 function normalizeText(v:any){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
 function isPhysicalClue(clue:any){
   if(clue?.objectExternalId)return true;
@@ -116,8 +118,8 @@ export default function PlayerPortal({token}:{token:string}){
       setBusy(false);
     }
   }
-  if(loading&&!portal)return <main className="playerShell"><section className="playerCard"><h1>Murder Engine</h1><p>Chargement de votre fiche…</p></section></main>;
-  if(error&&!portal)return <main className="playerShell"><section className="playerCard"><p className="eyebrow">MURDER ENGINE</p><h1>Lien indisponible</h1><p>Ce lien joueur n’est plus actif ou n’est pas valide.</p><small>{error}</small></section></main>;
+  if(loading&&!portal)return <main className="playerShell"><section className="playerCard"><h1>Murder Engine</h1><p>Loading your character sheet…</p></section></main>;
+  if(error&&!portal)return <main className="playerShell"><section className="playerCard"><p className="eyebrow">MURDER ENGINE</p><h1>Link unavailable</h1><p>This player link is no longer active or valid.</p><small>{error}</small></section></main>;
   if(!portal)return null;
   const c=portal.character; const s=portal.session; const pa=(portal.resources??[]).find((r:any)=>r.resourceExternalId==='RES_PA');
   const presentation=(portal as any).presentation??{};
@@ -131,8 +133,8 @@ export default function PlayerPortal({token}:{token:string}){
   } as any;
 
   return <main className={`playerShell playerShellV161 ${skinClass}`} style={skinStyle}>
-    <header className="playerHero">{presentation.logo?.source&&<img className="playerScenarioLogo" src={presentation.logo.source} alt={presentation.logo.altText||s.scenarioTitle}/>}<p className="eyebrow">{s.scenarioTitle}</p><h1>{c.name}</h1><p className="playerRole">{c.publicRole||'Personnage'}{c.narrativeAge?` · ${c.narrativeAge}`:''}</p><div className="playerSessionMeta"><span>{s.name}</span><span>{niceDate(s.scheduledAt)}</span>{s.venue&&<span>{s.venue}</span>}</div></header>
-    <div className="playerStatusBar"><div><small>Vous jouez</small><strong>{c.name}</strong></div><div className="paPill"><small>PA</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div></div>
+    <header className="playerHero">{presentation.logo?.source&&<img className="playerScenarioLogo" src={presentation.logo.source} alt={presentation.logo.altText||s.scenarioTitle}/>}<p className="eyebrow">{s.scenarioTitle}</p><h1>{c.name}</h1><p className="playerRole">{c.publicRole||tr(portal,'Personnage','Character')}{c.narrativeAge?` · ${c.narrativeAge}`:''}</p><div className="playerSessionMeta"><span>{s.name}</span><span>{niceDate(s.scheduledAt,s.language)}</span>{s.venue&&<span>{s.venue}</span>}</div></header>
+    <div className="playerStatusBar"><div><small>{tr(portal,'Vous jouez','You are playing')}</small><strong>{c.name}</strong></div><div className="paPill"><small>{isEnglish(portal)?'AP':'PA'}</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div></div>
     {portal.states?.length>0&&<section className="playerStates">{portal.states.map((st:any)=><span key={st.stateExternalId}><b>{st.name}</b>{st.description?` · ${st.description}`:''}</span>)}</section>}
     {flash&&<p className="playerFlash">{flash}</p>}{error&&<p className="playerError">{error}</p>}
     {tab==='fiche'&&<PlayerSheet portal={portal} busy={busy} onRead={()=>void act(()=>postJson('/api/player/briefing/read',{token}))}/>} 
@@ -145,7 +147,7 @@ export default function PlayerPortal({token}:{token:string}){
           targetExternalId,
           requestOnly
         }),
-        requestOnly?'Demande envoyée au MJ ✓':''
+        requestOnly?tr(portal,'Demande envoyée au MJ ✓','Request sent to GM ✓'):''
       );
 
       if(response&&!requestOnly){
@@ -153,27 +155,27 @@ export default function PlayerPortal({token}:{token:string}){
 
         setResultPopup({
           success:Boolean(r?.success),
-          title:Boolean(r?.success)?'Réussite':'Échec',
+          title:Boolean(r?.success)?tr(portal,'Réussite','Success'):tr(portal,'Échec','Failure'),
           body:Boolean(r?.success)
-            ? 'Votre action a réussi. Les effets ont été appliqués à votre personnage.'
-            : 'Votre tentative échoue. Aucun effet positif n’est appliqué.'
+            ? tr(portal,'Votre action a réussi. Les effets ont été appliqués à votre personnage.','Your action succeeded. The effects have been applied to your character.')
+            : tr(portal,'Votre tentative échoue. Aucun effet positif n’est appliqué.','Your attempt failed. No positive effect was applied.')
         });
       }
 
       return response;
-    }} onVote={(voteExternalId,round,selectedOptionExternalIds)=>act(()=>postJson('/api/player/vote',{token,voteExternalId,round,selectedOptionExternalIds}),'Vote enregistré ✓')}/>} 
-    {tab==='sac'&&<PlayerBag portal={portal} busy={busy} onGive={(objectExternalId,targetCharacterExternalId)=>act(()=>postJson('/api/player/object',{token,objectExternalId,targetCharacterExternalId}),'Objet transféré ✓')} onCashTransfer={(targetCharacterExternalId,amount)=>act(()=>postJson('/api/player/cash',{token,targetCharacterExternalId,amount}),'Virement effectué ✓')}/>} 
-    {tab==='news'&&<PlayerNews portal={portal} busy={busy} onRead={id=>act(()=>postJson('/api/player/notification/read',{token,notificationId:id}),'Notification lue')}/>} 
-    {introOpen&&<div className="qrScannerOverlay playerStoryOverlay" role="dialog" aria-modal="true" aria-label="Introduction"><div className="qrScannerPanel playerStoryPanel"><p className="eyebrow">L’HISTOIRE COMMENCE</p><h2>{s.scenarioTitle}</h2><div className="playerStoryText">{s.playerSummary}</div><button className="playerPrimary" onClick={closeIntro}>Entrer dans l’histoire</button></div></div>}
+    }} onVote={(voteExternalId,round,selectedOptionExternalIds)=>act(()=>postJson('/api/player/vote',{token,voteExternalId,round,selectedOptionExternalIds}),tr(portal,'Vote enregistré ✓','Vote recorded ✓'))}/>} 
+    {tab==='sac'&&<PlayerBag portal={portal} busy={busy} onGive={(objectExternalId,targetCharacterExternalId)=>act(()=>postJson('/api/player/object',{token,objectExternalId,targetCharacterExternalId}),tr(portal,'Objet transféré ✓','Item transferred ✓'))} onCashTransfer={(targetCharacterExternalId,amount)=>act(()=>postJson('/api/player/cash',{token,targetCharacterExternalId,amount}),tr(portal,'Virement effectué ✓','Transfer completed ✓'))}/>} 
+    {tab==='news'&&<PlayerNews portal={portal} busy={busy} onRead={id=>act(()=>postJson('/api/player/notification/read',{token,notificationId:id}),tr(portal,'Notification lue','Notification read'))}/>} 
+    {introOpen&&<div className="qrScannerOverlay playerStoryOverlay" role="dialog" aria-modal="true" aria-label="Introduction"><div className="qrScannerPanel playerStoryPanel"><p className="eyebrow">{tr(portal,'L’HISTOIRE COMMENCE','THE STORY BEGINS')}</p><h2>{s.scenarioTitle}</h2><div className="playerStoryText">{s.playerSummary}</div><button className="playerPrimary" onClick={closeIntro}>{tr(portal,'Entrer dans l’histoire','Enter the story')}</button></div></div>}
 
-    {resultPopup&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat de l’action"><div className={`qrScannerPanel actionResultPopup ${resultPopup.success?'success':'failure'}`}><p className="eyebrow">RÉSULTAT</p><h2>{resultPopup.success?'✓ Réussite':'✕ Échec'}</h2><p>{resultPopup.body}</p><button className="playerPrimary" onClick={()=>setResultPopup(null)}>Continuer</button></div></div>}
+    {resultPopup&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat de l’action"><div className={`qrScannerPanel actionResultPopup ${resultPopup.success?'success':'failure'}`}><p className="eyebrow">{tr(portal,'RÉSULTAT','RESULT')}</p><h2>{resultPopup.success?tr(portal,'✓ Réussite','✓ Success'):tr(portal,'✕ Échec','✕ Failure')}</h2><p>{resultPopup.body}</p><button className="playerPrimary" onClick={()=>setResultPopup(null)}>{tr(portal,'Continuer','Continue')}</button></div></div>}
 
     <footer className="playerFooter">Murder Engine · Ludificateur</footer>
     <nav className="playerBottomNav" aria-label="Navigation joueur">
-      <button className={tab==='fiche'?'active':''} onClick={()=>setTab('fiche')}><span>🪪</span><b>Fiche</b></button>
-      <button className={tab==='carnet'?'active':''} onClick={()=>setTab('carnet')}><span>📓</span><b>Carnet</b></button>
-      <button className={tab==='actions'?'active':''} onClick={()=>setTab('actions')}><span>⚡</span><b>Jouer</b>{portal.votes?.length>0&&<em>{portal.votes.length}</em>}</button>
-      <button className={tab==='sac'?'active':''} onClick={()=>setTab('sac')}><span>🎒</span><b>Sac</b></button>
+      <button className={tab==='fiche'?'active':''} onClick={()=>setTab('fiche')}><span>🪪</span><b>{tr(portal,'Fiche','Sheet')}</b></button>
+      <button className={tab==='carnet'?'active':''} onClick={()=>setTab('carnet')}><span>📓</span><b>{tr(portal,'Carnet','Notebook')}</b></button>
+      <button className={tab==='actions'?'active':''} onClick={()=>setTab('actions')}><span>⚡</span><b>{tr(portal,'Jouer','Play')}</b>{portal.votes?.length>0&&<em>{portal.votes.length}</em>}</button>
+      <button className={tab==='sac'?'active':''} onClick={()=>setTab('sac')}><span>🎒</span><b>{tr(portal,'Sac','Bag')}</b></button>
       <button className={tab==='news'?'active':''} onClick={()=>setTab('news')}><span>📰</span><b>News</b>{unread>0&&<em>{unread}</em>}</button>
     </nav>
   </main>;
@@ -188,10 +190,10 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
     SheetTab,
     string
   ][]=[
-    ['story','Histoire'],
-    ['missions','Missions'],
-    ...(c.interpretationNotes||c.appearanceNotes?[['roleplay','Interprétation'] as [SheetTab,string]]:[]),
-    ['qr','Mon QR'],
+    ['story',tr(portal,'Histoire','Story')],
+    ['missions',tr(portal,'Missions','Missions')],
+    ...(c.interpretationNotes||c.appearanceNotes?[['roleplay',tr(portal,'Interprétation','Roleplay')] as [SheetTab,string]]:[]),
+    ['qr',tr(portal,'Mon QR','My QR')],
   ];
 
   return <div className="playerStack playerSheetShell">
@@ -210,49 +212,49 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
     {c.motto&&tab==='story'&&<blockquote className="playerQuote">« {c.motto} »</blockquote>}
 
     {tab==='story'&&<section className="playerCard">
-      <p className="playerSectionKicker">CE QUE JE SUIS</p>
-      <h2>Mon histoire</h2>
+      <p className="playerSectionKicker">{tr(portal,'CE QUE JE SUIS','WHO I AM')}</p>
+      <h2>{tr(portal,'Mon histoire','My story')}</h2>
       {c.portrait&&<figure className="characterPortraitHero">
         <img src={c.portrait.source} alt={c.portrait.altText||`Portrait de ${c.name}`}/>
         <figcaption><strong>{c.name}</strong>{c.publicRole&&<span>{c.publicRole}</span>}</figcaption>
       </figure>}
       <p>{c.biography}</p>
-      {c.secretIntro&&<div className="playerSecret"><h3>Ce que vous seul savez</h3><p>{c.secretIntro}</p></div>}
-      {c.apparentMotive&&<><h3>Ma position</h3><p>{c.apparentMotive}</p></>}
+      {c.secretIntro&&<div className="playerSecret"><h3>{tr(portal,'Ce que vous seul savez','What only you know')}</h3><p>{c.secretIntro}</p></div>}
+      {c.apparentMotive&&<><h3>{tr(portal,'Ma position','My position')}</h3><p>{c.apparentMotive}</p></>}
       <div className="sheetSubsection">
-        <p className="playerSectionKicker">MON ALIBI / MA CHRONOLOGIE</p>
-        <h3>Ce que j’ai fait le soir du meurtre</h3>
+        <p className="playerSectionKicker">{tr(portal,'MON ALIBI / MA CHRONOLOGIE','MY ALIBI / TIMELINE')}</p>
+        <h3>{tr(portal,'Ce que j’ai fait le soir du meurtre','What I did on the night of the murder')}</h3>
         {c.personalTimeline
           ? <p>{c.personalTimeline}</p>
-          : <p className="playerMuted">Aucune chronologie particulière n’est renseignée pour ce personnage.</p>}
+          : <p className="playerMuted">{tr(portal,'Aucune chronologie particulière n’est renseignée pour ce personnage.','No specific timeline is provided for this character.')}</p>}
       </div>
     </section>}
 
     {tab==='missions'&&<section className="playerCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">CE QUE JE DOIS ACCOMPLIR</p><h2>Mes missions</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'CE QUE JE DOIS ACCOMPLIR','WHAT I MUST ACHIEVE')}</p><h2>{tr(portal,'Mes missions','My missions')}</h2></div>
         <span>{portal.objectives.length}</span>
       </div>
       {portal.objectives.length===0
-        ? <p>Aucune mission structurée.</p>
+        ? <p>{tr(portal,'Aucune mission structurée.','No structured mission.')}</p>
         : portal.objectives.map((o:any)=><article className="playerObjective" key={o.externalId}><div><strong>{o.title}</strong><span>{o.status}</span></div><p>{o.description}</p></article>)}
     </section>}
 
     {tab==='roleplay'&&(c.interpretationNotes||c.appearanceNotes)&&<section className="playerCard playerRoleplayCard">
-      <p className="playerSectionKicker">INCARNER MON PERSONNAGE</p>
-      <h2>Comment me la jouer</h2>
+      <p className="playerSectionKicker">{tr(portal,'INCARNER MON PERSONNAGE','PLAYING MY CHARACTER')}</p>
+      <h2>{tr(portal,'Comment me la jouer','How to play my character')}</h2>
       {c.interpretationNotes&&<p>{c.interpretationNotes}</p>}
       {c.appearanceNotes&&<div className="sheetSubsection">
-        <p className="playerSectionKicker">STYLE & DÉGUISEMENT</p>
-        <h3>Mon apparence</h3>
+        <p className="playerSectionKicker">{tr(portal,'STYLE & DÉGUISEMENT','STYLE & COSTUME')}</p>
+        <h3>{tr(portal,'Mon apparence','My appearance')}</h3>
         <p>{c.appearanceNotes}</p>
       </div>}
     </section>}
 
     {tab==='qr'&&<section className="playerCard playerUtilityDetails">
-      <p className="playerSectionKicker">MON IDENTIFIANT DE JEU</p>
+      <p className="playerSectionKicker">{tr(portal,'MON IDENTIFIANT DE JEU','MY GAME ID')}</p>
       <h2>Mon QR</h2>
-      <p className="playerHelp">C’est l’unique QR de votre personnage. Pour une interaction DIRECTE, vous le présentez au joueur qui agit sur vous. Le MJ peut conserver une copie du même QR pour les interactions DISCRÈTES.</p>
+      <p className="playerHelp">{tr(portal,'C’est l’unique QR de votre personnage. Pour une interaction DIRECTE, vous le présentez au joueur qui agit sur vous. Le MJ peut conserver une copie du même QR pour les interactions DISCRÈTES.','This is your character’s unique QR code. For a DIRECT interaction, show it to the player acting on you. The GM may keep a copy of the same QR code for DISCREET interactions.')}</p>
       <div className="playerCharacterQr">
         <QRCodeSVG value={`${window.location.origin}/scan/character/${encodeURIComponent(c.externalId)}`} size={180} level="M" includeMargin/>
         <strong>{c.name}</strong>
@@ -260,7 +262,7 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
       </div>
     </section>}
 
-    {!portal.participant.briefingReadAt&&<button className="playerPrimary" disabled={busy} onClick={onRead}>J’ai lu ma fiche</button>}
+    {!portal.participant.briefingReadAt&&<button className="playerPrimary" disabled={busy} onClick={onRead}>{tr(portal,'J’ai lu ma fiche','I have read my sheet')}</button>}
   </div>;
 }
 
@@ -301,10 +303,10 @@ function PlayerNotebook({portal}:{portal:Portal}){
     string,
     number|null
   ][]=[
-    ['relations','Relations',portal.relationships?.length??0],
-    ['info','Infos',rows.length],
-    ['clues','Indices',clueRows.length],
-    ['context','Contexte',null],
+    ['relations',tr(portal,'Relations','Relations'),portal.relationships?.length??0],
+    ['info',tr(portal,'Infos','Info'),rows.length],
+    ['clues',tr(portal,'Indices','Clues'),clueRows.length],
+    ['context',tr(portal,'Contexte','Context'),null],
   ];
 
   return <div className="playerStack notebookShell">
@@ -322,25 +324,25 @@ function PlayerNotebook({portal}:{portal:Portal}){
     </nav>
 
     {tab==='context'&&<section className="playerCard notebookContextCard">
-      <p className="playerSectionKicker">L’HISTOIRE</p>
-      <h2>{portal.session?.scenarioTitle||'Contexte'}</h2>
+      <p className="playerSectionKicker">{tr(portal,'L’HISTOIRE','THE STORY')}</p>
+      <h2>{portal.session?.scenarioTitle||tr(portal,'Contexte','Context')}</h2>
       {portal.session?.playerSummary
         ? <div className="notebookIntroText">{portal.session.playerSummary}</div>
-        : <p>Aucun texte d’introduction n’est renseigné pour ce scénario.</p>}
+        : <p>{tr(portal,'Aucun texte d’introduction n’est renseigné pour ce scénario.','No introduction text is provided for this scenario.')}</p>}
     </section>}
 
     {tab==='relations'&&<section className="playerCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">CE QUE JE SAIS SUR LES AUTRES</p><h2>Personnes & relations</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'CE QUE JE SAIS SUR LES AUTRES','WHAT I KNOW ABOUT OTHERS')}</p><h2>{tr(portal,'Personnes & relations','People & relationships')}</h2></div>
         <span>{portal.relationships?.length??0}</span>
       </div>
       {!portal.relationships?.length
-        ? <p>Vous n’avez encore aucune relation structurée dans votre carnet.</p>
+        ? <p>{tr(portal,'Vous n’avez encore aucune relation structurée dans votre carnet.','You do not have any structured relationships in your notebook yet.')}</p>
         : portal.relationships.map((r:any)=>
           <article className={`playerRelation ${r.portrait?'hasPortrait':''}`} key={r.externalId}>
             {r.portrait&&<img className="relationPortrait" src={r.portrait.source} alt={r.portrait.altText||`Portrait de ${r.otherName}`}/>}
             <div className="relationContent">
-              <small>{r.relationType||'Relation'}</small>
+              <small>{r.relationType||tr(portal,'Relation','Relationship')}</small>
               <strong>{r.otherName}</strong>
               {r.otherPublicRole&&<em>{r.otherPublicRole}</em>}
               <p>{r.text}</p>
@@ -351,19 +353,19 @@ function PlayerNotebook({portal}:{portal:Portal}){
 
     {tab==='info'&&<section className="playerCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">MES INFORMATIONS</p><h2>Ce que je sais</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'MES INFORMATIONS','MY INFORMATION')}</p><h2>{tr(portal,'Ce que je sais','What I know')}</h2></div>
         <span>{rows.length}</span>
       </div>
 
       {categories.length>1&&<div className="notebookCategoryFilters" role="group" aria-label="Filtrer les informations">
-        <button className={category==='ALL'?'active':''} onClick={()=>setCategory('ALL')}>Tout</button>
+        <button className={category==='ALL'?'active':''} onClick={()=>setCategory('ALL')}>{tr(portal,'Tout','All')}</button>
         {categories.map(c=>
           <button key={c} className={category===c?'active':''} onClick={()=>setCategory(c)}>{c}</button>
         )}
       </div>}
 
       {visibleRows.length===0
-        ? <p>Aucune information structurée pour le moment.</p>
+        ? <p>{tr(portal,'Aucune information structurée pour le moment.','No structured information yet.')}</p>
         : visibleRows.map((k:any)=>
           <article className="playerKnowledge" key={`${k.factExternalId}-${k.learnedAt}`}>
             <small>{k.fact.notebookCategory||k.sourceType}</small>
@@ -375,16 +377,16 @@ function PlayerNotebook({portal}:{portal:Portal}){
 
     {tab==='clues'&&<section className="playerCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">CE QUE J’AI DÉCOUVERT</p><h2>Indices & documents</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'CE QUE J’AI DÉCOUVERT','WHAT I DISCOVERED')}</p><h2>{tr(portal,'Indices & documents','Clues & documents')}</h2></div>
         <span>{clueRows.length}</span>
       </div>
       {clueRows.length===0
-        ? <p>Vous n’avez encore découvert aucun indice.</p>
+        ? <p>{tr(portal,'Vous n’avez encore découvert aucun indice.','You have not discovered any clues yet.')}</p>
         : clueRows.map((d:any)=>
           <article className={`playerClue ${d.immersiveDocument?'immersiveClue':''}`} key={d.externalId}>
             <div className="clueBadges">
               <small>{d.clueType||'INDICE'}</small>
-              {d.owned&&<small className="ownedBadge">dans votre sac</small>}
+              {d.owned&&<small className="ownedBadge">{tr(portal,'dans votre sac','in your bag')}</small>}
             </div>
             <strong>{d.playerName}</strong>
             <p>{d.playerText}</p>
@@ -446,7 +448,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     const targetId=targets[i.externalId]||'';
     const targetInfo=(i.targets??[]).find((t:any)=>t.id===targetId);
     const disabled=busy||(!i.directEnabled&&!requestable)||(needsTarget&&!targetId)||i.cooldownRemainingSeconds>0;
-    const modeLabel=scanMode==='DISCRET'?'Discrètement':'Face à face';
+    const modeLabel=scanMode==='DISCRET'?tr(portal,'Discrètement','Discreetly'):tr(portal,'Face à face','Face to face');
 
     return <article className={`playerAction playActionCard ${!i.directEnabled&&!requestable?'isUnavailable':''}`} key={i.externalId}>
       <div className="playActionHeader">
@@ -455,7 +457,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
           {characterTarget&&<small className={`playModeBadge ${scanMode.toLowerCase()}`}>{modeLabel}</small>}
         </div>
         <div className="playActionBadges">
-          {Number(i.costValue??0)>0&&<span>{i.costValue} {resourceLabel(i.costResourceExternalId)}</span>}
+          {Number(i.costValue??0)>0&&<span>{i.costValue} {resourceLabel(i.costResourceExternalId,portal)}</span>}
           {i.ability&&<span>{i.ability.name} niv. {i.ability.level}</span>}
           {i.cooldownRemainingSeconds>0&&<span>⏱ {Math.ceil(i.cooldownRemainingSeconds/60)} min</span>}
         </div>
@@ -467,23 +469,23 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
 
       {specialKind?<>
         <p className="playActionHint">{scanMode==='DISCRET'
-          ? 'Scannez la copie du QR de la cible disponible chez le MJ.'
-          : 'Demandez à la cible de vous présenter son QR.'}</p>
+          ? tr(portal,'Scannez la copie du QR de la cible disponible chez le MJ.','Scan the target QR copy available from the GM.')
+          : tr(portal,'Demandez à la cible de vous présenter son QR.','Ask the target to show you their QR code.')}</p>
         <button className="playerPrimary playActionCta" disabled={busy||clandestineBusy||!i.directEnabled||i.cooldownRemainingSeconds>0} onClick={()=>setSpecialScanner(i)}>
-          📷 {scanMode==='DISCRET'?'Scanner discrètement':'Scanner la cible'}
+          📷 {scanMode==='DISCRET'?tr(portal,'Scanner discrètement','Scan discreetly'):tr(portal,'Scanner la cible','Scan target')}
         </button>
       </>:<>
         {characterTarget&&needsTarget&&<div className="characterTargetScan playTargetScan">
           {targetInfo
-            ? <p className="scannedCharacterTarget">Cible : <strong>{targetInfo.label}</strong>{targetInfo.subtitle?` · ${targetInfo.subtitle}`:''}</p>
-            : <p className="playActionHint">{scanMode==='DISCRET'?'Utilisez la copie du QR chez le MJ.':'Demandez à la cible de présenter son QR.'}</p>}
+            ? <p className="scannedCharacterTarget">{tr(portal,'Cible :','Target:')} <strong>{targetInfo.label}</strong>{targetInfo.subtitle?` · ${targetInfo.subtitle}`:''}</p>
+            : <p className="playActionHint">{scanMode==='DISCRET'?tr(portal,'Utilisez la copie du QR chez le MJ.','Use the QR copy held by the GM.'):tr(portal,'Demandez à la cible de présenter son QR.','Ask the target to show their QR code.')}</p>}
           <button className="playerSecondary" disabled={busy} onClick={()=>setCharacterScanner({interactionId:i.externalId,requestOnly:requestable,scanMode})}>
-            📷 {targetInfo?'Changer de cible':scanMode==='DISCRET'?'Scanner discrètement':'Scanner la cible'}
+            📷 {targetInfo?tr(portal,'Changer de cible','Change target'):scanMode==='DISCRET'?tr(portal,'Scanner discrètement','Scan discreetly'):tr(portal,'Scanner la cible','Scan target')}
           </button>
         </div>}
 
         {needsTarget&&!characterTarget&&<select value={targetId} onChange={e=>setTargets(v=>({...v,[i.externalId]:e.target.value}))}>
-          <option value="">Choisir la cible…</option>
+          <option value="">{tr(portal,'Choisir la cible…','Choose target…')}</option>
           {i.targets.map((t:any)=><option key={t.id} value={t.id}>{t.label}{t.subtitle?` — ${t.subtitle}`:''}</option>)}
         </select>}
 
@@ -491,63 +493,63 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
           const run=()=>onExecute(i.externalId,targetId||null,requestable);
           if(requestable)run(); else withPaConfirmation(i,run);
         }}>
-          {i.directEnabled?'Lancer l’action':requestable?'Demander au MJ':(i.blockedReason||'Indisponible')}
+          {i.directEnabled?tr(portal,'Lancer l’action','Start action'):requestable?tr(portal,'Demander au MJ','Ask GM'):(i.blockedReason||tr(portal,'Indisponible','Unavailable'))}
         </button>
 
-        {requestable&&Number(i.costValue??0)>0&&<small className="playerHelp">Le coût sera appliqué uniquement si le MJ valide l’action.</small>}
+        {requestable&&Number(i.costValue??0)>0&&<small className="playerHelp">{tr(portal,'Le coût sera appliqué uniquement si le MJ valide l’action.','The cost will only be applied if the GM approves the action.')}</small>}
       </>}
     </article>;
   }
 
   return <div className="playerStack playTab">
     <section className="playStatusStrip">
-      <div><small>Points d’action</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div>
-      <div><small>Prochaine fouille</small><strong>{searchCooldown>0?playerCountdown(searchCooldown):'Disponible'}</strong></div>
+      <div><small>{tr(portal,'Points d’action','Action points')}</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div>
+      <div><small>{tr(portal,'Prochaine fouille','Next search')}</small><strong>{searchCooldown>0?playerCountdown(searchCooldown):tr(portal,'Disponible','Available')}</strong></div>
     </section>
 
     {portal.votes?.length>0&&<section className="playPriorityBlock">
-      <div className="playPriorityTitle"><span>🗳</span><div><small>DÉCISION EN COURS</small><strong>Votre vote est attendu</strong></div></div>
+      <div className="playPriorityTitle"><span>🗳</span><div><small>{tr(portal,'DÉCISION EN COURS','DECISION IN PROGRESS')}</small><strong>{tr(portal,'Votre vote est attendu','Your vote is required')}</strong></div></div>
       <PlayerVotes portal={portal} busy={busy} onVote={onVote}/>
     </section>}
 
     <section className="playerCard playMainCard searchScanCard">
       <div className="playCardLead">
         <span className="playCardIcon">🔎</span>
-        <div><p className="playerSectionKicker">ENQUÊTER</p><h2>Fouiller un lieu</h2><p>Scannez le QR présent dans la pièce pour tenter une fouille.</p></div>
+        <div><p className="playerSectionKicker">{tr(portal,'ENQUÊTER','INVESTIGATE')}</p><h2>{tr(portal,'Fouiller un lieu','Search a location')}</h2><p>{tr(portal,'Scannez le QR présent dans la pièce pour tenter une fouille.','Scan the QR code in the room to attempt a search.')}</p></div>
       </div>
       <div className="playActionBadges">
-        <span>1 PA</span>
+        <span>1 {isEnglish(portal)?'AP':'PA'}</span>
         {searchAbility&&<span>{searchAbility.name} niv. {searchAbility.level}</span>}
       </div>
-      {searchCooldown>0&&<div className="portalSearchCooldown"><span>Nouvelle fouille dans</span><strong>{playerCountdown(searchCooldown)}</strong></div>}
+      {searchCooldown>0&&<div className="portalSearchCooldown"><span>{tr(portal,'Nouvelle fouille dans','Next search in')}</span><strong>{playerCountdown(searchCooldown)}</strong></div>}
       <button className="playerPrimary scanLaunchButton playMainCta" disabled={busy||portal.session?.status!=='LIVE'||searchCooldown>0} onClick={()=>setScannerOpen(true)}>
-        {searchCooldown>0?`Disponible dans ${playerCountdown(searchCooldown)}`:'📷 Scanner un lieu'}
+        {searchCooldown>0?(isEnglish(portal)?`Available in ${playerCountdown(searchCooldown)}`:`Disponible dans ${playerCountdown(searchCooldown)}`):tr(portal,'📷 Scanner un lieu','📷 Scan a location')}
       </button>
-      {portal.session?.status!=='LIVE'&&<small className="playerHelp">Disponible lorsque la partie est lancée.</small>}
+      {portal.session?.status!=='LIVE'&&<small className="playerHelp">{tr(portal,'Disponible lorsque la partie est lancée.','Available once the game has started.')}</small>}
     </section>
 
     {localError&&<p className="playerError">{localError}</p>}
 
     <section className="playerCard playMainCard">
-      <div className="playerSectionHead"><div><p className="playerSectionKicker">INTERAGIR</p><h2>Agir sur quelqu’un</h2><p className="playSectionIntro">Choisissez votre action, puis scannez la personne concernée.</p></div><span>{characterInteractions.length}</span></div>
-      {characterInteractions.length===0?<p>Aucune action sur un personnage n’est disponible pour le moment.</p>:<div className="playActionList">{characterInteractions.map(renderInteraction)}</div>}
+      <div className="playerSectionHead"><div><p className="playerSectionKicker">{tr(portal,'INTERAGIR','INTERACT')}</p><h2>{tr(portal,'Agir sur quelqu’un','Act on someone')}</h2><p className="playSectionIntro">{tr(portal,'Choisissez votre action, puis scannez la personne concernée.','Choose your action, then scan the person concerned.')}</p></div><span>{characterInteractions.length}</span></div>
+      {characterInteractions.length===0?<p>{tr(portal,'Aucune action sur un personnage n’est disponible pour le moment.','No character action is currently available.')}</p>:<div className="playActionList">{characterInteractions.map(renderInteraction)}</div>}
     </section>
 
     {otherInteractions.length>0&&<section className="playerCard playMainCard">
-      <div className="playerSectionHead"><div><p className="playerSectionKicker">AUTRES POSSIBILITÉS</p><h2>Autres actions</h2></div><span>{otherInteractions.length}</span></div>
+      <div className="playerSectionHead"><div><p className="playerSectionKicker">{tr(portal,'AUTRES POSSIBILITÉS','OTHER OPTIONS')}</p><h2>{tr(portal,'Autres actions','Other actions')}</h2></div><span>{otherInteractions.length}</span></div>
       <div className="playActionList">{otherInteractions.map(renderInteraction)}</div>
     </section>}
 
     <details className="playerCard playSkillsDetails">
-      <summary><span>🎯 Mes compétences</span><small>{portal.abilities?.length??0}</small></summary>
-      {!portal.abilities?.length?<p>Aucune compétence particulière n’est renseignée.</p>:<div className="abilityGrid playAbilityGrid">{portal.abilities.map((a:any)=><article className="abilityCard" key={a.externalId}><div><strong>{a.name}</strong><span>Niveau {a.level}</span></div>{a.description&&<p>{a.description}</p>}</article>)}</div>}
+      <summary><span>🎯 {tr(portal,'Mes compétences','My skills')}</span><small>{portal.abilities?.length??0}</small></summary>
+      {!portal.abilities?.length?<p>{tr(portal,'Aucune compétence particulière n’est renseignée.','No special skill is provided.')}</p>:<div className="abilityGrid playAbilityGrid">{portal.abilities.map((a:any)=><article className="abilityCard" key={a.externalId}><div><strong>{a.name}</strong><span>{tr(portal,'Niveau','Level')} {a.level}</span></div>{a.description&&<p>{a.description}</p>}</article>)}</div>}
     </details>
 
-    {scannerOpen&&<QrLocationScanner token={token} onClose={()=>setScannerOpen(false)}/>} 
-    {characterScanner&&<QrCharacterScanner title={characterScanner.scanMode==='DISCRET'?'Scanner la cible discrètement':'Scanner la cible'} mode={characterScanner.scanMode} targets={portal.otherCharacters} onClose={()=>setCharacterScanner(null)} onSelect={(target:any)=>{setTargets(v=>({...v,[characterScanner.interactionId]:target.characterExternalId}));setCharacterScanner(null);}}/>}
-    {specialScanner&&<QrCharacterScanner title={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'Scanner la cible discrètement':'Scanner la cible'} mode={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT'} targets={portal.otherCharacters} onClose={()=>setSpecialScanner(null)} onSelect={(target:any)=>{const interaction=specialScanner;setSpecialScanner(null);withPaConfirmation(interaction,()=>void attemptClandestine(interaction,target));}}/>}
-    {paPrompt&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer la dépense de PA"><div className="qrScannerPanel paConfirmPanel"><p className="eyebrow">CONFIRMATION D’ACTION</p><h2>{paPrompt.title}</h2><p>Voulez-vous dépenser <strong>{paPrompt.cost} PA</strong> pour tenter cette action ?</p>{paPrompt.current!=null&&<div className="paSpendPreview"><span>Avant <strong>{paPrompt.current} PA</strong></span><span>Après <strong>{paPrompt.remaining} PA</strong></span></div>}<div className="giveConfirmActions"><button className="playerSecondary" onClick={()=>setPaPrompt(null)}>Non</button><button className="playerPrimary" onClick={()=>{const run=paPrompt.run;setPaPrompt(null);run();}}>Oui, continuer</button></div></div></div>}
-    {clandestineResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat action clandestine"><div className="qrScannerPanel clandestineResultPanel"><p className="eyebrow">INTERACTION QR</p><h2>{clandestineResult.success?'Réussite':'Échec'}</h2>{!clandestineResult.success?<p>La tentative échoue. La cible reçoit une notification anonyme indiquant qu’une action a été tentée sur elle.</p>:clandestineResult.claimed?<p>Objet récupéré : <strong>{clandestineResult.claimed.name}</strong>. La victime reçoit une notification sans identité de l’auteur.</p>:<><p>{clandestineResult.kind==='STEAL'?'Choisissez maintenant un seul objet à subtiliser. Ce choix est à usage unique.':'Vous identifiez les objets accessibles sur la cible.'}</p>{clandestineResult.items?.length?<div className="clandestineItemList">{clandestineResult.items.map((o:any)=><article key={o.objectExternalId}><div><strong>{o.name}</strong>{o.description&&<small>{o.description}</small>}</div>{clandestineResult.kind==='STEAL'&&<button className="playerPrimary" disabled={clandestineBusy||!clandestineResult.grantToken} onClick={()=>void claimSteal(o)}>Voler cet objet</button>}</article>)}</div>:<p>Aucun objet accessible n’est trouvé.</p>}</>}<button className="playerSecondary" disabled={clandestineBusy} onClick={()=>setClandestineResult(null)}>Fermer</button></div></div>}
+    {scannerOpen&&<QrLocationScanner token={token} language={portal.session?.language} onClose={()=>setScannerOpen(false)}/>} 
+    {characterScanner&&<QrCharacterScanner title={characterScanner.scanMode==='DISCRET'?tr(portal,'Scanner la cible discrètement','Scan target discreetly'):tr(portal,'Scanner la cible','Scan target')} mode={characterScanner.scanMode} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setCharacterScanner(null)} onSelect={(target:any)=>{setTargets(v=>({...v,[characterScanner.interactionId]:target.characterExternalId}));setCharacterScanner(null);}}/>}
+    {specialScanner&&<QrCharacterScanner title={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?tr(portal,'Scanner la cible discrètement','Scan target discreetly'):tr(portal,'Scanner la cible','Scan target')} mode={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT'} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setSpecialScanner(null)} onSelect={(target:any)=>{const interaction=specialScanner;setSpecialScanner(null);withPaConfirmation(interaction,()=>void attemptClandestine(interaction,target));}}/>}
+    {paPrompt&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Confirmer la dépense de PA','Confirm AP spending')}><div className="qrScannerPanel paConfirmPanel"><p className="eyebrow">{tr(portal,'CONFIRMATION D’ACTION','ACTION CONFIRMATION')}</p><h2>{paPrompt.title}</h2><p>{tr(portal,'Voulez-vous dépenser','Do you want to spend')} <strong>{paPrompt.cost} {isEnglish(portal)?'AP':'PA'}</strong> {tr(portal,'pour tenter cette action ?','to attempt this action?')}</p>{paPrompt.current!=null&&<div className="paSpendPreview"><span>{tr(portal,'Avant','Before')} <strong>{paPrompt.current} {isEnglish(portal)?'AP':'PA'}</strong></span><span>{tr(portal,'Après','After')} <strong>{paPrompt.remaining} {isEnglish(portal)?'AP':'PA'}</strong></span></div>}<div className="giveConfirmActions"><button className="playerSecondary" onClick={()=>setPaPrompt(null)}>{tr(portal,'Non','No')}</button><button className="playerPrimary" onClick={()=>{const run=paPrompt.run;setPaPrompt(null);run();}}>{tr(portal,'Oui, continuer','Yes, continue')}</button></div></div></div>}
+    {clandestineResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat action clandestine"><div className="qrScannerPanel clandestineResultPanel"><p className="eyebrow">{tr(portal,'INTERACTION QR','QR INTERACTION')}</p><h2>{clandestineResult.success?tr(portal,'Réussite','Success'):tr(portal,'Échec','Failure')}</h2>{!clandestineResult.success?<p>{tr(portal,'La tentative échoue. La cible reçoit une notification anonyme indiquant qu’une action a été tentée sur elle.','The attempt fails. The target receives an anonymous notification that an action was attempted on them.')}</p>:clandestineResult.claimed?<p>{tr(portal,'Objet récupéré :','Item obtained:')} <strong>{clandestineResult.claimed.name}</strong>. {tr(portal,'La victime reçoit une notification sans identité de l’auteur.','The victim receives a notification without the author’s identity.')}</p>:<><p>{clandestineResult.kind==='STEAL'?tr(portal,'Choisissez maintenant un seul objet à subtiliser. Ce choix est à usage unique.','Choose one item to steal now. This choice can only be used once.'):tr(portal,'Vous identifiez les objets accessibles sur la cible.','You identify the items accessible on the target.')}</p>{clandestineResult.items?.length?<div className="clandestineItemList">{clandestineResult.items.map((o:any)=><article key={o.objectExternalId}><div><strong>{o.name}</strong>{o.description&&<small>{o.description}</small>}</div>{clandestineResult.kind==='STEAL'&&<button className="playerPrimary" disabled={clandestineBusy||!clandestineResult.grantToken} onClick={()=>void claimSteal(o)}>{tr(portal,'Voler cet objet','Steal this item')}</button>}</article>)}</div>:<p>{tr(portal,'Aucun objet accessible n’est trouvé.','No accessible item was found.')}</p>}</>}<button className="playerSecondary" disabled={clandestineBusy} onClick={()=>setClandestineResult(null)}>{tr(portal,'Fermer','Close')}</button></div></div>}
   </div>;
 }
 
@@ -587,23 +589,23 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
     setCashError('');
 
     if(!Number.isInteger(amount)||amount<=0){
-      setCashError('Indiquez un montant entier supérieur à 0.');
+      setCashError(tr(portal,'Indiquez un montant entier supérieur à 0.','Enter a whole amount greater than 0.'));
       return;
     }
 
     if(amount>cashValue){
-      setCashError('Vous ne disposez pas de suffisamment d’argent.');
+      setCashError(tr(portal,'Vous ne disposez pas de suffisamment d’argent.','You do not have enough money.'));
       return;
     }
 
     const response=await Promise.resolve(onCashTransfer(cashTarget.characterExternalId,amount));
 
     if(!response){
-      setCashError('Le virement n’a pas pu être effectué. Réessayez ou prévenez le Maître du Jeu.');
+      setCashError(tr(portal,'Le virement n’a pas pu être effectué. Réessayez ou prévenez le Maître du Jeu.','The transfer could not be completed. Try again or tell the GM.'));
       return;
     }
 
-    setCashConfirmation(`${amount} envoyé à ${cashTarget.name}.`);
+    setCashConfirmation(isEnglish(portal)?`${amount} sent to ${cashTarget.name}.`:`${amount} envoyé à ${cashTarget.name}.`);
     setCashTarget(null);
     setCashAmount('');
     setCashError('');
@@ -612,16 +614,16 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
   return <div className="playerStack bagShell">
     <section className="playerCard bagResourcesCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">MES RESSOURCES</p><h2>Ressources</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'MES RESSOURCES','MY RESOURCES')}</p><h2>{tr(portal,'Ressources','Resources')}</h2></div>
         <span>{resources.length}</span>
       </div>
 
       {resources.length===0
-        ? <p>Aucune ressource n’est suivie pour votre personnage.</p>
+        ? <p>{tr(portal,'Aucune ressource n’est suivie pour votre personnage.','No resource is tracked for your character.')}</p>
         : <div className="bagResourceCompact">
           {resources.map((r:any)=>
             <div className="bagResourceCompactItem" key={r.resourceExternalId}>
-              <span>{resourceLabel(r.resourceExternalId)}</span>
+              <span>{resourceLabel(r.resourceExternalId,portal)}</span>
               <strong>
                 {r.currentValue}
                 {r.maxValue!=null?`/${r.maxValue}`:''}
@@ -635,29 +637,29 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
             </button>}
         </div>}
 
-      {cash&&<p className="playerHelp bagCashHelp">Les virements reçus mettent automatiquement votre solde à jour.</p>}
+      {cash&&<p className="playerHelp bagCashHelp">{tr(portal,'Les virements reçus mettent automatiquement votre solde à jour.','Incoming transfers automatically update your balance.')}</p>}
     </section>
 
     <section className="playerCard bagPossessionsCard">
       <div className="playerSectionHead">
-        <div><p className="playerSectionKicker">MES POSSESSIONS</p><h2>Ce que je possède</h2></div>
+        <div><p className="playerSectionKicker">{tr(portal,'MES POSSESSIONS','MY POSSESSIONS')}</p><h2>{tr(portal,'Ce que je possède','What I own')}</h2></div>
         <span>{possessionCount}</span>
       </div>
 
       {possessionCount===0
-        ? <p>Vous ne possédez actuellement aucun objet ou document enregistré.</p>
+        ? <p>{tr(portal,'Vous ne possédez actuellement aucun objet ou document enregistré.','You currently own no registered item or document.')}</p>
         : <div className="bagPossessionList">
           {documentRows.map((d:any)=>
             <article className={`bagDocument bagPossessionItem ${d.immersiveDocument?'immersiveBagDocument':''}`} key={d.clueExternalId}>
-              <div className="bagPossessionType">📄 Document / indice</div>
+              <div className="bagPossessionType">📄 {tr(portal,'Document / indice','Document / clue')}</div>
               {d.immersiveDocument&&<ImmersiveDocument entry={d}/>}
               <div className="bagDocumentMeta">
                 <strong>{d.playerName}</strong>
                 <p>{d.playerText}</p>
-                <em>Cette information reste mémorisée dans votre Carnet.</em>
+                <em>{tr(portal,'Cette information reste mémorisée dans votre Carnet.','This information remains saved in your Notebook.')}</em>
               </div>
               {d.object?.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow">
-                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(d.object)}>📷 Donner</button>
+                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(d.object)}>📷 {tr(portal,'Donner','Give')}</button>
               </div>}
             </article>
           )}
@@ -670,13 +672,13 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
                   : <span aria-hidden="true">{objectVisualGlyph(o.visualCode)}</span>}
               </div>
               <div className="objectVisualBody">
-                <div className="bagPossessionType">Objet</div>
+                <div className="bagPossessionType">{tr(portal,'Objet','Item')}</div>
                 <strong>{o.name}</strong>
                 <p>{o.identification}</p>
                 {o.charges!=null&&<small>Charges : {o.charges}</small>}
               </div>
               {o.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow objectVisualAction">
-                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(o)}>📷 Donner</button>
+                <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(o)}>📷 {tr(portal,'Donner','Give')}</button>
               </div>}
             </article>
           )}
@@ -693,12 +695,12 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
 
     {pending&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer le don">
       <div className="qrScannerPanel giveConfirmPanel">
-        <p className="eyebrow">DON · QR VALIDÉ</p>
+        <p className="eyebrow">{tr(portal,'DON · QR VALIDÉ','GIFT · QR VALIDATED')}</p>
         <h2>Donner {pending.object.name} ?</h2>
-        <p>Destinataire : <strong>{pending.target.name}</strong>{pending.target.publicRole?` · ${pending.target.publicRole}`:''}</p>
+        <p>{tr(portal,'Destinataire :','Recipient:')} <strong>{pending.target.name}</strong>{pending.target.publicRole?` · ${pending.target.publicRole}`:''}</p>
         <div className="giveConfirmActions">
-          <button className="playerSecondary" disabled={busy} onClick={()=>setPending(null)}>Annuler</button>
-          <button className="playerPrimary" disabled={busy} onClick={()=>{onGive(pending.object.objectExternalId,pending.target.characterExternalId);setPending(null);}}>Confirmer le don</button>
+          <button className="playerSecondary" disabled={busy} onClick={()=>setPending(null)}>{tr(portal,'Annuler','Cancel')}</button>
+          <button className="playerPrimary" disabled={busy} onClick={()=>{onGive(pending.object.objectExternalId,pending.target.characterExternalId);setPending(null);}}>{tr(portal,'Confirmer le don','Confirm gift')}</button>
         </div>
       </div>
     </div>}
@@ -713,12 +715,12 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
 
     {cashTarget&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Confirmer le virement">
       <div className="qrScannerPanel cashTransferPanel">
-        <p className="eyebrow">VIREMENT</p>
-        <h2>Envoyer de l’argent</h2>
-        <p>À <strong>{cashTarget.name}</strong>{cashTarget.publicRole?` · ${cashTarget.publicRole}`:''}</p>
-        <div className="cashBalancePreview"><span>Disponible</span><strong>{cashValue}</strong></div>
+        <p className="eyebrow">{tr(portal,'VIREMENT','TRANSFER')}</p>
+        <h2>{tr(portal,'Envoyer de l’argent','Send money')}</h2>
+        <p>{tr(portal,'À','To')} <strong>{cashTarget.name}</strong>{cashTarget.publicRole?` · ${cashTarget.publicRole}`:''}</p>
+        <div className="cashBalancePreview"><span>{tr(portal,'Disponible','Available')}</span><strong>{cashValue}</strong></div>
         <label className="cashAmountField">
-          <span>Montant</span>
+          <span>{tr(portal,'Montant','Amount')}</span>
           <input
             type="number"
             inputMode="numeric"
@@ -732,16 +734,16 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
         </label>
         {cashError&&<p className="playerError cashTransferError">{cashError}</p>}
         <div className="giveConfirmActions">
-          <button className="playerSecondary" disabled={busy} onClick={()=>{setCashTarget(null);setCashAmount('');setCashError('');}}>Annuler</button>
-          <button className="playerPrimary" disabled={busy||!Number.isInteger(Number(cashAmount))||Number(cashAmount)<=0||Number(cashAmount)>cashValue} onClick={()=>void confirmCashTransfer()}>Confirmer le virement</button>
+          <button className="playerSecondary" disabled={busy} onClick={()=>{setCashTarget(null);setCashAmount('');setCashError('');}}>{tr(portal,'Annuler','Cancel')}</button>
+          <button className="playerPrimary" disabled={busy||!Number.isInteger(Number(cashAmount))||Number(cashAmount)<=0||Number(cashAmount)>cashValue} onClick={()=>void confirmCashTransfer()}>{tr(portal,'Confirmer le virement','Confirm transfer')}</button>
         </div>
       </div>
     </div>}
 
     {cashConfirmation&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Virement effectué">
       <div className="qrScannerPanel cashTransferPanel">
-        <p className="eyebrow">VIREMENT</p>
-        <h2>✓ Argent envoyé</h2>
+        <p className="eyebrow">{tr(portal,'VIREMENT','TRANSFER')}</p>
+        <h2>✓ {tr(portal,'Argent envoyé','Money sent')}</h2>
         <p>{cashConfirmation}</p>
         <button className="playerPrimary" onClick={()=>setCashConfirmation('')}>Continuer</button>
       </div>
@@ -789,13 +791,13 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
     setConfirmation({
       title:
         accusation
-          ? 'Accusation enregistrée'
-          : 'Vote enregistré',
+          ? tr(portal,'Accusation enregistrée','Accusation recorded')
+          : tr(portal,'Vote enregistré','Vote recorded'),
 
       body:
         accusation
-          ? `Votre accusation contre ${label} a bien été enregistrée. Le résultat sera révélé au moment prévu par le Maître du Jeu.`
-          : `Votre vote pour ${label} a bien été enregistré.`
+          ? (isEnglish(portal)?`Your accusation against ${label} has been recorded. The result will be revealed at the time planned by the GM.`:`Votre accusation contre ${label} a bien été enregistrée. Le résultat sera révélé au moment prévu par le Maître du Jeu.`)
+          : (isEnglish(portal)?`Your vote for ${label} has been recorded.`:`Votre vote pour ${label} a bien été enregistré.`)
     });
   }
 
@@ -804,14 +806,14 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
 
       <div className="playerSectionHead">
         <div>
-          <p className="playerSectionKicker">DÉCIDER</p>
-          <h2>Vote</h2>
+          <p className="playerSectionKicker">{tr(portal,'DÉCIDER','DECIDE')}</p>
+          <h2>{tr(portal,'Vote','Vote')}</h2>
         </div>
         <span>{portal.votes.length}</span>
       </div>
 
       {portal.votes.length===0
-        ? <p>Aucun scrutin ne vous concerne actuellement.</p>
+        ? <p>{tr(portal,'Aucun scrutin ne vous concerne actuellement.','No vote currently concerns you.')}</p>
         : portal.votes.map((v:any)=>
           <article
             className="playerVote"
@@ -871,10 +873,10 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
               {v.hasVoted
                 ? (
                     v.modifiable
-                      ? 'Modifier mon vote'
-                      : 'Vote enregistré ✓'
+                      ? tr(portal,'Modifier mon vote','Change my vote')
+                      : tr(portal,'Vote enregistré ✓','Vote recorded ✓')
                   )
-                : 'Voter'}
+                : tr(portal,'Voter','Vote')}
             </button>
           </article>
         )
@@ -897,7 +899,7 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
             className="playerPrimary"
             onClick={()=>setConfirmation(null)}
           >
-            Continuer
+            {tr(portal,'Continuer','Continue')}
           </button>
         </div>
       </div>
@@ -916,87 +918,87 @@ function PlayerNews({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:(id:
     <section className="playerCard newsFeedCard">
       <div className="playerSectionHead">
         <div>
-          <p className="playerSectionKicker">CE QU’IL SE PASSE</p>
-          <h2>Notifications</h2>
+          <p className="playerSectionKicker">{tr(portal,'CE QU’IL SE PASSE','WHAT IS HAPPENING')}</p>
+          <h2>{tr(portal,'Notifications','Notifications')}</h2>
         </div>
         <span>{notifications.length}</span>
       </div>
-      <p className="newsSectionIntro">Messages de l’organisation, événements du scénario et informations qui vous concernent.</p>
+      <p className="newsSectionIntro">{tr(portal,'Messages de l’organisation, événements du scénario et informations qui vous concernent.','Messages from the organizers, scenario events and information concerning you.')}</p>
       {notifications.length===0
-        ? <p>Aucune nouvelle pour le moment.</p>
-        : notifications.map((n:any)=><NewsNotification key={n.id} n={n} busy={busy} onRead={onRead}/>)}
+        ? <p>{tr(portal,'Aucune nouvelle pour le moment.','No news for now.')}</p>
+        : notifications.map((n:any)=><NewsNotification key={n.id} n={n} busy={busy} onRead={onRead} portal={portal}/>)}
     </section>
 
     <section className="playerCard">
       <div className="playerSectionHead">
         <div>
-          <p className="playerSectionKicker">CE QUE J’AI FAIT</p>
-          <h2>Actions réalisées</h2>
+          <p className="playerSectionKicker">{tr(portal,'CE QUE J’AI FAIT','WHAT I DID')}</p>
+          <h2>{tr(portal,'Actions réalisées','Completed actions')}</h2>
         </div>
         <span>{logs.length}</span>
       </div>
       {logs.length===0
-        ? <p>Aucune action mécanique enregistrée pour le moment.</p>
+        ? <p>{tr(portal,'Aucune action mécanique enregistrée pour le moment.','No mechanical action recorded yet.')}</p>
         : logs.map((l:any)=>
           <article className="newsLog" key={l.id??`${l.actionType}-${l.createdAt}-${l.refExternalId}`}>
-            <small>{niceTime(l.createdAt)}</small>
-            <strong>{actionLogTitle(l)}</strong>
+            <small>{niceTime(l.createdAt,portal.session?.language)}</small>
+            <strong>{actionLogTitle(l,portal)}</strong>
             {l.note&&<p>{l.note}</p>}
           </article>
         )}
     </section>
 
     <section className="playerCard rulesCard">
-      <p className="playerSectionKicker">RÈGLES DU JEU</p>
-      <h2>Comment jouer</h2>
+      <p className="playerSectionKicker">{tr(portal,'RÈGLES DU JEU','GAME RULES')}</p>
+      <h2>{tr(portal,'Comment jouer','How to play')}</h2>
       <ul>
-        <li>Les discussions, négociations, mensonges et alliances entre joueurs sont libres, sauf indication contraire du scénario.</li>
-        <li>Avant une action mécanique payante, Murder Engine vous indique son coût et vous demande confirmation.</li>
-        <li>Les QR servent à valider un lieu ou une cible. L’onglet Jouer vous indique quand agir face à face ou discrètement.</li>
-        <li>Après une tentative de fouille, un délai de 10 minutes s’applique avant la suivante.</li>
-        <li>Lorsqu’une action nécessite un jugement humain, le MJ reste l’arbitre.</li>
+        <li>{tr(portal,'Les discussions, négociations, mensonges et alliances entre joueurs sont libres, sauf indication contraire du scénario.','Discussions, negotiations, lies and alliances between players are free unless the scenario states otherwise.')}</li>
+        <li>{tr(portal,'Avant une action mécanique payante, Murder Engine vous indique son coût et vous demande confirmation.','Before a mechanical action that costs resources, Murder Engine shows the cost and asks for confirmation.')}</li>
+        <li>{tr(portal,'Les QR servent à valider un lieu ou une cible. L’onglet Jouer vous indique quand agir face à face ou discrètement.','QR codes validate a location or target. The Play tab tells you when to act face to face or discreetly.')}</li>
+        <li>{tr(portal,'Après une tentative de fouille, un délai de 10 minutes s’applique avant la suivante.','After a search attempt, a 10-minute delay applies before the next one.')}</li>
+        <li>{tr(portal,'Lorsqu’une action nécessite un jugement humain, le MJ reste l’arbitre.','When an action requires human judgement, the GM remains the referee.')}</li>
       </ul>
     </section>
   </div>;
 }
 
-function NewsNotification({n,busy,onRead}:{n:any;busy:boolean;onRead:(id:string)=>void}){
+function NewsNotification({n,busy,onRead,portal}:{n:any;busy:boolean;onRead:(id:string)=>void;portal:Portal}){
   const kind=String(n.kind??'INFO').toUpperCase();
   const pressLike=['NEWS','EVENT','ACTU','PUBLIC'].includes(kind);
   const sourceLabel=
     ['GM','MJ','ORGANIZATION','ORGANISATION'].includes(kind)
-      ? 'Message de l’organisation'
+      ? tr(portal,'Message de l’organisation','Organizer message')
       : pressLike
-        ? 'Actualité'
+        ? tr(portal,'Actualité','News')
         : kind==='THEFT'
-          ? 'Alerte personnelle'
+          ? tr(portal,'Alerte personnelle','Personal alert')
           : kind==='OBJECT'
-            ? 'Information reçue'
+            ? tr(portal,'Information reçue','Information received')
             : kind==='CASH'
-              ? 'Argent reçu'
+              ? tr(portal,'Argent reçu','Money received')
               : kind==='INTERACTION_TARGET'
-              ? 'Événement personnel'
-              : 'Information';
+              ? tr(portal,'Événement personnel','Personal event')
+              : tr(portal,'Information','Information');
 
   return <article className={`playerMessage newsMessage ${n.readAt?'read':'unread'} ${pressLike?'pressArticle':''}`}>
     <div>
-      <small>{sourceLabel} · {niceTime(n.createdAt)}</small>
+      <small>{sourceLabel} · {niceTime(n.createdAt,portal.session?.language)}</small>
       <strong>{n.title}</strong>
       <p>{n.body}</p>
     </div>
-    {!n.readAt&&<button className="playerSecondary" disabled={busy} onClick={()=>onRead(n.id)}>Marquer comme lu</button>}
+    {!n.readAt&&<button className="playerSecondary" disabled={busy} onClick={()=>onRead(n.id)}>{tr(portal,'Marquer comme lu','Mark as read')}</button>}
   </article>;
 }
 
-function actionLogTitle(l:any){
+function actionLogTitle(l:any,portal?:Portal){
   const type=String(l?.actionType??'').toUpperCase();
-  if(type==='INTERACTION_EXECUTE')return 'Action exécutée';
-  if(type==='PLAYER_INTERACTION_REQUEST')return 'Demande envoyée au MJ';
-  if(type==='OBJECT_TRANSFER')return 'Objet transféré';
-  if(type==='OBJECT_STOLEN')return 'Objet subtilisé';
-  if(type==='CLUE_REVEAL')return 'Indice découvert';
-  if(type==='CASH_TRANSFER')return 'Argent envoyé';
-  if(type==='CASH_RECEIVED')return 'Argent reçu';
-  if(type.includes('VOTE'))return 'Vote enregistré';
-  return 'Action de jeu';
+  if(type==='INTERACTION_EXECUTE')return tr(portal,'Action exécutée','Action executed');
+  if(type==='PLAYER_INTERACTION_REQUEST')return tr(portal,'Demande envoyée au MJ','Request sent to GM');
+  if(type==='OBJECT_TRANSFER')return tr(portal,'Objet transféré','Item transferred');
+  if(type==='OBJECT_STOLEN')return tr(portal,'Objet subtilisé','Item stolen');
+  if(type==='CLUE_REVEAL')return tr(portal,'Indice découvert','Clue discovered');
+  if(type==='CASH_TRANSFER')return tr(portal,'Argent envoyé','Money sent');
+  if(type==='CASH_RECEIVED')return tr(portal,'Argent reçu','Money received');
+  if(type.includes('VOTE'))return tr(portal,'Vote enregistré','Vote recorded');
+  return tr(portal,'Action de jeu','Game action');
 }

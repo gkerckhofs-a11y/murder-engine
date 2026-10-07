@@ -273,6 +273,7 @@ test('session date time venue and name can be edited before live', async () => {
     name:'Cosa Nostra — 12 octobre',
     scheduledAt:'2026-10-12T17:30:00.000Z',
     venue:'Western City',
+    language:'EN',
   }, {
     reader: async () => ({ gameSession:{ id:'S1', status:'CASTING', startedAt:null, pausedAt:null, finishedAt:null, scenarioVersion:{characters_on_scenarioVersion:[]}, sessionParticipants_on_gameSession:[] } }),
     executor: async (op,vars) => { write={op,vars}; return {}; },
@@ -280,7 +281,18 @@ test('session date time venue and name can be edited before live', async () => {
   assert.equal(result.name,'Cosa Nostra — 12 octobre');
   assert.equal(result.scheduledAt,'2026-10-12T17:30:00.000Z');
   assert.equal(write.vars.venue,'Western City');
+  assert.equal(write.vars.language,'EN');
+  assert.equal(result.language,'EN');
   assert.match(write.op,/gameSession_update/);
+});
+
+test('session language only accepts FR or EN', async () => {
+  await assert.rejects(() => updateGameSessionDetails('S1', {
+    name:'Test', scheduledAt:'2026-10-12T17:30:00Z', venue:'Liège', language:'DE'
+  }, {
+    reader: async () => ({ gameSession:{ id:'S1', language:'FR', status:'CASTING', startedAt:null, pausedAt:null, finishedAt:null, scenarioVersion:{characters_on_scenarioVersion:[]}, sessionParticipants_on_gameSession:[] } }),
+    executor: async () => ({}),
+  }), /INVALID_SESSION_LANGUAGE/);
 });
 
 test('session schedule editing is locked after live started', async () => {
