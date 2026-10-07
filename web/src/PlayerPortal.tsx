@@ -488,7 +488,6 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
   const visibleInteractions=(portal.interactions??[]).filter((i:any)=>!isSearchLocationAction(i));
   const characterInteractions=visibleInteractions.filter((i:any)=>['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase()));
   const otherInteractions=visibleInteractions.filter((i:any)=>!['PLAYER','CHARACTER'].includes(String(i.targetType??'').toUpperCase()));
-  const searchAbility=(portal.abilities??[]).find((a:any)=>/(fouill|search|investig|explor)/.test(normalizeText(`${a.name} ${a.category}`)));
   const pa=(portal.resources??[]).find((r:any)=>r.resourceExternalId==='RES_PA');
 
   function renderInteraction(i:any){
