@@ -497,10 +497,27 @@ function effectiveAbilities(source, characterExternalId) {
   }).filter(Boolean);
 }
 
+function clueTargetCharacter(clue){
+  const hook=String(clue?.discoveryHook??'').trim();
+
+  const patterns=[
+    /^RUMOR_TARGET\s*:\s*(.+)$/i,
+    /^CHARACTER_TARGET\s*:\s*(.+)$/i,
+    /^TARGET_CHARACTER\s*:\s*(.+)$/i,
+    /^ABOUT_CHARACTER\s*:\s*(.+)$/i,
+  ];
+
+  for(const pattern of patterns){
+    const match=hook.match(pattern);
+    if(match)return String(match[1]).trim();
+  }
+
+  return null;
+}
+
 function rumorTargetCharacter(clue){
   if(String(clue?.clueType??'').trim().toUpperCase()!=='RUMOR')return null;
-  const match=String(clue?.discoveryHook??'').trim().match(/^RUMOR_TARGET\s*:\s*(.+)$/i);
-  return match?String(match[1]).trim():null;
+  return clueTargetCharacter(clue);
 }
 
 function isInformantInteraction(interaction){
@@ -1043,6 +1060,23 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
   const documentEntries=(source.clues??[]).filter(c=>c.active!==false&&c.objectExternalId&&ownedObjectIds.has(c.objectExternalId)&&c.addToNotebook!==false).map(c=>({clueExternalId:c.externalId,objectExternalId:c.objectExternalId,documentExternalId:c.documentExternalId??null,playerName:c.playerName,playerText:c.playerText,clueType:c.clueType,support:c.support,presentationMode:c.presentationMode,immersiveDocument:immersiveDocumentForClue(c,documentMap,mediaMap),owned:true}));
   const actionLogs=(runtime.sessionActionLogs??[]).filter(l=>l.characterExternalId===characterExternalId).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()).slice(0,50);
   const relationships=(source.relationships??[]).filter(r=>r.active!==false&&visibilityAllowed(r.visibility)&&(r.characterAExternalId===characterExternalId||r.characterBExternalId===characterExternalId)).map(r=>{const isA=r.characterAExternalId===characterExternalId;const otherExternalId=isA?r.characterBExternalId:r.characterAExternalId;const other=charMap.get(otherExternalId);return{externalId:r.externalId,otherExternalId,otherName:other?.name??otherExternalId,otherPublicRole:other?.publicRole??null,relationType:r.relationType,text:isA?r.textA:(r.textB||r.textA),visibility:r.visibility,portrait:mediaOverrideVisual(session,'CHARACTER',otherExternalId)??visualMedia(mediaMap,other?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',other?.portraitArchetypeCode)};});
+  const discoverableAboutMe=(source.clues??[])
+    .filter(clue=>
+      clue.active!==false &&
+      clueTargetCharacter(clue)===characterExternalId
+    )
+    .sort((a,b)=>
+      Number(Boolean(b.major))-Number(Boolean(a.major)) ||
+      String(a.externalId).localeCompare(String(b.externalId))
+    )
+    .map(clue=>({
+      externalId:clue.externalId,
+      playerName:clue.playerName,
+      playerText:clue.playerText,
+      clueType:clue.clueType,
+      major:Boolean(clue.major),
+    }));
+
   const notifications=(runtime.sessionPlayerNotifications??[]).filter(n=>n.characterExternalId===characterExternalId).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
   const interactions=playerInteractions(source,runtime,session,characterExternalId,resources,now);
   const votes=playerVotes(source,runtime,session,characterExternalId);
@@ -1052,7 +1086,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
     session:{id:session.id,name:session.name,scheduledAt:session.scheduledAt,venue:session.venue,language:session.language??'FR',status:session.status,startedAt:session.startedAt,pausedAt:session.pausedAt,finishedAt:session.finishedAt,scenarioTitle:session.scenarioVersion?.scenario?.title??'Murder Party',playerSummary:session.scenarioVersion?.playerSummary??''},
     character:{externalId:character.externalId,name:character.name,publicRole:character.publicRole,biography:character.biography,secretIntro:character.secretIntro,interpretationNotes:character.interpretationNotes,appearanceNotes:character.appearanceNotes,apparentMotive:character.apparentMotive,personalTimeline:character.personalTimeline,motto:character.motto,narrativeAge:character.narrativeAge,portrait:mediaOverrideVisual(session,'CHARACTER',character.externalId)??visualMedia(mediaMap,character.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',character.portraitArchetypeCode)},
     otherCharacters:(session.sessionParticipants_on_gameSession??[]).filter(p=>p.active!==false&&p.characterExternalId&&p.characterExternalId!==characterExternalId).map(p=>{const c=charMap.get(p.characterExternalId);return{characterExternalId:p.characterExternalId,name:c?.name??p.characterExternalId,publicRole:c?.publicRole??null,participantName:p.displayName,portrait:mediaOverrideVisual(session,'CHARACTER',p.characterExternalId)??visualMedia(mediaMap,c?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',c?.portraitArchetypeCode)};}),
-    objectives,relationships,resources,knowledge,discoveries,documentEntries,inventory,states,abilities:effectiveAbilities(source,characterExternalId).filter(a=>!a.secret),interactions,votes,notifications,actionLogs,unreadNotificationCount:notifications.filter(n=>!n.readAt).length,searchCooldownRemainingSeconds:globalLocationSearchCooldownRemaining(source,runtime,characterExternalId,now),
+    objectives,relationships,resources,knowledge,discoveries,documentEntries,inventory,discoverableAboutMe,states,abilities:effectiveAbilities(source,characterExternalId).filter(a=>!a.secret),interactions,votes,notifications,actionLogs,unreadNotificationCount:notifications.filter(n=>!n.readAt).length,searchCooldownRemainingSeconds:globalLocationSearchCooldownRemaining(source,runtime,characterExternalId,now),
   };
 }
 
