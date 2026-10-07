@@ -87,9 +87,11 @@ export default function MediaLibraryPanel({
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [authRequired,setAuthRequired]=useState(false);
-  const [uploadFile,setUploadFile]=useState<File|null>(null);
+  const [uploadFiles,setUploadFiles]=useState<File[]>([]);
   const [uploadLabel,setUploadLabel]=useState('');
   const [uploadTags,setUploadTags]=useState('');
+  const [uploadProgress,setUploadProgress]=useState<Record<string,{status:'PENDING'|'UPLOADING'|'SUCCESS'|'ERROR';message?:string}>>({});
+  const [uploadSummary,setUploadSummary]=useState('');
   const [showUpload,setShowUpload]=useState(false);
 
   useEffect(()=>{
@@ -214,35 +216,108 @@ export default function MediaLibraryPanel({
     }
   }
 
+  const uploadKey=(file:File)=>
+    `${file.name}::${file.size}::${file.lastModified}`;
+
+  const defaultMediaLabel=(file:File)=>
+    file.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').trim()||file.name;
+
   async function upload(){
-    if(!uploadFile)return;
+    if(!uploadFiles.length)return;
 
     setBusy(true);
     setError('');
+    setUploadSummary('');
+
+    const total=uploadFiles.length;
+    const uploaded:Asset[]=[];
+    const failed:File[]=[];
 
     try{
       const token=await organizerToken(true);
       if(!token)throw new Error('ORGANIZER_AUTH_REQUIRED');
 
-      const result=await fetchJson<{ok:boolean;asset:Asset}>('/api/media/upload',{
-        method:'POST',
-        headers:{
-          'authorization':`Bearer ${token}`,
-          'content-type':uploadFile.type||'application/octet-stream',
-          'x-version-id':version.id,
-          'x-file-name':uploadFile.name,
-          'x-media-label':encodeURIComponent(uploadLabel.trim()||uploadFile.name),
-          'x-media-category':targetType,
-          'x-media-tags':encodeURIComponent(uploadTags.trim()),
-          'x-media-alt':encodeURIComponent(uploadLabel.trim()||uploadFile.name),
-        },
-        body:await uploadFile.arrayBuffer(),
-      });
+      for(const file of uploadFiles){
+        const key=uploadKey(file);
+        const label=
+          total===1 && uploadLabel.trim()
+            ? uploadLabel.trim()
+            : defaultMediaLabel(file);
 
-      setAssets(prev=>[result.asset,...prev.filter(x=>x.externalId!==result.asset.externalId)]);
-      setUploadFile(null);
-      setUploadLabel('');
-      setUploadTags('');
+        if(file.size>5*1024*1024){
+          failed.push(file);
+          setUploadProgress(prev=>({
+            ...prev,
+            [key]:{
+              status:'ERROR',
+              message:'Fichier supérieur à 5 Mo',
+            },
+          }));
+          continue;
+        }
+
+        setUploadProgress(prev=>({
+          ...prev,
+          [key]:{status:'UPLOADING'},
+        }));
+
+        try{
+          const result=await fetchJson<{ok:boolean;asset:Asset}>('/api/media/upload',{
+            method:'POST',
+            headers:{
+              'authorization':`Bearer ${token}`,
+              'content-type':file.type||'application/octet-stream',
+              'x-version-id':version.id,
+              'x-file-name':file.name,
+              'x-media-label':encodeURIComponent(label),
+              'x-media-category':targetType,
+              'x-media-tags':encodeURIComponent(uploadTags.trim()),
+              'x-media-alt':encodeURIComponent(label),
+            },
+            body:await file.arrayBuffer(),
+          });
+
+          uploaded.push(result.asset);
+          setUploadProgress(prev=>({
+            ...prev,
+            [key]:{status:'SUCCESS'},
+          }));
+        }catch(e){
+          failed.push(file);
+          setUploadProgress(prev=>({
+            ...prev,
+            [key]:{
+              status:'ERROR',
+              message:e instanceof Error?e.message:String(e),
+            },
+          }));
+        }
+      }
+
+      if(uploaded.length){
+        setAssets(prev=>[
+          ...uploaded.reverse(),
+          ...prev.filter(existing=>
+            !uploaded.some(asset=>asset.externalId===existing.externalId)
+          ),
+        ]);
+      }
+
+      setUploadFiles(failed);
+
+      if(failed.length===0){
+        setUploadLabel('');
+        setUploadTags('');
+        setUploadSummary(
+          total===1
+            ? 'Image ajoutée à la bibliothèque ✓'
+            : `${total} images ajoutées à la bibliothèque ✓`
+        );
+      }else{
+        setUploadSummary(
+          `${uploaded.length}/${total} image(s) ajoutée(s) · ${failed.length} échec(s)`
+        );
+      }
     }catch(e){
       setError(e instanceof Error?e.message:String(e));
     }finally{
@@ -381,37 +456,56 @@ export default function MediaLibraryPanel({
           {showUpload&&<div className="mediaUpload">
             <div className="mediaUploadHead">
               <div>
-                <span className="micro">OU IMPORTER UNE NOUVELLE IMAGE</span>
-                <strong>Ajouter un nouveau fichier à la bibliothèque</strong>
+                <span className="micro">OU IMPORTER DE NOUVELLES IMAGES</span>
+                <strong>Ajouter un ou plusieurs fichiers à la bibliothèque</strong>
               </div>
-              <small>JPG, PNG, WebP ou GIF · 5 Mo max.</small>
+              <small>JPG, PNG, WebP ou GIF · 5 Mo max. par fichier.</small>
             </div>
 
             <div className="mediaUploadFields">
               <label className="mediaField mediaFileField">
-                <span>Fichier</span>
+                <span>Fichier(s)</span>
                 <input
                   type="file"
+                  multiple
                   accept="image/png,image/jpeg,image/webp,image/gif"
                   onChange={e=>{
-                    const file=e.target.files?.[0]??null;
-                    setUploadFile(file);
-                    if(file&&!uploadLabel)setUploadLabel(file.name.replace(/\.[^.]+$/,''));
+                    const files=Array.from(e.target.files??[]);
+                    setUploadFiles(files);
+                    setUploadProgress(
+                      Object.fromEntries(
+                        files.map(file=>[
+                          uploadKey(file),
+                          {status:'PENDING' as const},
+                        ])
+                      )
+                    );
+                    setUploadSummary('');
+                    if(files.length===1)
+                      setUploadLabel(defaultMediaLabel(files[0]));
+                    else
+                      setUploadLabel('');
+                    e.currentTarget.value='';
                   }}
                 />
               </label>
 
               <label className="mediaField">
-                <span>Nom</span>
+                <span>{uploadFiles.length>1?'Noms automatiques':'Nom'}</span>
                 <input
-                  value={uploadLabel}
+                  value={
+                    uploadFiles.length>1
+                      ? 'Nom de chaque fichier'
+                      : uploadLabel
+                  }
+                  disabled={uploadFiles.length>1}
                   onChange={e=>setUploadLabel(e.target.value)}
                   placeholder="Ex. Ruby Saint-Clair"
                 />
               </label>
 
               <label className="mediaField">
-                <span>Tags</span>
+                <span>Tags communs</span>
                 <input
                   value={uploadTags}
                   onChange={e=>setUploadTags(e.target.value)}
@@ -420,12 +514,42 @@ export default function MediaLibraryPanel({
               </label>
             </div>
 
+            {uploadFiles.length>0&&<div className="mediaUploadQueue">
+              {uploadFiles.map(file=>{
+                const progress=uploadProgress[uploadKey(file)]??{status:'PENDING' as const};
+                return <div className={`mediaUploadQueueRow ${progress.status.toLowerCase()}`} key={uploadKey(file)}>
+                  <div>
+                    <strong>{file.name}</strong>
+                    <small>{(file.size/1024/1024).toFixed(2)} Mo</small>
+                  </div>
+                  <span>
+                    {progress.status==='PENDING'&&'En attente'}
+                    {progress.status==='UPLOADING'&&'Import…'}
+                    {progress.status==='SUCCESS'&&'✓ Ajoutée'}
+                    {progress.status==='ERROR'&&`⚠ ${progress.message||'Erreur'}`}
+                  </span>
+                </div>;
+              })}
+            </div>}
+
             <div className="mediaUploadActions">
-              <span>{uploadFile?uploadFile.name:'Aucun fichier sélectionné'}</span>
-              <button className="mediaPrimaryAction" disabled={!uploadFile||busy} onClick={()=>void upload()}>
-                {busy?'Ajout…':'Ajouter l’image'}
+              <span>
+                {uploadFiles.length===0
+                  ? 'Aucun fichier sélectionné'
+                  : uploadFiles.length===1
+                    ? uploadFiles[0].name
+                    : `${uploadFiles.length} fichiers sélectionnés`}
+              </span>
+              <button className="mediaPrimaryAction" disabled={!uploadFiles.length||busy} onClick={()=>void upload()}>
+                {busy
+                  ? `Import en cours…`
+                  : uploadFiles.length>1
+                    ? `Ajouter les ${uploadFiles.length} images`
+                    : 'Ajouter l’image'}
               </button>
             </div>
+
+            {uploadSummary&&<div className="mediaUploadSummary">{uploadSummary}</div>}
           </div>}
 
           <div className="mediaExistingHead">
