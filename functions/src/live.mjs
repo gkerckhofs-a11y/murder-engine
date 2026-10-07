@@ -53,6 +53,46 @@ query LiveRuntime($sessionId: UUID!) {
   sessionActionLogs(where: {gameSessionId: {eq: $sessionId}}, orderBy: {createdAt: DESC}, limit: 30) {
     id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
   }
+  businessDealProposals: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_PROPOSED"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
+  businessDealAccepted: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_ACCEPTED"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
+  businessDealDeclined: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_DECLINED"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
+  businessDealOfficial: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_OFFICIAL"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
 }
 `;
 
@@ -191,6 +231,51 @@ export function shapeLiveDashboard(session, source, runtime, now = new Date()) {
     
     }));
 
+  function parseDealNote(value) {
+    try { return JSON.parse(String(value??'')) ?? {}; }
+    catch { return {}; }
+  }
+
+  const acceptedDealIds=new Set(
+    (runtime?.businessDealAccepted??[])
+      .map(x=>x.refExternalId)
+      .filter(Boolean)
+  );
+  const declinedDealIds=new Set(
+    (runtime?.businessDealDeclined??[])
+      .map(x=>x.refExternalId)
+      .filter(Boolean)
+  );
+  const officialDealIds=new Set(
+    (runtime?.businessDealOfficial??[])
+      .map(x=>x.refExternalId)
+      .filter(Boolean)
+  );
+
+  const businessDeals=(runtime?.businessDealProposals??[])
+    .map(proposal=>{
+      const data=parseDealNote(proposal.note);
+      const dealId=proposal.refExternalId;
+      const status=officialDealIds.has(dealId)
+        ? 'OFFICIAL'
+        : declinedDealIds.has(dealId)
+          ? 'DECLINED'
+          : acceptedDealIds.has(dealId)
+            ? 'ACCEPTED'
+            : 'PROPOSED';
+      return {
+        dealId,
+        actorCharacterExternalId:proposal.characterExternalId,
+        actorName:data.actorName??characterDefs.get(proposal.characterExternalId)?.name??proposal.characterExternalId,
+        targetCharacterExternalId:proposal.afterValue,
+        targetName:data.targetName??characterDefs.get(proposal.afterValue)?.name??proposal.afterValue,
+        terms:data.terms??proposal.beforeValue??'',
+        status,
+        proposedAt:proposal.createdAt,
+      };
+    })
+    .filter(deal=>Boolean(deal.dealId));
+
   const phases = (source?.gamePhaseDefinitions ?? []).filter(x=>x.active!==false).sort((a,b)=>(a.orderIndex??0)-(b.orderIndex??0));
   const events = (source?.gameEventDefinitions ?? []).filter(x=>x.active!==false).map(def => {
     const state = eventState.get(def.externalId) ?? {status:'PENDING'};
@@ -204,7 +289,7 @@ export function shapeLiveDashboard(session, source, runtime, now = new Date()) {
       elapsedSeconds, currentPhaseExternalId: session.currentPhaseExternalId ?? null,
     },
     sourceReady: ['0.7','0.8','0.9'].includes(session.scenarioVersion?.runtimeDataVersion),
-    phases, events, characters,
+    phases, events, characters, businessDeals,
     stateDefinitions: (source?.gameStateDefinitions ?? []).filter(x=>x.active!==false),
     logs: runtime?.sessionActionLogs ?? [],
     alerts: {
@@ -272,6 +357,47 @@ export async function controlLiveSession(sessionId, action, {reader=defaultReade
   await executor(UPDATE_LIVE_SESSION_MUTATION,{sessionId,...next});
   await logAction(executor,{gameSessionId:sessionId,actionType:`LIVE_${normalized}`,beforeValue:session.status,afterValue:next.status,note:null});
   return {sessionId,...next};
+}
+
+
+export async function validateBusinessDeal(sessionId,input,{reader=defaultReader,executor=defaultExecutor,now=new Date()}={}) {
+  if(!sessionId) throw new Error('SESSION_ID_REQUIRED');
+  const dealId=String(input?.dealId??'').trim();
+  if(!dealId) throw new Error('BUSINESS_DEAL_ID_REQUIRED');
+
+  const {session,runtime}=await loadLive(sessionId,reader);
+  if(!['LIVE','PAUSED','FINISHED'].includes(session.status))
+    throw new Error('SESSION_NOT_ACTIVE');
+
+  const proposal=(runtime.businessDealProposals??[])
+    .find(x=>x.refExternalId===dealId);
+  if(!proposal) throw new Error('BUSINESS_DEAL_NOT_FOUND');
+
+  const accepted=(runtime.businessDealAccepted??[])
+    .some(x=>x.refExternalId===dealId);
+  if(!accepted) throw new Error('BUSINESS_DEAL_NOT_ACCEPTED');
+
+  const declined=(runtime.businessDealDeclined??[])
+    .some(x=>x.refExternalId===dealId);
+  if(declined) throw new Error('BUSINESS_DEAL_DECLINED');
+
+  const official=(runtime.businessDealOfficial??[])
+    .some(x=>x.refExternalId===dealId);
+  if(official) return {dealId,status:'OFFICIAL',alreadyOfficial:true};
+
+  await logAction(executor,{
+    gameSessionId:sessionId,
+    actionType:'BUSINESS_DEAL_OFFICIAL',
+    characterExternalId:proposal.characterExternalId,
+    refExternalId:dealId,
+    beforeValue:proposal.afterValue,
+    afterValue:'OFFICIAL',
+    deltaValue:null,
+    note:proposal.note,
+    createdAt:now.toISOString(),
+  });
+
+  return {dealId,status:'OFFICIAL',alreadyOfficial:false};
 }
 
 export async function changeLiveResource(sessionId,input,{reader=defaultReader,executor=defaultExecutor,now=new Date()}={}) {
