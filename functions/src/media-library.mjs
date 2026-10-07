@@ -63,6 +63,26 @@ query OrganizationMediaLibraryAsset(
 }
 `;
 
+
+const OBJECT_TARGET_QUERY = `
+query MediaObjectTarget(
+  $versionId: UUID!,
+  $externalId: String!
+) {
+  gameObjects(
+    where: {
+      scenarioVersionId: {eq: $versionId}
+      externalId: {eq: $externalId}
+    }
+    limit: 1
+  ) {
+    externalId
+    name
+    logisticsCode
+  }
+}
+`;
+
 const INSERT_MUTATION = `
 mutation InsertOrganizationMediaAsset(
   $data: OrganizationMediaAsset_Data!
@@ -341,8 +361,28 @@ export async function setScenarioMediaOverride(versionId,input){
   const key=overrideKey(targetType,targetExternalId);
   const overrides={...context.overrides};
 
+  let objectTarget=null;
+  if(targetType==='OBJECT'){
+    const objectData=await read(OBJECT_TARGET_QUERY,{
+      versionId,
+      externalId:targetExternalId,
+    });
+    objectTarget=objectData?.gameObjects?.[0]??null;
+  }
+
+  const logisticsCode=
+    String(objectTarget?.logisticsCode??'').trim()||null;
+
+  const aliasKey=
+    targetType==='OBJECT' &&
+    logisticsCode &&
+    logisticsCode!==targetExternalId
+      ? overrideKey('OBJECT',logisticsCode)
+      : null;
+
   if(!assetExternalId){
     delete overrides[key];
+    if(aliasKey)delete overrides[aliasKey];
   }else{
     const data=await read(ASSET_QUERY,{
       organizationId:context.organization.id,
@@ -352,7 +392,7 @@ export async function setScenarioMediaOverride(versionId,input){
     const asset=data?.organizationMediaAssets?.[0];
     if(!asset)throw new Error('MEDIA_ASSET_NOT_FOUND');
 
-    overrides[key]={
+    const override={
       assetExternalId:asset.externalId,
       label:asset.label,
       category:asset.category,
@@ -360,7 +400,13 @@ export async function setScenarioMediaOverride(versionId,input){
       source:asset.source,
       altText:asset.altText??asset.label,
       skinId:asset.skinId??null,
+      targetExternalId,
+      targetLabel:objectTarget?.name??null,
+      targetLogisticsCode:logisticsCode,
     };
+
+    overrides[key]=override;
+    if(aliasKey)overrides[aliasKey]=override;
   }
 
   await write(UPDATE_OVERRIDES_MUTATION,{
@@ -392,6 +438,7 @@ export const __mediaLibraryOps={
   CONTEXT_QUERY,
   LIST_QUERY,
   ASSET_QUERY,
+  OBJECT_TARGET_QUERY,
   INSERT_MUTATION,
   UPDATE_OVERRIDES_MUTATION,
   parseOverrides,
