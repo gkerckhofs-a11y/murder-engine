@@ -1249,40 +1249,80 @@ function PlayerNews({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:(id:
     const kind=String(n.kind??'').toUpperCase();
     return !['INTERACTION','ACTION','LOCATION'].includes(kind);
   });
-  const logs=portal.actionLogs??[];
+
+  const voteResults=portal.voteResults??[];
+  const newsCount=notifications.length+voteResults.length;
 
   return <div className="playerStack newsShell">
     <section className="playerCard newsFeedCard">
       <div className="playerSectionHead">
         <div>
           <p className="playerSectionKicker">{tr(portal,'CE QU’IL SE PASSE','WHAT IS HAPPENING')}</p>
-          <h2>{tr(portal,'Notifications','Notifications')}</h2>
+          <h2>{tr(portal,'News','News')}</h2>
         </div>
-        <span>{notifications.length}</span>
+        <span>{newsCount}</span>
       </div>
-      <p className="newsSectionIntro">{tr(portal,'Messages de l’organisation, événements du scénario et informations qui vous concernent.','Messages from the organizers, scenario events and information concerning you.')}</p>
-      {notifications.length===0
-        ? <p>{tr(portal,'Aucune nouvelle pour le moment.','No news for now.')}</p>
-        : notifications.map((n:any)=><NewsNotification key={n.id} n={n} busy={busy} onRead={onRead} portal={portal}/>)}
-    </section>
 
-    <section className="playerCard">
-      <div className="playerSectionHead">
-        <div>
-          <p className="playerSectionKicker">{tr(portal,'CE QUE J’AI FAIT','WHAT I DID')}</p>
-          <h2>{tr(portal,'Actions réalisées','Completed actions')}</h2>
-        </div>
-        <span>{logs.length}</span>
-      </div>
-      {logs.length===0
-        ? <p>{tr(portal,'Aucune action mécanique enregistrée pour le moment.','No mechanical action recorded yet.')}</p>
-        : logs.map((l:any)=>
-          <article className="newsLog" key={l.id??`${l.actionType}-${l.createdAt}-${l.refExternalId}`}>
-            <small>{niceTime(l.createdAt,portal.session?.language)}</small>
-            <strong>{actionLogTitle(l,portal)}</strong>
-            {l.note&&<p>{l.note}</p>}
-          </article>
+      <p className="newsSectionIntro">
+        {tr(
+          portal,
+          'Événements du scénario, résultats des votes et informations qui vous concernent.',
+          'Scenario events, vote results and information concerning you.'
         )}
+      </p>
+
+      {voteResults.map((vote:any)=>
+        <article
+          className="playerMessage newsMessage voteResultNews"
+          key={`vote-result-${vote.externalId}-${vote.round}`}
+        >
+          <div>
+            <small>
+              {tr(portal,'Résultat du vote','Vote result')}
+              {vote.closedAt?` · ${niceTime(vote.closedAt,portal.session?.language)}`:''}
+            </small>
+
+            <strong>{vote.title}</strong>
+
+            {vote.winnerLabel
+              ? <p>
+                  {tr(portal,'Résultat :','Result:')}{' '}
+                  <b>{vote.winnerLabel}</b>
+                </p>
+              : vote.tieForLead
+                ? <p>{tr(
+                    portal,
+                    'Le scrutin se termine à égalité. Aucune décision définitive n’est encore prise.',
+                    'The vote ends in a tie. No final decision has been made yet.'
+                  )}</p>
+                : vote.suggestSecondRound
+                  ? <p>{tr(
+                      portal,
+                      'Aucun résultat définitif. Un nouveau tour de vote est nécessaire.',
+                      'No final result. Another round of voting is required.'
+                    )}</p>
+                  : <p>{tr(
+                      portal,
+                      'Le scrutin est clôturé sans résultat définitif.',
+                      'The vote is closed without a final result.'
+                    )}</p>
+            }
+          </div>
+        </article>
+      )}
+
+      {notifications.length===0&&voteResults.length===0
+        ? <p>{tr(portal,'Aucune nouvelle pour le moment.','No news for now.')}</p>
+        : notifications.map((n:any)=>
+            <NewsNotification
+              key={n.id}
+              n={n}
+              busy={busy}
+              onRead={onRead}
+              portal={portal}
+            />
+          )
+      }
     </section>
 
     <section className="playerCard rulesCard">
@@ -1327,15 +1367,4 @@ function NewsNotification({n,busy,onRead,portal}:{n:any;busy:boolean;onRead:(id:
   </article>;
 }
 
-function actionLogTitle(l:any,portal?:Portal){
-  const type=String(l?.actionType??'').toUpperCase();
-  if(type==='INTERACTION_EXECUTE')return tr(portal,'Action exécutée','Action executed');
-  if(type==='PLAYER_INTERACTION_REQUEST')return tr(portal,'Demande envoyée au MJ','Request sent to GM');
-  if(type==='OBJECT_TRANSFER')return tr(portal,'Objet transféré','Item transferred');
-  if(type==='OBJECT_STOLEN')return tr(portal,'Objet subtilisé','Item stolen');
-  if(type==='CLUE_REVEAL')return tr(portal,'Indice découvert','Clue discovered');
-  if(type==='CASH_TRANSFER')return tr(portal,'Argent envoyé','Money sent');
-  if(type==='CASH_RECEIVED')return tr(portal,'Argent reçu','Money received');
-  if(type.includes('VOTE'))return tr(portal,'Vote enregistré','Vote recorded');
-  return tr(portal,'Action de jeu','Game action');
-}
+
