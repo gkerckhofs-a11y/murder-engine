@@ -48,6 +48,45 @@ test('player portal exposes only own runtime state and safe actions',()=>{
  assert.equal(out.votes.length,1);assert.equal(out.otherCharacters[0].characterExternalId,'CHAR_B');
 });
 
+test('player sheet exposes only clues targeted at the current character',()=>{
+ const src=source();
+ src.clues.push(
+   {
+     externalId:'RUMOR_SELF',
+     playerName:'Rumour about Alice',
+     clueType:'RUMOR',
+     playerText:'Alice once bribed a critic.',
+     discoveryHook:'RUMOR_TARGET:CHAR_A',
+     active:true
+   },
+   {
+     externalId:'RUMOR_OTHER',
+     playerName:'Rumour about Bob',
+     clueType:'RUMOR',
+     playerText:'Bob hides a contract.',
+     discoveryHook:'RUMOR_TARGET:CHAR_B',
+     active:true
+   }
+ );
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   runtime(),
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ assert.deepEqual(
+   out.discoverableAboutMe.map(x=>x.externalId),
+   ['RUMOR_SELF']
+ );
+ assert.equal(
+   out.discoverableAboutMe[0].playerText,
+   'Alice once bribed a critic.'
+ );
+});
+
 test('Visual V1 exposes character portraits, relation portraits and object thumbnails',()=>{
  const out=shapePlayerPortal(participant(),session(),source(),runtime(),new Date('2026-09-21T18:05:00Z'));
  assert.equal(out.character.portrait.source,'/immersive/test/alice.png');
