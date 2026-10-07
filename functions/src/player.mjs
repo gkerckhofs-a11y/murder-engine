@@ -447,6 +447,8 @@ function applySessionIncarnations(
 }
 
 function visibilityAllowed(value) { return !['MJ','MJ_ONLY','SECRET_MJ','GM_ONLY'].includes(String(value ?? '').toUpperCase()); }
+function sessionIsEnglish(session){return String(session?.language??'FR').trim().toUpperCase()==='EN';}
+function sessionText(session,fr,en){return sessionIsEnglish(session)?en:fr;}
 
 async function loadPlayerAccess(token, reader=defaultReader) {
   const safe = safeToken(token);
@@ -558,11 +560,11 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
     const noRumorTarget=isInformantInteraction(i)&&targets.length===0;
     const directEnabled=running&&!requiresGm&&!noRumorTarget;
     const blockedReason=!running
-      ? 'Disponible pendant le live'
+      ? sessionText(session,'Disponible pendant le live','Available during live play')
       : requiresGm
-        ? 'À demander au MJ'
+        ? sessionText(session,'À demander au MJ','Ask the GM')
         : noRumorTarget
-          ? 'Aucune nouvelle rumeur disponible'
+          ? sessionText(session,'Aucune nouvelle rumeur disponible','No new rumour available')
           : null;
     return {externalId:i.externalId,name:i.name,category:i.category,targetType:i.targetType,scanMode,resolution:i.resolution,directEnabled,blockedReason,clandestineKind,ability,costResourceExternalId:i.costResourceExternalId,costValue:i.costValue,currentCostResourceValue:costRow?.currentValue??null,diceCount:i.diceCount,diceSides:i.diceSides,difficulty:i.difficulty,usesCount:uses.length,maxUses,limitPerTarget:i.limitPerTarget??null,cooldownMinutes,cooldownRemainingSeconds,targets};
   });
@@ -640,14 +642,34 @@ function locationActionShape(source,runtime,session,characterExternalId,location
     const searchCooldown=isLocationSearchInteraction(i)?searchCooldownRemainingSeconds:0;
     const cooldownRemainingSeconds=Math.max(ownCooldown,searchCooldown);
     const cooldownBlocked=cooldownRemainingSeconds>0;
-    const blockedReason=session.status!=='LIVE'?'La partie n’est pas en cours':costBlocked?'Ressource insuffisante':maxBlocked?'Nombre maximal d’utilisations atteint':targetBlocked?'Ce lieu a déjà été fouillé avec cette action':cooldownBlocked?(searchCooldown>0?'Nouvelle fouille disponible dans quelques minutes':'Action en cooldown'):null;
+    const blockedReason=session.status!=='LIVE'
+      ? sessionText(session,'La partie n’est pas en cours','The game is not currently live')
+      : costBlocked
+        ? sessionText(session,'Ressource insuffisante','Insufficient resource')
+        : maxBlocked
+          ? sessionText(session,'Nombre maximal d’utilisations atteint','Maximum number of uses reached')
+          : targetBlocked
+            ? sessionText(session,'Ce lieu a déjà été fouillé avec cette action','This location has already been searched with this action')
+            : cooldownBlocked
+              ? (searchCooldown>0
+                  ? sessionText(session,'Nouvelle fouille disponible dans quelques minutes','Next search available in a few minutes')
+                  : sessionText(session,'Action en cooldown','Action on cooldown'))
+              : null;
     return {...i,targetExternalId:locationExternalId,autonomous:true,available:!blockedReason,blockedReason,usesOnLocation:sameTarget,cooldownRemainingSeconds,searchCooldownRemainingSeconds:searchCooldown};
   });
   const rewards=availableLocationRewards(source,runtime,characterExternalId,locationExternalId);
   if(!actions.length&&(!location.lockExternalId||locationOwnerCharacter(location))&&(rewards.clues.length||rewards.objects.length)){
     const pa=resources.find(r=>r.resourceExternalId==='RES_PA');
-    const blockedReason=session.status!=='LIVE'?'La partie n’est pas en cours':!pa?'PA indisponibles':Number(pa.currentValue??0)<1?'PA insuffisants':searchCooldownRemainingSeconds>0?'Nouvelle fouille disponible dans quelques minutes':null;
-    actions.push({externalId:'SYSTEM_LOCATION_SEARCH',name:'Fouiller',category:'INVESTIGATION',targetType:'LOCATION',resolution:'AUTO',validation:'AUTO',costResourceExternalId:'RES_PA',costValue:1,currentCostResourceValue:pa?.currentValue??null,diceCount:0,diceSides:0,difficulty:null,usesCount:(runtime.sessionInteractionUses??[]).filter(u=>u.actorCharacterExternalId===characterExternalId&&u.interactionExternalId==='SYSTEM_LOCATION_SEARCH'&&u.targetExternalId===locationExternalId).length,maxUses:null,cooldownMinutes:10,cooldownRemainingSeconds:searchCooldownRemainingSeconds,searchCooldownRemainingSeconds,targetExternalId:locationExternalId,autonomous:true,systemFallback:true,available:!blockedReason,blockedReason});
+    const blockedReason=session.status!=='LIVE'
+      ? sessionText(session,'La partie n’est pas en cours','The game is not currently live')
+      : !pa
+        ? sessionText(session,'PA indisponibles','AP unavailable')
+        : Number(pa.currentValue??0)<1
+          ? sessionText(session,'PA insuffisants','Insufficient AP')
+          : searchCooldownRemainingSeconds>0
+            ? sessionText(session,'Nouvelle fouille disponible dans quelques minutes','Next search available in a few minutes')
+            : null;
+    actions.push({externalId:'SYSTEM_LOCATION_SEARCH',name:sessionText(session,'Fouiller','Search'),category:'INVESTIGATION',targetType:'LOCATION',resolution:'AUTO',validation:'AUTO',costResourceExternalId:'RES_PA',costValue:1,currentCostResourceValue:pa?.currentValue??null,diceCount:0,diceSides:0,difficulty:null,usesCount:(runtime.sessionInteractionUses??[]).filter(u=>u.actorCharacterExternalId===characterExternalId&&u.interactionExternalId==='SYSTEM_LOCATION_SEARCH'&&u.targetExternalId===locationExternalId).length,maxUses:null,cooldownMinutes:10,cooldownRemainingSeconds:searchCooldownRemainingSeconds,searchCooldownRemainingSeconds,targetExternalId:locationExternalId,autonomous:true,systemFallback:true,available:!blockedReason,blockedReason});
   }
   return {location,actions,rewardsRemaining:rewards.clues.length+rewards.objects.length,searchCooldownRemainingSeconds};
 }
@@ -915,7 +937,17 @@ export async function markPlayerNotificationRead(token,notificationId,{reader=de
 }
 
 export async function sendPlayerNotification(sessionId,input,{reader=defaultReader,executor=defaultExecutor,now=new Date()}={}) {
-  const detail=await getGameSession(sessionId,{reader});if(!detail)throw new Error('SESSION_NOT_FOUND');const characterExternalId=String(input?.characterExternalId??'').trim();if(!detail.participants.some(p=>p.active!==false&&p.characterExternalId===characterExternalId))throw new Error('TARGET_CHARACTER_NOT_IN_SESSION');const title=String(input?.title??'').trim().slice(0,120);const body=String(input?.body??'').trim().slice(0,1200);if(!title||!body)throw new Error('NOTIFICATION_CONTENT_REQUIRED');const data={gameSessionId:sessionId,characterExternalId,kind:String(input?.kind??'GM').trim().slice(0,40)||'GM',title,body,priority:String(input?.priority??'NORMAL').trim().toUpperCase(),refExternalId:String(input?.refExternalId??'').trim()||null,createdAt:nowIso(now),readAt:null};await executor(INSERT_NOTIFICATION_MUTATION,{data});return{sent:true,characterExternalId,title};
+  const detail=await getGameSession(sessionId,{reader});
+  if(!detail)throw new Error('SESSION_NOT_FOUND');
+  const characterExternalId=String(input?.characterExternalId??'').trim();
+  if(!detail.participants.some(p=>p.active!==false&&p.characterExternalId===characterExternalId))throw new Error('TARGET_CHARACTER_NOT_IN_SESSION');
+  const english=sessionIsEnglish(detail);
+  const title=String(english?(input?.titleEn??input?.title):(input?.title??input?.titleEn)??'').trim().slice(0,120);
+  const body=String(english?(input?.bodyEn??input?.body):(input?.body??input?.bodyEn)??'').trim().slice(0,1200);
+  if(!title||!body)throw new Error('NOTIFICATION_CONTENT_REQUIRED');
+  const data={gameSessionId:sessionId,characterExternalId,kind:String(input?.kind??'GM').trim().slice(0,40)||'GM',title,body,priority:String(input?.priority??'NORMAL').trim().toUpperCase(),refExternalId:String(input?.refExternalId??'').trim()||null,createdAt:nowIso(now),readAt:null};
+  await executor(INSERT_NOTIFICATION_MUTATION,{data});
+  return{sent:true,characterExternalId,title};
 }
 
 export async function executePlayerInteraction(token,input,{reader=defaultReader,executor=defaultExecutor,interactionExecutor=executeInteraction,clueReveal=revealClueToCharacter,now=new Date()}={}) {
@@ -978,7 +1010,7 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
         gameSessionId:loaded.session.id,
         characterExternalId:actor,
         kind:'RUMOR',
-        title:`Rumeur — ${rumor.targetName}`,
+        title:sessionText(loaded.session,`Rumeur — ${rumor.targetName}`,`Rumour — ${rumor.targetName}`),
         body:rumor.text,
         priority:'NORMAL',
         refExternalId:rumor.clueExternalId,
@@ -990,7 +1022,9 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
         characterExternalId:actor,
         kind:'INTERACTION',
         title:result.interactionName||interaction.name,
-        body:result.success?'Action réussie.':'Action échouée.',
+        body:result.success
+          ? sessionText(loaded.session,'Action réussie.','Action succeeded.')
+          : sessionText(loaded.session,'Action échouée.','Action failed.'),
         priority:'NORMAL',
         refExternalId:id,
         createdAt,
@@ -1005,8 +1039,12 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
           gameSessionId:loaded.session.id,
           characterExternalId:targetExternalId,
           kind:'INTERACTION_TARGET',
-          title:'Une rumeur circule…',
-          body:'Quelqu’un vient d’obtenir une rumeur à votre sujet par son réseau d’informateurs. Murder Engine ne révèle pas son identité.',
+          title:sessionText(loaded.session,'Une rumeur circule…','A rumour is circulating…'),
+          body:sessionText(
+            loaded.session,
+            'Quelqu’un vient d’obtenir une rumeur à votre sujet par son réseau d’informateurs. Murder Engine ne révèle pas son identité.',
+            'Someone has just obtained a rumour about you through their informant network. Murder Engine does not reveal their identity.'
+          ),
           priority:'NORMAL',
           refExternalId:id,
           createdAt,
@@ -1016,8 +1054,12 @@ export async function executePlayerInteraction(token,input,{reader=defaultReader
           gameSessionId:loaded.session.id,
           characterExternalId:targetExternalId,
           kind:'INTERACTION_TARGET',
-          title:'Action sur votre personnage',
-          body:`Une action « ${interaction.name} » vient d’être exercée sur votre personnage. ${result.success?'Elle a réussi.':'Elle a échoué.'} Murder Engine ne révèle pas son auteur.`,
+          title:sessionText(loaded.session,'Action sur votre personnage','Action targeting your character'),
+          body:sessionText(
+            loaded.session,
+            `Une action « ${interaction.name} » vient d’être exercée sur votre personnage. ${result.success?'Elle a réussi.':'Elle a échoué.'} Murder Engine ne révèle pas son auteur.`,
+            `An action “${interaction.name}” has just been used on your character. ${result.success?'It succeeded.':'It failed.'} Murder Engine does not reveal who performed it.`
+          ),
           priority:'NORMAL',
           refExternalId:id,
           createdAt,
@@ -1037,8 +1079,8 @@ export async function transferPlayerObject(token,input,{reader=defaultReader,exe
   const result=await objectTransfer(loaded.session.id,{objectExternalId,holderType:'CHARACTER',holderExternalId:targetCharacterExternalId,note:`Don de ${actor}`});
   for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:targetCharacterExternalId,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:`Document reçu : ${def.name}`});}
   const createdAt=nowIso(now);
-  await executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:targetCharacterExternalId,kind:'OBJECT',title:'Objet reçu',body:`Vous recevez : ${def.name}.`,priority:'NORMAL',refExternalId:objectExternalId,createdAt,readAt:null}});
-  await executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:actor,kind:'ACTION',title:'Objet donné',body:`Vous avez donné : ${def.name}.`,priority:'NORMAL',refExternalId:objectExternalId,createdAt,readAt:null}});
+  await executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:targetCharacterExternalId,kind:'OBJECT',title:sessionText(loaded.session,'Objet reçu','Item received'),body:sessionText(loaded.session,`Vous recevez : ${def.name}.`,`You receive: ${def.name}.`),priority:'NORMAL',refExternalId:objectExternalId,createdAt,readAt:null}});
+  await executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:actor,kind:'ACTION',title:sessionText(loaded.session,'Objet donné','Item given'),body:sessionText(loaded.session,`Vous avez donné : ${def.name}.`,`You gave: ${def.name}.`),priority:'NORMAL',refExternalId:objectExternalId,createdAt,readAt:null}});
   return result;
 }
 
@@ -1093,8 +1135,8 @@ export async function transferPlayerCash(token,input,{reader=defaultReader,execu
     gameSessionId:loaded.session.id,
     characterExternalId:targetCharacterExternalId,
     kind:'CASH',
-    title:'Argent reçu',
-    body:`Vous recevez ${amount} d’argent.`,
+    title:sessionText(loaded.session,'Argent reçu','Money received'),
+    body:sessionText(loaded.session,`Vous recevez ${amount} d’argent.`,`You receive ${amount} in cash.`),
     priority:'NORMAL',
     refExternalId:'RES_CASH',
     createdAt,
@@ -1199,6 +1241,7 @@ export async function getPlayerLocation(token,locationExternalId,{reader=default
       id:loaded.session.id,
       name:loaded.session.name,
       status:loaded.session.status,
+      language:loaded.session.language??'FR',
       scenarioTitle:loaded.session.scenarioVersion?.scenario?.title??'Murder Party'
     },
     character:{
@@ -1357,18 +1400,30 @@ export async function attemptPlayerClandestineAction(token,input,{reader=default
   if(String(interaction.resolution).toUpperCase()==='GM'||String(interaction.validation??'').toUpperCase()==='GM') throw new Error('CLANDESTINE_INTERACTION_REQUIRES_AUTOMATION');
   const scanMode=interactionScanMode(interaction);
   const result=await interactionExecutor(loaded.session.id,{actorCharacterExternalId:actor,interactionExternalId,targetExternalId:targetCharacterExternalId,note:`Action joueur · scan ${scanMode??'DISCRET'}`});
-  const notifyTarget=async(body,title='Action sur votre personnage')=>executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:targetCharacterExternalId,kind:'INTERACTION_TARGET',title,body,priority:'NORMAL',refExternalId:interactionExternalId,createdAt:nowIso(now),readAt:null}});
+  const notifyTarget=async(body,title=sessionText(loaded.session,'Action sur votre personnage','Action targeting your character'))=>executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:targetCharacterExternalId,kind:'INTERACTION_TARGET',title,body,priority:'NORMAL',refExternalId:interactionExternalId,createdAt:nowIso(now),readAt:null}});
   if(!result.success){
-    await notifyTarget(`Une action « ${interaction.name} » a été tentée sur votre personnage, mais elle a échoué. Murder Engine ne révèle pas son auteur.`);
+    await notifyTarget(sessionText(
+      loaded.session,
+      `Une action « ${interaction.name} » a été tentée sur votre personnage, mais elle a échoué. Murder Engine ne révèle pas son auteur.`,
+      `An action “${interaction.name}” was attempted on your character, but it failed. Murder Engine does not reveal who performed it.`
+    ));
     return {kind,success:false,result,items:[],scanMode};
   }
   const items=clandestineVisibleObjects(loaded,targetCharacterExternalId);
   if(kind==='SEARCH_PLAYER'){
-    await notifyTarget(`Une action « ${interaction.name} » vient d’être exercée sur votre personnage. Elle a réussi. Murder Engine ne révèle pas son auteur.`);
+    await notifyTarget(sessionText(
+      loaded.session,
+      `Une action « ${interaction.name} » vient d’être exercée sur votre personnage. Elle a réussi. Murder Engine ne révèle pas son auteur.`,
+      `An action “${interaction.name}” has just been used on your character. It succeeded. Murder Engine does not reveal who performed it.`
+    ));
     return {kind,success:true,result,items,scanMode};
   }
   if(!items.length){
-    await notifyTarget(`Une action « ${interaction.name} » vient d’être exercée sur votre personnage, mais aucun objet n’a pu être pris. Murder Engine ne révèle pas son auteur.`);
+    await notifyTarget(sessionText(
+      loaded.session,
+      `Une action « ${interaction.name} » vient d’être exercée sur votre personnage, mais aucun objet n’a pu être pris. Murder Engine ne révèle pas son auteur.`,
+      `An action “${interaction.name}” has just been used on your character, but no item could be taken. Murder Engine does not reveal who performed it.`
+    ));
     return {kind,success:true,result,items:[],grantToken:null,scanMode};
   }
   const grantToken=randomBytes(24).toString('base64url');
@@ -1395,7 +1450,7 @@ export async function claimPlayerStolenObject(token,input,{reader=defaultReader,
   const linkedClues=(loaded.source.clues??[]).filter(c=>c.active!==false&&c.objectExternalId===objectExternalId&&c.addToNotebook!==false);
   for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:grant.targetCharacterExternalId,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:`Document possédé avant vol : ${def.name}`});}
   const usedAt=nowIso(nowDate);
-  const notification={gameSessionId:loaded.session.id,characterExternalId:grant.targetCharacterExternalId,kind:'THEFT',title:'Quelque chose vous manque…',body:'Vous venez de constater qu’un objet a disparu de vos affaires. Murder Engine ne révèle pas l’auteur du vol.',priority:'IMPORTANT',refExternalId:null,createdAt:usedAt,readAt:null};
+  const notification={gameSessionId:loaded.session.id,characterExternalId:grant.targetCharacterExternalId,kind:'THEFT',title:sessionText(loaded.session,'Quelque chose vous manque…','Something is missing…'),body:sessionText(loaded.session,'Vous venez de constater qu’un objet a disparu de vos affaires. Murder Engine ne révèle pas l’auteur du vol.','You have just noticed that an item has disappeared from your belongings. Murder Engine does not reveal who took it.'),priority:'IMPORTANT',refExternalId:null,createdAt:usedAt,readAt:null};
   const log={gameSessionId:loaded.session.id,actionType:'OBJECT_STOLEN',characterExternalId:actor,refExternalId:objectExternalId,beforeValue:grant.targetCharacterExternalId,afterValue:actor,deltaValue:null,note:`Vol clandestin réussi sur ${grant.targetCharacterExternalId}`,createdAt:usedAt};
   await executor(CLAIM_STEAL_MUTATION,{sessionId:loaded.session.id,grantToken,objectExternalId,actorCharacterExternalId:actor,usedAt,notification,log});
   for(const clue of linkedClues){await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceRef:objectExternalId,note:`Document volé : ${def.name}`});}
