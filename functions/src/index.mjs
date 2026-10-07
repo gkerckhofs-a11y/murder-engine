@@ -17,7 +17,7 @@ import { initializeSessionRuntime, getSessionRuntime } from './runtime.mjs';
 import { getLiveDashboard, controlLiveSession, changeLiveResource, setLiveCharacterState, setLiveEventStatus } from './live.mjs';
 import { getInteractionDashboard, executeInteraction, revealClueToCharacter, transferSessionObject } from './interactions.mjs';
 import { getVoteDashboard, openSessionVote, castSessionBallot, closeSessionVote } from './votes.mjs';
-import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
+import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, sharePlayerClue, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
 import { updateScenarioAppearanceFamily } from './scenario-appearance.mjs';
 import {
   listMediaLibrary,
@@ -907,6 +907,27 @@ export const claimPublicPlayerStolenObject = onRequest({ region:'europe-west1', 
   try { return res.status(200).json({ok:true,result:await claimPlayerStolenObject(String(body.token??'').trim(),body)}); }
   catch(error){ logger.error('Player steal claim failed',error); return res.status(400).json({error:'PLAYER_STEAL_CLAIM_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
+
+export const sharePublicPlayerClue = onRequest(
+  { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 },
+  async (req,res)=>{
+    const body=requirePostJson(req,res);
+    if(!body)return;
+
+    try{
+      return res.status(200).json({
+        ok:true,
+        result:await sharePlayerClue(String(body.token??'').trim(),body)
+      });
+    }catch(error){
+      logger.error('Player clue share failed',error);
+      return res.status(400).json({
+        error:'PLAYER_CLUE_SHARE_FAILED',
+        message:error instanceof Error?error.message:String(error)
+      });
+    }
+  }
+);
 
 export const transferPublicPlayerObject = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
