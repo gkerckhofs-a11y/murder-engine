@@ -332,3 +332,42 @@ for(const summary of sessions.filter(s=>
     matches:rows,
   },null,2));
 }
+
+const FORMULA_QUERY=`
+query DiagnoseVocalFormula($versionId: UUID!) {
+  clues(
+    where: {
+      scenarioVersionId: {eq: $versionId}
+      externalId: {eq: "CLUE_SHW_R17_02"}
+    }
+    limit: 5
+  ) {
+    externalId
+    playerName
+    clueType
+    playerText
+    locationExternalId
+    objectExternalId
+    documentExternalId
+    logisticsCode
+    mediaExternalId
+    support
+    presentationMode
+    shareable
+    transferable
+    consumable
+    major
+    active
+  }
+}
+`;
+
+for(const scenario of showbiz){
+  for(const version of scenario.versions){
+    const data=await read(FORMULA_QUERY,{versionId:version.id});
+    console.log('CLUE_SHW_R17_02_DETAIL',JSON.stringify({
+      versionId:version.id,
+      clue:data.clues?.[0]??null,
+    },null,2));
+  }
+}
