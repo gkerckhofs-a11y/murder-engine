@@ -513,3 +513,64 @@ for(const scenario of showbiz){
     );
   }
 }
+
+
+for(const scenario of showbiz){
+  for(const version of scenario.versions){
+    const data=await read(SKILLS_RUMORS_QUERY,{versionId:version.id});
+    const chars=new Map((data.characters??[]).map(x=>[x.externalId,x.name]));
+    const defs=new Map((data.abilities??[]).map(x=>[x.externalId,x]));
+    const interactionsByAbility=new Map();
+    for(const interaction of data.interactions??[]){
+      if(interaction.active===false||!interaction.abilityExternalId)continue;
+      const arr=interactionsByAbility.get(interaction.abilityExternalId)??[];
+      arr.push({
+        id:interaction.externalId,
+        name:interaction.name,
+        targetType:interaction.targetType,
+        scanMode:interaction.scanMode,
+        cost:`${interaction.costValue??0} ${interaction.costResourceExternalId??''}`.trim(),
+        resolution:interaction.resolution,
+        validation:interaction.validation,
+        maxUses:interaction.maxUses,
+        limitPerTarget:interaction.limitPerTarget,
+        cooldownMinutes:interaction.cooldownMinutes,
+      });
+      interactionsByAbility.set(interaction.abilityExternalId,arr);
+    }
+
+    const grouped=(data.abilities??[])
+      .filter(a=>a.active!==false)
+      .map(a=>({
+        id:a.externalId,
+        name:a.name,
+        description:a.description,
+        defaultMaxUses:a.defaultMaxUses,
+        defaultCooldownMinutes:a.defaultCooldownMinutes,
+        owners:(data.abilityAssignments??[])
+          .filter(x=>x.active!==false&&x.abilityExternalId===a.externalId)
+          .map(x=>({
+            id:x.ownerExternalId,
+            name:chars.get(x.ownerExternalId)??x.ownerExternalId,
+            usesOverride:x.usesOverride,
+            cooldownOverrideMinutes:x.cooldownOverrideMinutes,
+          })),
+        interactions:interactionsByAbility.get(a.externalId)??[],
+      }));
+
+    const rumors=(data.clues??[])
+      .filter(x=>x.active!==false&&String(x.clueType??'').toUpperCase()==='RUMOR')
+      .map(x=>({
+        id:x.externalId,
+        name:x.playerName,
+        text:x.playerText,
+        discoveryHook:x.discoveryHook,
+      }));
+
+    console.log('SHOWBIZ_SKILLS_SUMMARY',JSON.stringify({
+      versionId:version.id,
+      grouped,
+      rumors,
+    },null,2));
+  }
+}
