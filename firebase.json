@@ -418,6 +418,13 @@
         }
       },
       {
+        "source": "/api/player/clue/share",
+        "function": {
+          "functionId": "sharePublicPlayerClue",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/player/object",
         "function": {
           "functionId": "transferPublicPlayerObject",
