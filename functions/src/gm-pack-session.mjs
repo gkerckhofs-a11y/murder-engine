@@ -1,9 +1,12 @@
 import {getGmPack} from './gm-pack.mjs';
 import {getSessionIncarnations} from './session-incarnations.mjs';
+import {getGameSession} from './sessions.mjs';
 
 export async function getSessionGmPack(sessionId){
-  const incarnationData=
-    await getSessionIncarnations(sessionId);
+  const [incarnationData,sessionDetail]=await Promise.all([
+    getSessionIncarnations(sessionId),
+    getGameSession(sessionId),
+  ]);
 
   const versionId=
     incarnationData.session?.versionId;
@@ -103,6 +106,9 @@ export async function getSessionGmPack(sessionId){
 
       participantDisplayName:
         character.participantDisplayName??null,
+
+      portrait:
+        character.portrait??null,
     }));
 
 
@@ -129,6 +135,34 @@ export async function getSessionGmPack(sessionId){
       snapshotAt:
         character.snapshotAt??null,
     }));
+
+
+  const playerAccess=
+    (sessionDetail?.participants??[])
+      .filter(p=>
+        p.active!==false &&
+        p.characterExternalId &&
+        p.playerAccessEnabled===true &&
+        p.playerAccessToken
+      )
+      .map(p=>{
+        const character=
+          characterSheets.find(c=>
+            c.externalId===p.characterExternalId
+          );
+
+        return {
+          participantId:p.id,
+          participantDisplayName:p.displayName,
+          characterExternalId:p.characterExternalId,
+          characterName:character?.name??p.characterExternalId,
+          publicRole:character?.publicRole??null,
+          playerAccessToken:p.playerAccessToken,
+        };
+      })
+      .sort((a,b)=>
+        String(a.characterName).localeCompare(String(b.characterName))
+      );
 
 
   const frozenCount=
@@ -191,6 +225,8 @@ export async function getSessionGmPack(sessionId){
 
       casting,
 
+      playerAccess,
+
       frozenCount,
 
       characterCount:
@@ -231,6 +267,7 @@ export async function getSessionGmPack(sessionId){
     capabilities:{
       ...base.capabilities,
       sessionSpecificMaterials:true,
+      playerAccessQr:true,
     },
   };
 }
