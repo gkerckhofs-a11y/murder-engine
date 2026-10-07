@@ -188,10 +188,7 @@ query DiagnoseShowbizRuntime($sessionId: UUID!) {
     updatedAt
   }
   sessionClueDiscoveries(
-    where: {
-      gameSessionId: {eq: $sessionId}
-      clueExternalId: {eq: "CLUE_SHW_COM_04"}
-    }
+    where: {gameSessionId: {eq: $sessionId}}
   ) {
     characterExternalId
     clueExternalId
@@ -217,11 +214,30 @@ for(const summary of sessions.filter(s=>
     {sessionId:summary.id}
   );
 
+  const currentVersionData=await read(
+    DETAIL_QUERY,
+    {versionId:summary.scenarioVersion?.id}
+  );
+  const soundClues=(currentVersionData.clues??[])
+    .filter(clue=>clue.locationExternalId==='LOC_SOUND')
+    .map(clue=>({
+      externalId:clue.externalId,
+      playerName:clue.playerName,
+      objectExternalId:clue.objectExternalId??null,
+      logisticsCode:clue.logisticsCode??null,
+    }));
+  const soundIds=new Set(soundClues.map(c=>c.externalId));
+  const soundDiscoveries=(runtimeDiag.sessionClueDiscoveries??[])
+    .filter(d=>soundIds.has(d.clueExternalId));
+
   console.log('SHOWBIZ_RUNTIME_DIAG',JSON.stringify({
     sessionId:summary.id,
     status:summary.status,
     tonicObjects:runtimeDiag.sessionObjects??[],
-    tonicDiscoveries:runtimeDiag.sessionClueDiscoveries??[],
+    tonicDiscoveries:(runtimeDiag.sessionClueDiscoveries??[])
+      .filter(d=>d.clueExternalId==='CLUE_SHW_COM_04'),
+    soundClues,
+    soundDiscoveries,
   },null,2));
 
   const rows=[];
