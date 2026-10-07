@@ -119,12 +119,22 @@ function formatCountdown(total:number){
   return `${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 }
 
-export default function LocationScan({locationExternalId}:{locationExternalId:string}){
+export default function LocationScan({
+  locationExternalId,
+  playerToken,
+  embedded=false,
+  onClose,
+}:{
+  locationExternalId:string;
+  playerToken?:string;
+  embedded?:boolean;
+  onClose?:()=>void;
+}){
   const params=new URLSearchParams(window.location.search);
   const queryToken=params.get('player');
 
   const [token,setToken]=useState(
-    ()=>queryToken||safeStorageGet('murderEnginePlayerToken')||''
+    ()=>playerToken||queryToken||safeStorageGet('murderEnginePlayerToken')||''
   );
   const [language,setLanguage]=useState<Language>(
     ()=>normalizeLanguage(safeStorageGet('murderEnginePlayerLanguage'))
@@ -138,11 +148,12 @@ export default function LocationScan({locationExternalId}:{locationExternalId:st
   const [pendingAction,setPendingAction]=useState<LocationAction|null>(null);
 
   useEffect(()=>{
-    if(queryToken){
-      safeStorageSet('murderEnginePlayerToken',queryToken);
-      setToken(queryToken);
+    const nextToken=playerToken||queryToken;
+    if(nextToken){
+      safeStorageSet('murderEnginePlayerToken',nextToken);
+      setToken(nextToken);
     }
-  },[queryToken]);
+  },[playerToken,queryToken]);
 
   async function load(){
     if(!token)return;
@@ -257,7 +268,16 @@ export default function LocationScan({locationExternalId}:{locationExternalId:st
       : 'none',
   } as any;
 
-  return <main className={`playerShell scanShell ${skinClass}`} style={skinStyle}>
+  return <main className={`playerShell scanShell ${embedded?'embeddedLocationScan':''} ${skinClass}`} style={skinStyle}>
+    {embedded&&onClose&&
+      <button
+        type="button"
+        className="playerSecondary embeddedLocationClose"
+        onClick={onClose}
+      >
+        {tx(language,'Fermer','Close')}
+      </button>
+    }
     <header className="playerHero scanHero">
       <div>
         {presentation.logo?.source&&
@@ -504,9 +524,14 @@ export default function LocationScan({locationExternalId}:{locationExternalId:st
       </div>
     }
 
-    <a className="playerSecondary scanBack" href={`/?player=${encodeURIComponent(token)}`}>
-      ← {tx(language,'Retour à ma fiche','Back to my character sheet')}
-    </a>
+    {embedded&&onClose
+      ? <button className="playerSecondary scanBack" type="button" onClick={onClose}>
+          ← {tx(language,'Revenir au jeu','Back to game')}
+        </button>
+      : <a className="playerSecondary scanBack" href={`/?player=${encodeURIComponent(token)}`}>
+          ← {tx(language,'Retour à ma fiche','Back to my character sheet')}
+        </a>
+    }
 
     <footer className="playerFooter">Murder Engine · Ludificateur</footer>
   </main>;
