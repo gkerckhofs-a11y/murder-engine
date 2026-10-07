@@ -1207,7 +1207,7 @@ async function grantAutomaticLocationReward(loaded, locationExternalId, interact
   let objectRow=null;
   if(clue?.objectExternalId) objectRow=rewards.objects.find(o=>o.objectExternalId===clue.objectExternalId)??null;
   else if(!clue) objectRow=rewards.objects[0]??null;
-  if(clue) await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceInteractionExternalId:interactionExternalId,sourceRef:locationExternalId,note:'Découverte automatique via QR'});
+  if(clue) await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceInteractionExternalId:interactionExternalId,sourceRef:locationExternalId,note:sessionText(loaded.session,'Découverte automatique via QR','Automatic discovery via QR')});
   if(objectRow) await objectTransfer(loaded.session.id,{objectExternalId:objectRow.objectExternalId,holderType:'CHARACTER',holderExternalId:actor,note:`Ramassé lors de la fouille de ${locationExternalId}`});
   const objectDef=objectRow?rewards.objectDefs.get(objectRow.objectExternalId):null;
   return {
