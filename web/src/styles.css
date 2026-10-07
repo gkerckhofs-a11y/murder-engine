@@ -10725,3 +10725,197 @@ button.skinGalleryCard:disabled{
     grid-template-columns:1fr;
   }
 }
+
+
+/* V1.12A — ORGANIZER LIVE WORKSPACE */
+.shell.liveOpsActive{
+  max-width:1480px;
+  padding-top:18px;
+}
+.liveOpsActive .sessionEditBar,
+.liveOpsActive .editSessionPanel,
+.liveOpsActive .metaStrip,
+.liveOpsActive .setupAssistant,
+.liveOpsActive .sessionVariantCard,
+.liveOpsActive .sessionLifecycle,
+.liveOpsActive .sessionPackShortcut,
+.liveOpsActive .incarnationPanel,
+.liveOpsActive .runtimePanel,
+.liveOpsActive .lockNotice,
+.liveOpsActive .castingBoard{
+  display:none !important;
+}
+.liveOpsActive .sessionHero{
+  margin-top:0;
+  grid-template-columns:minmax(180px,.62fr) minmax(0,1.8fr) auto;
+}
+.liveOpsSummary{
+  display:grid;
+  gap:14px;
+  margin:0 0 14px;
+  border-color:#5b6872;
+  background:#10171c;
+}
+.liveOpsSummaryHead{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:20px;
+}
+.liveOpsSummaryHead h3{
+  margin:.1rem 0 .25rem;
+}
+.liveOpsSummaryHead p:last-child{
+  margin:0;
+  color:#c6d0d6;
+}
+.liveOpsSummaryActions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.liveOpsMetrics{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.liveOpsMetrics>div{
+  padding:12px 14px;
+  border:1px solid #40505b;
+  border-radius:12px;
+  background:#182129;
+}
+.liveOpsMetrics>div.hot{
+  border-color:#b45b61;
+  background:#321c20;
+}
+.liveOpsMetrics span{
+  display:block;
+  color:#aebbc5;
+  font-size:.68rem;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.liveOpsMetrics strong{
+  display:block;
+  margin-top:3px;
+  color:#fff;
+  font-size:1.35rem;
+}
+.liveOpsNav{
+  position:sticky;
+  top:8px;
+  z-index:20;
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:7px;
+  padding:8px;
+  border:1px solid #40505b;
+  border-radius:13px;
+  background:rgba(12,17,22,.96);
+  box-shadow:0 10px 28px rgba(0,0,0,.3);
+  backdrop-filter:blur(10px);
+}
+.liveOpsNav button{
+  min-height:44px;
+  padding:9px 10px;
+  color:#eef3f6;
+  border-color:#4b5b66;
+  background:#182129;
+  font-size:.78rem;
+}
+.liveOpsNav button:hover{
+  color:#fff;
+  border-color:#d4aa5c;
+  background:#243039;
+}
+.liveOpsActive .liveDashboard{
+  display:grid;
+  gap:14px;
+}
+.liveOpsActive .liveConsole{
+  border-color:#6d785d;
+  background:linear-gradient(145deg,#18231d,#11181d);
+}
+.liveOpsActive .liveClock{
+  color:#fff;
+}
+.liveOpsActive .playerAccessPanel{
+  margin-top:0;
+  border-color:#4b5d69;
+  background:#11191f;
+}
+.liveOpsActive .playerAccessPanel>.precastHead,
+.liveOpsActive .playerAccessPanel>.playerLinkRows{
+  display:none !important;
+}
+.liveOpsActive .playerMessageComposer{
+  margin:0;
+}
+.liveOpsActive .playerMessageComposer .eyebrow::after{
+  content:" · pendant la partie";
+}
+.liveOpsActive #live-timeline,
+.liveOpsActive #live-votes,
+.liveOpsActive #live-actions,
+.liveOpsActive #live-players,
+.liveOpsActive #live-messages,
+.liveOpsActive #live-log{
+  scroll-margin-top:82px;
+}
+.liveOpsActive .microNote,
+.liveOpsActive .empty,
+.liveOpsActive .eventBody p,
+.liveOpsActive .livePlayer small,
+.liveOpsActive .paneHead p{
+  color:#aebbc5;
+}
+@media(max-width:1050px){
+  .liveOpsNav{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+  .liveOpsMetrics{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media(max-width:720px){
+  .shell.liveOpsActive{
+    padding:10px 10px 72px;
+  }
+  .liveOpsActive .sessionHero{
+    display:block;
+  }
+  .liveOpsActive .sessionHeroDate{
+    padding:0 0 12px;
+    margin-bottom:12px;
+    border-right:0;
+    border-bottom:1px solid var(--line);
+  }
+  .liveOpsActive .sessionStatus.large{
+    margin-top:12px;
+  }
+  .liveOpsSummaryHead{
+    display:grid;
+  }
+  .liveOpsSummaryActions{
+    justify-content:stretch;
+  }
+  .liveOpsSummaryActions button{
+    flex:1;
+  }
+  .liveOpsNav{
+    top:4px;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media(max-width:480px){
+  .liveOpsMetrics{
+    grid-template-columns:1fr 1fr;
+  }
+  .liveOpsNav button{
+    min-height:48px;
+    font-size:.75rem;
+  }
+}
