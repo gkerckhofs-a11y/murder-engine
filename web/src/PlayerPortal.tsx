@@ -581,9 +581,8 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
         <span className="playCardIcon">🔎</span>
         <div><p className="playerSectionKicker">{tr(portal,'ENQUÊTER','INVESTIGATE')}</p><h2>{tr(portal,'Fouiller un lieu','Search a location')}</h2><p>{tr(portal,'Scannez le QR présent dans la pièce pour tenter une fouille.','Scan the QR code in the room to attempt a search.')}</p></div>
       </div>
-      <div className="playActionBadges">
-        <span>1 {isEnglish(portal)?'AP':'PA'}</span>
-        {searchAbility&&<span>{searchAbility.name} niv. {searchAbility.level}</span>}
+      <div className="playActionBadges immersiveSearchCost">
+        <span>{tr(portal,'1 PA par fouille','1 AP per search')}</span>
       </div>
       {searchCooldown>0&&<div className="portalSearchCooldown"><span>{tr(portal,'Nouvelle fouille dans','Next search in')}</span><strong>{playerCountdown(searchCooldown)}</strong></div>}
       <button className="playerPrimary scanLaunchButton playMainCta" disabled={busy||portal.session?.status!=='LIVE'||searchCooldown>0} onClick={()=>setScannerOpen(true)}>
