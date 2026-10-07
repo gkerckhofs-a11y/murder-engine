@@ -292,6 +292,13 @@
         }
       },
       {
+        "source": "/api/sessions/live/business-deal",
+        "function": {
+          "functionId": "validateLiveBusinessDeal",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/sessions/interactions",
         "function": {
           "functionId": "getInteractionState",
