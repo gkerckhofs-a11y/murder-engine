@@ -63,7 +63,19 @@ export default function PlayerPortal({token}:{token:string}){
   const [portal,setPortal]=useState<Portal|null>(null); const [error,setError]=useState(''); const [loading,setLoading]=useState(true); const [tab,setTab]=useState<Tab>('fiche'); const [busy,setBusy]=useState(false); const [flash,setFlash]=useState('');
   const [introOpen,setIntroOpen]=useState(false);
   const [resultPopup,setResultPopup]=useState<{success:boolean;title:string;body:string}|null>(null);
-  async function load(track=true){setError('');try{const r=await fetchJson<{ok:boolean;portal:Portal}>(`/api/player/portal?token=${encodeURIComponent(token)}${track?'':'&refresh=1'}`);setPortal(r.portal);}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setLoading(false);}}
+  async function load(track=true){
+    setError('');
+    try{
+      const r=await fetchJson<{ok:boolean;portal:Portal}>(`/api/player/portal?token=${encodeURIComponent(token)}${track?'':'&refresh=1'}`);
+      setPortal(r.portal);
+      const language=String(r.portal?.session?.language??'FR').trim().toUpperCase()==='EN'?'EN':'FR';
+      localStorage.setItem('murderEnginePlayerLanguage',language);
+    }catch(e){
+      setError(e instanceof Error?e.message:String(e));
+    }finally{
+      setLoading(false);
+    }
+  }
   useEffect(()=>{void load(true);const id=window.setInterval(()=>void load(false),20000);return()=>window.clearInterval(id);},[token]);
   useEffect(()=>{
     if(
@@ -397,7 +409,7 @@ function PlayerNotebook({portal}:{portal:Portal}){
             </div>
             <strong>{d.playerName}</strong>
             <p>{d.playerText}</p>
-            {d.immersiveDocument&&<ImmersiveDocument entry={d} buttonLabel="Revoir le document original" compact/>}
+            {d.immersiveDocument&&<ImmersiveDocument entry={d} language={portal.session?.language} buttonLabel={tr(portal,'Revoir le document original','View original document')} compact/>}
           </article>
         )}
     </section>}
@@ -477,7 +489,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
 
       {i.ability?.description&&<p className="playActionDescription">{i.ability.description}</p>}
 
-      {i.maxUses!=null&&<small className="playActionUsage">{i.usesCount}/{i.maxUses} utilisations</small>}
+      {i.maxUses!=null&&<small className="playActionUsage">{i.usesCount}/{i.maxUses} {tr(portal,'utilisations','uses')}</small>}
 
       {specialKind?<>
         <p className="playActionHint">{scanMode==='DISCRET'
@@ -568,7 +580,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
     {characterScanner&&<QrCharacterScanner title={characterScanner.scanMode==='DISCRET'?tr(portal,'Scanner la cible discrètement','Scan target discreetly'):tr(portal,'Scanner la cible','Scan target')} mode={characterScanner.scanMode} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setCharacterScanner(null)} onSelect={(target:any)=>{setTargets(v=>({...v,[characterScanner.interactionId]:target.characterExternalId}));setCharacterScanner(null);}}/>}
     {specialScanner&&<QrCharacterScanner title={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?tr(portal,'Scanner la cible discrètement','Scan target discreetly'):tr(portal,'Scanner la cible','Scan target')} mode={String(specialScanner.scanMode??'DIRECT').toUpperCase()==='DISCRET'?'DISCRET':'DIRECT'} targets={portal.otherCharacters} language={portal.session?.language} onClose={()=>setSpecialScanner(null)} onSelect={(target:any)=>{const interaction=specialScanner;setSpecialScanner(null);withPaConfirmation(interaction,()=>void attemptClandestine(interaction,target));}}/>}
     {paPrompt&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Confirmer la dépense de PA','Confirm AP spending')}><div className="qrScannerPanel paConfirmPanel"><p className="eyebrow">{tr(portal,'CONFIRMATION D’ACTION','ACTION CONFIRMATION')}</p><h2>{paPrompt.title}</h2><p>{tr(portal,'Voulez-vous dépenser','Do you want to spend')} <strong>{paPrompt.cost} {isEnglish(portal)?'AP':'PA'}</strong> {tr(portal,'pour tenter cette action ?','to attempt this action?')}</p>{paPrompt.current!=null&&<div className="paSpendPreview"><span>{tr(portal,'Avant','Before')} <strong>{paPrompt.current} {isEnglish(portal)?'AP':'PA'}</strong></span><span>{tr(portal,'Après','After')} <strong>{paPrompt.remaining} {isEnglish(portal)?'AP':'PA'}</strong></span></div>}<div className="giveConfirmActions"><button className="playerSecondary" onClick={()=>setPaPrompt(null)}>{tr(portal,'Non','No')}</button><button className="playerPrimary" onClick={()=>{const run=paPrompt.run;setPaPrompt(null);run();}}>{tr(portal,'Oui, continuer','Yes, continue')}</button></div></div></div>}
-    {clandestineResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label="Résultat action clandestine"><div className="qrScannerPanel clandestineResultPanel"><p className="eyebrow">{tr(portal,'INTERACTION QR','QR INTERACTION')}</p><h2>{clandestineResult.success?tr(portal,'Réussite','Success'):tr(portal,'Échec','Failure')}</h2>{!clandestineResult.success?<p>{tr(portal,'La tentative échoue. La cible reçoit une notification anonyme indiquant qu’une action a été tentée sur elle.','The attempt fails. The target receives an anonymous notification that an action was attempted on them.')}</p>:clandestineResult.claimed?<p>{tr(portal,'Objet récupéré :','Item obtained:')} <strong>{clandestineResult.claimed.name}</strong>. {tr(portal,'La victime reçoit une notification sans identité de l’auteur.','The victim receives a notification without the author’s identity.')}</p>:<><p>{clandestineResult.kind==='STEAL'?tr(portal,'Choisissez maintenant un seul objet à subtiliser. Ce choix est à usage unique.','Choose one item to steal now. This choice can only be used once.'):tr(portal,'Vous identifiez les objets accessibles sur la cible.','You identify the items accessible on the target.')}</p>{clandestineResult.items?.length?<div className="clandestineItemList">{clandestineResult.items.map((o:any)=><article key={o.objectExternalId}><div><strong>{o.name}</strong>{o.description&&<small>{o.description}</small>}</div>{clandestineResult.kind==='STEAL'&&<button className="playerPrimary" disabled={clandestineBusy||!clandestineResult.grantToken} onClick={()=>void claimSteal(o)}>{tr(portal,'Voler cet objet','Steal this item')}</button>}</article>)}</div>:<p>{tr(portal,'Aucun objet accessible n’est trouvé.','No accessible item was found.')}</p>}</>}<button className="playerSecondary" disabled={clandestineBusy} onClick={()=>setClandestineResult(null)}>{tr(portal,'Fermer','Close')}</button></div></div>}
+    {clandestineResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Résultat action clandestine','Clandestine action result')}><div className="qrScannerPanel clandestineResultPanel"><p className="eyebrow">{tr(portal,'INTERACTION QR','QR INTERACTION')}</p><h2>{clandestineResult.success?tr(portal,'Réussite','Success'):tr(portal,'Échec','Failure')}</h2>{!clandestineResult.success?<p>{tr(portal,'La tentative échoue. La cible reçoit une notification anonyme indiquant qu’une action a été tentée sur elle.','The attempt fails. The target receives an anonymous notification that an action was attempted on them.')}</p>:clandestineResult.claimed?<p>{tr(portal,'Objet récupéré :','Item obtained:')} <strong>{clandestineResult.claimed.name}</strong>. {tr(portal,'La victime reçoit une notification sans identité de l’auteur.','The victim receives a notification without the author’s identity.')}</p>:<><p>{clandestineResult.kind==='STEAL'?tr(portal,'Choisissez maintenant un seul objet à subtiliser. Ce choix est à usage unique.','Choose one item to steal now. This choice can only be used once.'):tr(portal,'Vous identifiez les objets accessibles sur la cible.','You identify the items accessible on the target.')}</p>{clandestineResult.items?.length?<div className="clandestineItemList">{clandestineResult.items.map((o:any)=><article key={o.objectExternalId}><div><strong>{o.name}</strong>{o.description&&<small>{o.description}</small>}</div>{clandestineResult.kind==='STEAL'&&<button className="playerPrimary" disabled={clandestineBusy||!clandestineResult.grantToken} onClick={()=>void claimSteal(o)}>{tr(portal,'Voler cet objet','Steal this item')}</button>}</article>)}</div>:<p>{tr(portal,'Aucun objet accessible n’est trouvé.','No accessible item was found.')}</p>}</>}<button className="playerSecondary" disabled={clandestineBusy} onClick={()=>setClandestineResult(null)}>{tr(portal,'Fermer','Close')}</button></div></div>}
   </div>;
 }
 
@@ -671,7 +683,7 @@ function PlayerBag({portal,busy,onGive,onCashTransfer}:{portal:Portal;busy:boole
           {documentRows.map((d:any)=>
             <article className={`bagDocument bagPossessionItem ${d.immersiveDocument?'immersiveBagDocument':''}`} key={d.clueExternalId}>
               <div className="bagPossessionType">📄 {tr(portal,'Document / indice','Document / clue')}</div>
-              {d.immersiveDocument&&<ImmersiveDocument entry={d}/>}
+              {d.immersiveDocument&&<ImmersiveDocument entry={d} language={portal.session?.language}/>} 
               <div className="bagDocumentMeta">
                 <strong>{d.playerName}</strong>
                 <p>{d.playerText}</p>
