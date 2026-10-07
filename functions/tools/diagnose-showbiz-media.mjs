@@ -31,11 +31,8 @@ query DiagnoseShowbizMedia($versionId: UUID!) {
     scenario { id title slug }
   }
   clues(
-    where: {
-      scenarioVersionId: {eq: $versionId}
-      externalId: {eq: "SHW-COM-04"}
-    }
-    limit: 5
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {externalId: ASC}
   ) {
     externalId
     playerName
@@ -96,7 +93,12 @@ console.log('SHOWBIZ_SCENARIOS',showbiz.map(s=>({
 for(const scenario of showbiz){
   for(const version of scenario.versions){
     const data=await read(DETAIL_QUERY,{versionId:version.id});
-    const clue=data.clues?.[0]??null;
+    const clues=data.clues??[];
+    const clue=clues.find(c=>
+      /tonic|vocal|flacon/i.test(
+        `${c.externalId??''} ${c.playerName??''} ${c.playerText??''} ${c.logisticsCode??''}`
+      )
+    )??null;
     const objects=data.gameObjects??[];
     const media=data.mediaAssets??[];
     let overrides={};
@@ -106,7 +108,7 @@ for(const scenario of showbiz){
 
     const keys=Object.keys(overrides);
     const relevantOverrideKeys=keys.filter(k=>
-      /SHW-COM-04|SB-OBJ-005|TONIC|VIAL/i.test(k)
+      /SHW[-_]?COM[-_]?04|SB[-_]?OBJ[-_]?005|TONIC|VIAL|OBJ_SHW_COM_04/i.test(k)
     );
 
     const matchingObjects=objects.filter(o=>
@@ -151,6 +153,17 @@ for(const scenario of showbiz){
       matchingObjects,
       matchingMedia,
       relevantOverrides,
+      allOverrideKeys:keys,
+      allOverrides:Object.fromEntries(keys.map(k=>[
+        k,
+        {
+          assetExternalId:overrides[k]?.assetExternalId??null,
+          label:overrides[k]?.label??null,
+          source:overrides[k]?.source?'[SOURCE_PRESENT]':null,
+          targetExternalId:overrides[k]?.targetExternalId??null,
+          targetLogisticsCode:overrides[k]?.targetLogisticsCode??null,
+        }
+      ])),
       overrideKeyCount:keys.length,
     },null,2));
   }
