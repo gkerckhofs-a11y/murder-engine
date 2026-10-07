@@ -209,6 +209,31 @@ mutation AssignSessionCharacter($participantId: UUID!, $characterExternalId: Str
 }
 `;
 
+const REASSIGN_CHARACTER_MUTATION = `
+mutation ReassignSessionCharacter(
+  $participantId: UUID!
+  $targetCharacterExternalId: String!
+  $conflictParticipantId: UUID!
+  $replacementCharacterExternalId: String
+  $replacementCastingLocked: Boolean!
+) @transaction {
+  previousHolder: sessionParticipant_update(
+    id: $conflictParticipantId
+    data: {
+      characterExternalId: $replacementCharacterExternalId
+      castingLocked: $replacementCastingLocked
+    }
+  )
+  targetHolder: sessionParticipant_update(
+    id: $participantId
+    data: {
+      characterExternalId: $targetCharacterExternalId
+      castingLocked: true
+    }
+  )
+}
+`;
+
 const UPDATE_SESSION_STATUS_MUTATION = `
 mutation UpdateSessionStatus($sessionId: UUID!, $status: String!) {
   gameSession_update(id: $sessionId, data: { status: $status })
@@ -667,14 +692,37 @@ export async function assignCharacterToParticipant(sessionId, participantId, cha
 
   if (detail.runtimeInitializedAt) throw new Error('RUNTIME_ALREADY_INITIALIZED');
   if (detail.status === 'ARCHIVED') throw new Error('SESSION_ARCHIVED');
+
   const participant = detail.participants.find(p => p.id === participantId);
   if (!participant) throw new Error('PARTICIPANT_NOT_FOUND');
 
   if (targetCharacter) {
     const character = detail.characters.find(c => c.externalId === targetCharacter);
     if (!character) throw new Error('CHARACTER_NOT_AVAILABLE');
-    const conflict = detail.participants.find(p => p.id !== participantId && p.characterExternalId === targetCharacter);
-    if (conflict) throw new Error('CHARACTER_ALREADY_ASSIGNED');
+
+    const conflict = detail.participants.find(
+      p => p.id !== participantId && p.characterExternalId === targetCharacter
+    );
+
+    if (conflict) {
+      const replacementCharacterExternalId = participant.characterExternalId || null;
+
+      await executor(REASSIGN_CHARACTER_MUTATION, {
+        participantId,
+        targetCharacterExternalId: targetCharacter,
+        conflictParticipantId: conflict.id,
+        replacementCharacterExternalId,
+        replacementCastingLocked: Boolean(replacementCharacterExternalId),
+      });
+
+      return {
+        participantId,
+        characterExternalId: targetCharacter,
+        reassigned: true,
+        previousHolderParticipantId: conflict.id,
+        previousHolderCharacterExternalId: replacementCharacterExternalId,
+      };
+    }
   }
 
   await executor(ASSIGN_CHARACTER_MUTATION, {
@@ -682,7 +730,12 @@ export async function assignCharacterToParticipant(sessionId, participantId, cha
     characterExternalId: targetCharacter,
     castingLocked: Boolean(targetCharacter),
   });
-  return { participantId, characterExternalId: targetCharacter };
+
+  return {
+    participantId,
+    characterExternalId: targetCharacter,
+    reassigned: false,
+  };
 }
 
 export async function updateGameSessionDetails(sessionId, input, { reader = defaultReader, executor = defaultExecutor } = {}) {
@@ -838,6 +891,7 @@ export const __sessionOps = {
   ADD_PARTICIPANT_MUTATION,
   UPDATE_PRECAST_PARTICIPANT_MUTATION,
   ASSIGN_CHARACTER_MUTATION,
+  REASSIGN_CHARACTER_MUTATION,
   UPDATE_SESSION_STATUS_MUTATION,
   SET_SESSION_ARCHIVED_MUTATION,
   DELETE_SESSION_MUTATION,
