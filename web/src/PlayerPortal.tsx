@@ -912,17 +912,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
                 </>}
           </article>;
         })}
-            </select>
-            {selection&&isCharm&&<p className="abilityChoicePreview">{request.options.find((o:any)=>o.factExternalId===selection)?.text}</p>}
-            <button
-              className="playerPrimary playActionCta"
-              disabled={abilityRequestBusy||!selection}
-              onClick={()=>void respondAbilityRequest(request)}
-            >
-              {isCharm?tr(portal,'Révéler cette information','Reveal this information'):tr(portal,'Effectuer l’échange','Complete exchange')}
-            </button>
-          </article>;
-        })}
+
       </div>
     </section>}
 
