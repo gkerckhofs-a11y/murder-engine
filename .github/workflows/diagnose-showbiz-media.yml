@@ -1,0 +1,40 @@
+name: Diagnose SHOWBIZ Media
+
+on:
+  push:
+    branches:
+      - diagnose/showbiz-media
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+
+      - name: Run SHOWBIZ media diagnostic
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+          GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: node functions/tools/diagnose-showbiz-media.mjs
