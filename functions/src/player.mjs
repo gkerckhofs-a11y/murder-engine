@@ -704,7 +704,13 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
           .filter(u=>u.targetExternalId)
           .map(u=>u.targetExternalId)
       );
-      let targetRows=otherPlayers.filter(p=>!usedTargets.has(p.characterExternalId));
+      let targetRows=(
+        isInformantInteraction(i) ||
+        specialKind ||
+        Number(i.limitPerTarget??0)===1
+      )
+        ? otherPlayers.filter(p=>!usedTargets.has(p.characterExternalId))
+        : otherPlayers;
 
       if(isInformantInteraction(i))
         targetRows=targetRows.filter(p=>availableRumorForTarget(source,runtime,characterExternalId,p.characterExternalId));
