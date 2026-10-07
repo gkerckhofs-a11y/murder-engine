@@ -10732,17 +10732,17 @@ button.skinGalleryCard:disabled{
   max-width:1480px;
   padding-top:18px;
 }
-.liveOpsActive .sessionEditBar,
-.liveOpsActive .editSessionPanel,
-.liveOpsActive .metaStrip,
-.liveOpsActive .setupAssistant,
-.liveOpsActive .sessionVariantCard,
-.liveOpsActive .sessionLifecycle,
-.liveOpsActive .sessionPackShortcut,
-.liveOpsActive .incarnationPanel,
-.liveOpsActive .runtimePanel,
-.liveOpsActive .lockNotice,
-.liveOpsActive .castingBoard{
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .sessionEditBar,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .editSessionPanel,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .metaStrip,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .setupAssistant,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .sessionVariantCard,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .sessionLifecycle,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .sessionPackShortcut,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .incarnationPanel,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .runtimePanel,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .lockNotice,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .castingBoard{
   display:none !important;
 }
 .liveOpsActive .sessionHero{
@@ -10847,8 +10847,8 @@ button.skinGalleryCard:disabled{
   border-color:#4b5d69;
   background:#11191f;
 }
-.liveOpsActive .playerAccessPanel>.precastHead,
-.liveOpsActive .playerAccessPanel>.playerLinkRows{
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .playerAccessPanel>.precastHead,
+.liveOpsActive .liveSessionRoot:not(.showLiveTools) .playerAccessPanel>.playerLinkRows{
   display:none !important;
 }
 .liveOpsActive .playerMessageComposer{
