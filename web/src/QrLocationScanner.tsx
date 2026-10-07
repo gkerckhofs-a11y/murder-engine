@@ -51,10 +51,12 @@ function cameraErrorMessage(error:unknown,language='FR'){
 export default function QrLocationScanner({
   token,
   onClose,
+  onSelect,
   language='FR'
 }:{
   token:string;
   onClose:()=>void;
+  onSelect?:(locationExternalId:string)=>void;
   language?:string;
 }){
   const en=String(language).toUpperCase()==='EN';
@@ -62,6 +64,7 @@ export default function QrLocationScanner({
   const controlsRef=useRef<{stop:()=>void}|null>(null);
 
   const tokenRef=useRef(token);
+  const onSelectRef=useRef(onSelect);
   const doneRef=useRef(false);
 
   const [error,setError]=useState('');
@@ -71,6 +74,10 @@ export default function QrLocationScanner({
   useEffect(()=>{
     tokenRef.current=token;
   },[token]);
+
+  useEffect(()=>{
+    onSelectRef.current=onSelect;
+  },[onSelect]);
 
   useEffect(()=>{
     let cancelled=false;
@@ -132,6 +139,11 @@ export default function QrLocationScanner({
             setStatus(
               en?`Location recognized · ${locationExternalId}`:`Lieu reconnu · ${locationExternalId}`
             );
+
+            if(onSelectRef.current){
+              onSelectRef.current(locationExternalId);
+              return;
+            }
 
             window.location.assign(
               `/scan/${encodeURIComponent(locationExternalId)}` +
