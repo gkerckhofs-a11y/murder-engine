@@ -61,6 +61,11 @@ type ActionResult = {
       description?:string|null;
       logisticsCode?:string|null;
       physicalPickupRequired?:boolean;
+      visualMedia?:{
+        source:string;
+        altText?:string|null;
+      }|null;
+      visualCode?:string|null;
     }|null;
   };
   location:{name:string};
@@ -373,6 +378,15 @@ export default function LocationScan({
                     {tx(language,'Vous mettez la main sur…','You get your hands on…')}
                   </p>
                   <h2>{last.reward.object.name}</h2>
+
+                  {last.reward.object.visualMedia?.source&&
+                    <img
+                      className="discoveredObjectVisual"
+                      src={last.reward.object.visualMedia.source}
+                      alt={last.reward.object.visualMedia.altText||last.reward.object.name}
+                    />
+                  }
+
                   {last.reward.object.description&&<p>{last.reward.object.description}</p>}
 
                   {last.reward.object.logisticsCode&&
