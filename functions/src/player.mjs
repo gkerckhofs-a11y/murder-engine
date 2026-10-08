@@ -356,10 +356,38 @@ async function defaultExecutor(operation, variables) {
 
 const splitIds = value => String(value ?? '').split(';').map(x=>x.trim()).filter(Boolean);
 
-function locationOwnerCharacter(location) {
+function locationOwnerCharacter(location,source=null) {
   const raw=String(location?.lockExternalId??'').trim();
   const match=raw.match(/^OWNER:(.+)$/i);
-  return match ? String(match[1]).trim() : null;
+
+  if(match)
+    return String(match[1]).trim();
+
+  const locationName=normalizeSearchText(location?.name??'');
+
+  if(!locationName||!source)
+    return null;
+
+  const roomLike=
+    /(bedroom|bed room|private room|room of|chambre|suite|dressing room)/.test(
+      locationName
+    );
+
+  if(!roomLike)
+    return null;
+
+  const matches=(source.characters??[])
+    .filter(character=>
+      character.active!==false &&
+      normalizeSearchText(character.name??'').length>=3 &&
+      locationName.includes(
+        normalizeSearchText(character.name??'')
+      )
+    );
+
+  return matches.length===1
+    ? matches[0].externalId
+    : null;
 }
 
 function isStaticLocationClue(clue) {
@@ -1147,7 +1175,7 @@ function locationActionShape(source,runtime,session,characterExternalId,location
         };
   });
   const rewards=availableLocationRewards(source,runtime,characterExternalId,locationExternalId);
-  if(!actions.length&&(!location.lockExternalId||locationOwnerCharacter(location))&&(rewards.clues.length||rewards.objects.length)){
+  if(!actions.length&&(!location.lockExternalId||locationOwnerCharacter(location,source))&&(rewards.clues.length||rewards.objects.length)){
     const pa=resources.find(r=>r.resourceExternalId==='RES_PA');
     const blockedReason=session.status!=='LIVE'
       ? sessionText(session,'La partie n’est pas en cours','The game is not currently live')
@@ -2702,7 +2730,7 @@ export async function getPlayerLocation(token,locationExternalId,{reader=default
   const loaded=await loadPlayerData(token,reader); const actor=loaded.participant.characterExternalId;
   const resources=(loaded.runtime.sessionResources??[]).filter(r=>r.characterExternalId===actor);
   const shaped=locationActionShape(loaded.source,loaded.runtime,loaded.session,actor,String(locationExternalId??'').trim(),resources,now instanceof Date?now:new Date(now));
-  const forbidden=locationOwnerCharacter(shaped.location)===actor;
+  const forbidden=locationOwnerCharacter(shaped.location,loaded.source)===actor;
   const empty=locationIsEmptyForCharacter(loaded.source,loaded.runtime,actor,shaped.location.externalId);
   return {
     presentation:scenarioPresentation(loaded.session,loaded.source),
@@ -2735,7 +2763,7 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
   const actor=loaded.participant.characterExternalId; const locationExternalId=String(input?.locationExternalId??'').trim(); const interactionExternalId=String(input?.interactionExternalId??'').trim();
   const location=(loaded.source.gameLocations??[]).find(x=>x.externalId===locationExternalId&&x.active!==false); if(!location) throw new Error('PLAYER_LOCATION_NOT_FOUND');
 
-  const ownerCharacterExternalId=locationOwnerCharacter(location);
+  const ownerCharacterExternalId=locationOwnerCharacter(location,loaded.source);
 
   if(ownerCharacterExternalId===actor)
     throw new Error('LOCATION_OWNED_BY_CHARACTER');
