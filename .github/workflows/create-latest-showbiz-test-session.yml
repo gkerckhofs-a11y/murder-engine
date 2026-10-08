@@ -52,3 +52,8 @@ jobs:
           GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
           GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
         run: node functions/tools/audit-showbiz-rumor-runtime.mjs
+      - name: Check player source pagination
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+          GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: node functions/tools/check-player-source-pagination.mjs
