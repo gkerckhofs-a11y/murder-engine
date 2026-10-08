@@ -103,6 +103,21 @@ mutation UpdateScenarioMediaOverrides(
 }
 `;
 
+const DEACTIVATE_ASSET_MUTATION = `
+mutation DeactivateOrganizationMediaAsset(
+  $organizationId: UUID!,
+  $externalId: String!
+) {
+  organizationMediaAsset_update(
+    key: {
+      organizationId: $organizationId,
+      externalId: $externalId
+    }
+    data: {active: false}
+  )
+}
+`;
+
 async function getAdminDataConnect(){
   const [{initializeApp,getApps},{getDataConnect}] = await Promise.all([
     import('firebase-admin/app'),
@@ -345,6 +360,50 @@ export async function uploadMediaLibraryAsset(versionId,input){
   return asset;
 }
 
+export async function deleteMediaLibraryAsset(versionId,assetExternalId){
+  const context=await contextForVersion(versionId);
+  const externalId=String(assetExternalId??'').trim();
+  if(!externalId)throw new Error('MEDIA_ASSET_ID_REQUIRED');
+
+  const data=await read(ASSET_QUERY,{
+    organizationId:context.organization.id,
+    externalId,
+  });
+  const asset=data?.organizationMediaAssets?.[0];
+  if(!asset)throw new Error('MEDIA_ASSET_NOT_FOUND');
+
+  const overrides={...context.overrides};
+  let removedAssignments=0;
+
+  for(const [key,value] of Object.entries(overrides)){
+    if(value?.assetExternalId===externalId){
+      delete overrides[key];
+      removedAssignments+=1;
+    }
+  }
+
+  if(removedAssignments){
+    await write(UPDATE_OVERRIDES_MUTATION,{
+      versionId,
+      mediaOverridesJson:Object.keys(overrides).length
+        ? JSON.stringify(overrides)
+        : null,
+    });
+  }
+
+  await write(DEACTIVATE_ASSET_MUTATION,{
+    organizationId:context.organization.id,
+    externalId,
+  });
+
+  return {
+    versionId,
+    assetExternalId:externalId,
+    removedAssignments,
+    overrides,
+  };
+}
+
 export async function setScenarioMediaOverride(versionId,input){
   const context=await contextForVersion(versionId);
 
@@ -441,6 +500,7 @@ export const __mediaLibraryOps={
   OBJECT_TARGET_QUERY,
   INSERT_MUTATION,
   UPDATE_OVERRIDES_MUTATION,
+  DEACTIVATE_ASSET_MUTATION,
   parseOverrides,
   overrideKey,
 };
