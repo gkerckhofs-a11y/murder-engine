@@ -539,6 +539,30 @@ function OrganizerDossier({
 }){
   const characters=pack.printables?.characterSheets??[];
   const clues=pack.materials?.clues??[];
+  const plots=pack.preparation?.plots??pack.materials?.plots??[];
+  const events=pack.preparation?.events??[];
+  const locations=new Map(
+    (pack.materials?.locations??[]).map((x:any)=>[x.externalId,x.name])
+  );
+  const objects=new Map(
+    (pack.materials?.objects??[]).map((x:any)=>[x.externalId,x.name])
+  );
+  const documents=new Map(
+    (pack.materials?.documents??[]).map((x:any)=>[x.externalId,x.title])
+  );
+  const plotNames=new Map(
+    plots.map((x:any)=>[x.externalId,x.title])
+  );
+
+  const clueWhere=(clue:any)=>{
+    if(clue.locationExternalId)
+      return 'Lieu : '+(locations.get(clue.locationExternalId)||clue.locationExternalId);
+    if(clue.objectExternalId)
+      return 'Objet : '+(objects.get(clue.objectExternalId)||clue.objectExternalId);
+    if(clue.documentExternalId)
+      return 'Document : '+(documents.get(clue.documentExternalId)||clue.documentExternalId);
+    return clue.acquisition?.label||'À préciser';
+  };
 
   return <main className={'gmPrintRoot '+skinClass}>
     <PrintControls/>
@@ -551,23 +575,93 @@ function OrganizerDossier({
       </header>
 
       <section>
-        <h3>Résumé du scénario</h3>
+        <h3>Brief MJ — la vérité à garder en tête</h3>
         <NarrativeText
-          text={pack.preparation?.gmSummary||'—'}
+          text={pack.preparation?.brief?.gmSummary||pack.preparation?.gmSummary||'—'}
           className="gmNarrativeText"
         />
       </section>
 
-      <section>
-        <h3>Repères</h3>
-        <ul>
-          <li>{characters.length} personnages</li>
-          <li>{clues.length} indices</li>
-          <li>{pack.materials?.locations?.length??0} lieux</li>
-          <li>{pack.materials?.documents?.length??0} documents</li>
-          <li>{pack.materials?.objects?.length??0} objets</li>
-        </ul>
+      <section className="gmBriefMetrics">
+        <h3>Repères immédiats</h3>
+        <div>
+          <span><strong>{characters.length}</strong> personnages</span>
+          <span><strong>{plots.length}</strong> intrigues</span>
+          <span><strong>{clues.filter((x:any)=>x.major).length}</strong> indices majeurs</span>
+          <span><strong>{events.length}</strong> événements live</span>
+        </div>
       </section>
+
+      {pack.preparation?.brief?.essentialPlots?.length>0&&
+        <section>
+          <h3>Intrigues essentielles</h3>
+          <ul>
+            {pack.preparation.brief.essentialPlots.map((plot:any)=>
+              <li key={plot.externalId}>
+                <strong>{plot.title}</strong> — {plot.gmSummary}
+              </li>
+            )}
+          </ul>
+        </section>
+      }
+    </article>
+
+    <article className="gmPrintPage gmDossierTimeline">
+      <header className="gmPrintHeader">
+        <p>DOSSIER MJ · CONDUITE</p>
+        <h1>Chronologie de la partie</h1>
+        <h2>{events.length} événement(s) programmé(s)</h2>
+      </header>
+
+      <div className="gmDossierTimelineList">
+        {events.length===0
+          ? <p>Aucun événement programmé.</p>
+          : events.map((event:any)=>
+            <section key={event.externalId}>
+              <strong>
+                {event.absoluteTime||
+                  (event.delayMinutes!=null?'+ '+event.delayMinutes+' min':'Déclencheur')}
+              </strong>
+              <div>
+                <h3>{event.title}</h3>
+                <p>{event.gmDescription}</p>
+                {event.fallbackGm&&<small>Plan B : {event.fallbackGm}</small>}
+              </div>
+            </section>
+          )
+        }
+      </div>
+    </article>
+
+    <article className="gmPrintPage gmDossierPlots">
+      <header className="gmPrintHeader">
+        <p>DOSSIER MJ · STRUCTURE</p>
+        <h1>Tableau des intrigues</h1>
+        <h2>{plots.length} intrigue(s)</h2>
+      </header>
+
+      <div className="gmDossierPlotList">
+        {plots.map((plot:any)=>
+          <section key={plot.externalId}>
+            <div className="gmDossierPlotTitle">
+              <h3>{plot.title}</h3>
+              <span>{plot.plotType} · {plot.importance}</span>
+            </div>
+            <p>{plot.gmSummary}</p>
+            <p>
+              <strong>Personnages :</strong>{' '}
+              {plot.characters?.length
+                ? plot.characters.map((x:any)=>x.name).join(', ')
+                : '—'}
+            </p>
+            <p>
+              <strong>Indices :</strong>{' '}
+              {plot.clues?.length??0}
+              {plot.majorClueCount?(' dont '+plot.majorClueCount+' majeur(s)'):''}
+            </p>
+          </section>
+        )}
+      </div>
     </article>
 
     {characters.map((character:any)=>
@@ -638,16 +732,20 @@ function OrganizerDossier({
         {clues.map((clue:any)=>
           <section className="gmClueIndexRow" key={clue.externalId}>
             <h3>{clue.major?'★ ':''}{clue.playerName}</h3>
-            <small>{clue.externalId} · {clue.clueType} · {clue.support}</small>
+            <small>
+              {clue.externalId} · {clue.clueType} · {clue.support}
+              {clue.plotExternalId&&<> · {plotNames.get(clue.plotExternalId)||clue.plotExternalId}</>}
+            </small>
+            <div className="gmClueMetaLine">
+              <span className={'gmClueMode '+String(clue.acquisition?.type||'').toLowerCase()}>
+                {clue.acquisition?.label||'À préciser'}
+              </span>
+              <span>{clueWhere(clue)}</span>
+            </div>
             <p>{clue.playerText}</p>
             {clue.gmInterpretation&&
               <p><strong>Lecture MJ :</strong> {clue.gmInterpretation}</p>
             }
-            <p className="gmCluePlacement">
-              {clue.locationExternalId&&<>Lieu : {clue.locationExternalId} · </>}
-              {clue.objectExternalId&&<>Objet : {clue.objectExternalId} · </>}
-              {clue.documentExternalId&&<>Document : {clue.documentExternalId}</>}
-            </p>
           </section>
         )}
       </div>
@@ -982,8 +1080,14 @@ export default function GmPackView({versionId,sessionId}:Props){
       <h2>Ce que le MJ doit savoir</h2>
 
       <div className="gmPackPaper">
-        <h3>Résumé MJ</h3>
-        <p>{pack.preparation.gmSummary||'Aucun résumé MJ renseigné.'}</p>
+        <h3>Brief MJ</h3>
+        <p>{pack.preparation.brief?.gmSummary||pack.preparation.gmSummary||'Aucun résumé MJ renseigné.'}</p>
+
+        <div className="gmPackBriefStats">
+          <span><strong>{pack.preparation.plots?.length??0}</strong> intrigues</span>
+          <span><strong>{pack.logistics.majorClues?.length??0}</strong> indices majeurs</span>
+          <span><strong>{pack.preparation.events?.length??0}</strong> événements</span>
+        </div>
       </div>
     </section>
 
@@ -1017,7 +1121,30 @@ export default function GmPackView({versionId,sessionId}:Props){
 
 
     <section className="gmPackSection">
-      <p className="gmPackKicker">03 · MATÉRIEL</p>
+      <p className="gmPackKicker">03 · INTRIGUES</p>
+      <h2>Carte narrative</h2>
+
+      <div className="gmPackPlotGrid">
+        {(pack.preparation.plots??[]).map((plot:any)=>
+          <article key={plot.externalId} className={String(plot.importance||'').toLowerCase()}>
+            <div>
+              <h3>{plot.title}</h3>
+              <small>{plot.plotType} · {plot.importance}</small>
+            </div>
+            <p>{plot.gmSummary}</p>
+            <footer>
+              <span>{plot.characters?.length??0} personnage(s)</span>
+              <span>{plot.clues?.length??0} indice(s)</span>
+              {plot.majorClueCount>0&&<strong>{plot.majorClueCount} majeur(s)</strong>}
+            </footer>
+          </article>
+        )}
+      </div>
+    </section>
+
+
+    <section className="gmPackSection">
+      <p className="gmPackKicker">04 · MATÉRIEL</p>
       <h2>Préparation physique</h2>
 
       <div className="gmPackTwoCols">
@@ -1045,7 +1172,7 @@ export default function GmPackView({versionId,sessionId}:Props){
 
 
     <section className="gmPackSection gmPackQrSection">
-      <p className="gmPackKicker">04 · QR PERSONNAGES</p>
+      <p className="gmPackKicker">05 · QR PERSONNAGES</p>
       <h2>QR statiques</h2>
 
       <div className="gmPackQrGrid">
@@ -1063,7 +1190,7 @@ export default function GmPackView({versionId,sessionId}:Props){
 
 
     <section className="gmPackSection gmPackQrSection">
-      <p className="gmPackKicker">05 · QR LIEUX</p>
+      <p className="gmPackKicker">06 · QR LIEUX</p>
       <h2>Lieux de jeu</h2>
 
       <div className="gmPackQrGrid">
@@ -1081,7 +1208,32 @@ export default function GmPackView({versionId,sessionId}:Props){
 
 
     <section className="gmPackSection">
-      <p className="gmPackKicker">06 · CONTRÔLE</p>
+      <p className="gmPackKicker">07 · INDICES</p>
+      <h2>Modes d’obtention</h2>
+
+      <div className="gmClueModeSummary">
+        {Object.entries(
+          (pack.materials.clues??[]).reduce((acc:any,clue:any)=>{
+            const label=clue.acquisition?.label||'À préciser';
+            acc[label]=(acc[label]||0)+1;
+            return acc;
+          },{})
+        ).map(([label,count]:any)=>
+          <article key={label}>
+            <strong>{count}</strong>
+            <span>{label}</span>
+          </article>
+        )}
+      </div>
+
+      <p className="gmPackMicroNote">
+        Le détail complet, avec intrigue, emplacement et lecture MJ, se trouve dans le Dossier MJ / PDF.
+      </p>
+    </section>
+
+
+    <section className="gmPackSection">
+      <p className="gmPackKicker">08 · CONTRÔLE</p>
       <h2>Points d’attention</h2>
 
       {!pack.diagnostics.length
