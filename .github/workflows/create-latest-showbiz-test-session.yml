@@ -32,3 +32,8 @@ jobs:
           GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
           GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
         run: node functions/tools/create-latest-showbiz-test-session.mjs
+      - name: Check latest SHOWBIZ interactions
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+          GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: node functions/tools/check-latest-showbiz-interactions.mjs
