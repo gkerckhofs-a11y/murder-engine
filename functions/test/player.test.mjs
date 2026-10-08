@@ -84,7 +84,7 @@ test('player notebook knowledge and discoveries are newest first',()=>{
  assert.equal(out.discoveries[0].clueExternalId,'C4');
 });
 
-test('player sheet exposes only clues targeted at the current character',()=>{
+test('player sheet exposes searchable traces about the current character but not rumours',()=>{
  const src=source();
  src.clues.push(
    {
@@ -102,6 +102,22 @@ test('player sheet exposes only clues targeted at the current character',()=>{
      playerText:'Bob hides a contract.',
      discoveryHook:'RUMOR_TARGET:CHAR_B',
      active:true
+   },
+   {
+     externalId:'TRACE_SELF',
+     playerName:'Alice signed note',
+     clueType:'DOCUMENT',
+     playerText:'A signed note left by Alice.',
+     discoveryHook:'ABOUT_CHARACTER:CHAR_A',
+     active:true
+   },
+   {
+     externalId:'TRACE_SHARED',
+     playerName:'Shared photograph',
+     clueType:'PHYSICAL',
+     playerText:'A photograph implicates Alice and Bob.',
+     discoveryHook:'ABOUT_CHARACTER:CHAR_A;CHAR_B',
+     active:true
    }
  );
 
@@ -115,11 +131,11 @@ test('player sheet exposes only clues targeted at the current character',()=>{
 
  assert.deepEqual(
    out.discoverableAboutMe.map(x=>x.externalId),
-   ['RUMOR_SELF']
+   ['TRACE_SELF','TRACE_SHARED']
  );
  assert.equal(
    out.discoverableAboutMe[0].playerText,
-   'Alice once bribed a critic.'
+   'A signed note left by Alice.'
  );
 });
 
