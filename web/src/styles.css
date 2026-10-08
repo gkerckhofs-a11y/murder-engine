@@ -14443,6 +14443,20 @@ button.skinGalleryCard:disabled{
 }
 
 
+/* SHOWBIZ — English player rules */
+.showbizRulesHint{font-size:.82rem;opacity:.72;margin:16px 0 8px}
+.showbizRuleSection{border-top:1px solid currentColor; border-color:color-mix(in srgb,currentColor 18%,transparent)}
+.showbizRuleSection>summary{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:48px;padding:12px 0;box-sizing:border-box;list-style:none;font-weight:800;cursor:pointer;line-height:1.4}
+.showbizRuleSection>summary::-webkit-details-marker{display:none}
+.showbizRuleSection>summary::after{content:'+';flex:none;font-size:1.35rem;font-weight:500}
+.showbizRuleSection[open]>summary::after{content:'−'}
+.showbizRuleSection>summary:focus-visible{outline:2px solid currentColor;outline-offset:4px;border-radius:3px}
+.showbizRuleBody{padding:0 0 14px;overflow-wrap:anywhere;line-height:1.6}
+.showbizRuleBody p{margin:0 0 12px}
+.showbizRuleBody p:last-child{margin-bottom:0}
+.showbizRuleBody ul{margin:0 0 14px}
+.showbizRuleBody li{line-height:1.6}
+
 /* MEDIA LIBRARY — delete action */
 .mediaAssetCard{
   grid-template-rows:auto auto!important;
