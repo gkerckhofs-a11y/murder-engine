@@ -5,6 +5,7 @@ import LocationScan from './LocationScan';
 import QrCharacterScanner from './QrCharacterScanner';
 import ImmersiveDocument from './ImmersiveDocument';
 import NarrativeText from './NarrativeText';
+import ShowbizGameRules from './ShowbizGameRules';
 import { asSkinId, skinClassFor, defaultAccentForSkin } from './skin-registry';
 
 type Portal = any;
@@ -1528,7 +1529,9 @@ function PlayerNews({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:(id:
       }
     </section>
 
-    <section className="playerCard rulesCard">
+    {isEnglish(portal) && /\bshowbiz\b/i.test(String(portal.session?.scenarioTitle ?? ''))
+      ? <ShowbizGameRules />
+      : <section className="playerCard rulesCard">
       <p className="playerSectionKicker">{tr(portal,'RÈGLES DU JEU','GAME RULES')}</p>
       <h2>{tr(portal,'Comment jouer','How to play')}</h2>
       <ul>
@@ -1538,7 +1541,7 @@ function PlayerNews({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:(id:
         <li>{tr(portal,'Après une tentative de fouille, un délai de 10 minutes s’applique avant la suivante.','After a search attempt, a 10-minute delay applies before the next one.')}</li>
         <li>{tr(portal,'Lorsqu’une action nécessite un jugement humain, le MJ reste l’arbitre.','When an action requires human judgement, the GM remains the referee.')}</li>
       </ul>
-    </section>
+    </section>}
   </div>;
 }
 
