@@ -67,25 +67,19 @@ if(playable.length!==21)
   throw new Error('EXPECTED_21_PLAYABLE_CHARACTERS_GOT_'+playable.length);
 
 if(!detail.runtimeInitializedAt){
-  const participantByCharacter=new Map(
-    (detail.participants??[])
-      .filter(p=>p.characterExternalId)
-      .map(p=>[p.characterExternalId,p])
-  );
-  const participantByName=new Map(
+  let participantByName=new Map(
     (detail.participants??[]).map(p=>[p.displayName,p])
   );
 
+  // First create every missing participant. Do not cast immediately:
+  // Data Connect may not expose a just-created participant to the next
+  // mutation until the session is re-read.
   for(let i=0;i<playable.length;i++){
     const character=playable[i];
     const displayName='TEST – '+character.name;
-    let participant=
-      participantByCharacter.get(character.externalId) ??
-      participantByName.get(displayName) ??
-      null;
 
-    if(!participant){
-      const createdParticipant=await addGameSessionParticipant(sessionId,{
+    if(!participantByName.has(displayName)){
+      await addGameSessionParticipant(sessionId,{
         displayName,
         email:`showbiz.latest.test.${String(i+1).padStart(2,'0')}@example.invalid`,
         ageBracket:'26_40',
@@ -94,13 +88,21 @@ if(!detail.runtimeInitializedAt){
         source:'MANUAL',
         notes:'Participant de test automatique pour '+character.name,
       });
-
-      participant={
-        id:createdParticipant.id,
-        displayName,
-        characterExternalId:null,
-      };
     }
+  }
+
+  // Refresh once all participants exist, then cast by persisted IDs.
+  detail=await getGameSession(sessionId);
+  participantByName=new Map(
+    (detail.participants??[]).map(p=>[p.displayName,p])
+  );
+
+  for(const character of playable){
+    const displayName='TEST – '+character.name;
+    const participant=participantByName.get(displayName);
+
+    if(!participant)
+      throw new Error('TEST_PARTICIPANT_NOT_FOUND_'+character.externalId);
 
     if(participant.characterExternalId!==character.externalId){
       await assignCharacterToParticipant(
@@ -108,7 +110,6 @@ if(!detail.runtimeInitializedAt){
         participant.id,
         character.externalId
       );
-      participant.characterExternalId=character.externalId;
     }
   }
 
