@@ -38,7 +38,11 @@ query InteractionSource($versionId: UUID!) {
   gameObjects(where: {scenarioVersionId: {eq: $versionId}}) {
     externalId name description transferable stealable consumable critical active
   }
-  clues(where: {scenarioVersionId: {eq: $versionId}}) {
+  clues(
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {externalId: ASC}
+    limit: 2000
+  ) {
     externalId playerName clueType playerText gmInterpretation locationExternalId objectExternalId documentExternalId
     shareable transferable consumable major logisticsCode active
   }
