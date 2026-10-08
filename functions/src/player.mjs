@@ -850,6 +850,10 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
     const running=session.status==='LIVE';
     const noRumorTarget=isInformantInteraction(i)&&targets.length===0;
     const noSpecialTarget=Boolean(specialKind)&&characterTarget&&targets.length===0;
+    const actorTransferableEvidence=
+      specialKind==='NEGOTIATION'
+        ? transferableEvidenceForCharacter(source,runtime,characterExternalId)
+        : [];
     const directEnabled=running&&!requiresGm&&!noRumorTarget&&!noSpecialTarget;
     const blockedReason=!running
       ? sessionText(session,'Disponible pendant le live','Available during live play')
@@ -857,6 +861,24 @@ function playerInteractions(source,runtime,session,characterExternalId,resources
         ? sessionText(session,'À demander au MJ','Ask the GM')
         : noRumorTarget
           ? sessionText(session,'Aucune nouvelle rumeur disponible','No new rumour available')
+          : specialKind==='NEGOTIATION'&&actorTransferableEvidence.length===0
+            ? sessionText(
+                session,
+                'Vous devez d’abord trouver une preuve transférable à proposer.',
+                'You must first find a transferable piece of evidence to offer.'
+              )
+          : specialKind==='NEGOTIATION'&&targets.length===0
+            ? sessionText(
+                session,
+                'Aucun autre personnage ne possède actuellement de preuve transférable à échanger.',
+                'No other character currently holds transferable evidence to exchange.'
+              )
+          : specialKind==='INTIMIDATION'&&targets.length===0
+            ? sessionText(
+                session,
+                'Aucun autre personnage ne possède actuellement de preuve transférable à prendre.',
+                'No other character currently holds transferable evidence to take.'
+              )
           : noSpecialTarget
             ? sessionText(session,'Aucune cible éligible pour cette compétence','No eligible target for this skill')
             : null;
