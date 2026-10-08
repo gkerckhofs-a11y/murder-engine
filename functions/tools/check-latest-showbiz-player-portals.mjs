@@ -25,6 +25,11 @@ for(const p of (session.participants??[]).filter(x=>
       id:r.externalId??r.resourceExternalId,
       current:r.currentValue,
     })),
+    discoverableAboutMe:(portal.discoverableAboutMe??[]).map(x=>({
+      id:x.externalId,
+      name:x.playerName,
+      clueType:x.clueType,
+    })),
     interactions:(portal.interactions??portal.play?.interactions??[]).map(i=>({
       id:i.externalId,
       name:i.name,
