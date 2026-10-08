@@ -356,10 +356,45 @@ async function defaultExecutor(operation, variables) {
 
 const splitIds = value => String(value ?? '').split(';').map(x=>x.trim()).filter(Boolean);
 
-function locationOwnerCharacter(location) {
+function locationOwnerCharacter(location,source=null) {
   const raw=String(location?.lockExternalId??'').trim();
   const match=raw.match(/^OWNER:(.+)$/i);
-  return match ? String(match[1]).trim() : null;
+
+  if(match)
+    return String(match[1]).trim();
+
+  // Backward-compatible fallback for scenario masters that predate
+  // explicit OWNER:<character_id> location metadata.
+  //
+  // A private room such as "Mabel Hart's Bedroom" is treated as owned
+  // by the character whose full display name appears in the location
+  // name. This keeps existing imported sessions protected without
+  // requiring a master re-import.
+  const locationName=normalizeSearchText(location?.name??'');
+
+  if(!locationName||!source)
+    return null;
+
+  const roomLike=
+    /(bedroom|bed room|private room|room of|chambre|suite|dressing room)/.test(
+      locationName
+    );
+
+  if(!roomLike)
+    return null;
+
+  const matches=(source.characters??[])
+    .filter(character=>
+      character.active!==false &&
+      normalizeSearchText(character.name??'').length>=3 &&
+      locationName.includes(
+        normalizeSearchText(character.name??'')
+      )
+    );
+
+  return matches.length===1
+    ? matches[0].externalId
+    : null;
 }
 
 function isStaticLocationClue(clue) {
@@ -1147,7 +1182,7 @@ function locationActionShape(source,runtime,session,characterExternalId,location
         };
   });
   const rewards=availableLocationRewards(source,runtime,characterExternalId,locationExternalId);
-  if(!actions.length&&(!location.lockExternalId||locationOwnerCharacter(location))&&(rewards.clues.length||rewards.objects.length)){
+  if(!actions.length&&(!location.lockExternalId||locationOwnerCharacter(location,source))&&(rewards.clues.length||rewards.objects.length)){
     const pa=resources.find(r=>r.resourceExternalId==='RES_PA');
     const blockedReason=session.status!=='LIVE'
       ? sessionText(session,'La partie n’est pas en cours','The game is not currently live')
@@ -2702,7 +2737,7 @@ export async function getPlayerLocation(token,locationExternalId,{reader=default
   const loaded=await loadPlayerData(token,reader); const actor=loaded.participant.characterExternalId;
   const resources=(loaded.runtime.sessionResources??[]).filter(r=>r.characterExternalId===actor);
   const shaped=locationActionShape(loaded.source,loaded.runtime,loaded.session,actor,String(locationExternalId??'').trim(),resources,now instanceof Date?now:new Date(now));
-  const forbidden=locationOwnerCharacter(shaped.location)===actor;
+  const forbidden=locationOwnerCharacter(shaped.location,loaded.source)===actor;
   const empty=locationIsEmptyForCharacter(loaded.source,loaded.runtime,actor,shaped.location.externalId);
   return {
     presentation:scenarioPresentation(loaded.session,loaded.source),
@@ -2735,7 +2770,7 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
   const actor=loaded.participant.characterExternalId; const locationExternalId=String(input?.locationExternalId??'').trim(); const interactionExternalId=String(input?.interactionExternalId??'').trim();
   const location=(loaded.source.gameLocations??[]).find(x=>x.externalId===locationExternalId&&x.active!==false); if(!location) throw new Error('PLAYER_LOCATION_NOT_FOUND');
 
-  const ownerCharacterExternalId=locationOwnerCharacter(location);
+  const ownerCharacterExternalId=locationOwnerCharacter(location,loaded.source);
 
   if(ownerCharacterExternalId===actor)
     throw new Error('LOCATION_OWNED_BY_CHARACTER');
@@ -3070,4 +3105,4 @@ export async function castPlayerVote(token,input,{reader=defaultReader,voteCaste
   const loaded=await loadPlayerData(token,reader);return voteCaster(loaded.session.id,{voteExternalId:String(input?.voteExternalId??'').trim(),electorCharacterExternalId:loaded.participant.characterExternalId,selectedOptionExternalIds:Array.isArray(input?.selectedOptionExternalIds)?input.selectedOptionExternalIds:[],round:input?.round});
 }
 
-export const __playerOps={PLAYER_ACCESS_QUERY,PLAYER_SOURCE_QUERY,PLAYER_RUNTIME_QUERY,UPDATE_PLAYER_ACCESS_MUTATION,TRACK_PLAYER_OPEN_MUTATION,MARK_BRIEFING_READ_MUTATION,INSERT_NOTIFICATION_MUTATION,MARK_NOTIFICATION_READ_MUTATION,INSERT_PLAYER_ACTION_LOG_MUTATION,SYSTEM_LOCATION_SEARCH_MUTATION,INSERT_STEAL_GRANT_MUTATION,CLAIM_STEAL_MUTATION,TRANSFER_PLAYER_CASH_MUTATION};
+export const __playerOps={locationOwnerCharacter,PLAYER_ACCESS_QUERY,PLAYER_SOURCE_QUERY,PLAYER_RUNTIME_QUERY,UPDATE_PLAYER_ACCESS_MUTATION,TRACK_PLAYER_OPEN_MUTATION,MARK_BRIEFING_READ_MUTATION,INSERT_NOTIFICATION_MUTATION,MARK_NOTIFICATION_READ_MUTATION,INSERT_PLAYER_ACTION_LOG_MUTATION,SYSTEM_LOCATION_SEARCH_MUTATION,INSERT_STEAL_GRANT_MUTATION,CLAIM_STEAL_MUTATION,TRANSFER_PLAYER_CASH_MUTATION};
