@@ -488,6 +488,13 @@
         }
       },
       {
+        "source": "/api/media/delete",
+        "function": {
+          "functionId": "deleteMediaLibraryAssetView",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/scan/**",
         "destination": "/index.html"
       },
