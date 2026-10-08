@@ -14184,3 +14184,256 @@ button.skinGalleryCard:disabled{
     page-break-after:auto;
   }
 }
+
+
+/* ==========================================================
+   GM PACK — BRIEF, INTRIGUES & INDEX INTELLIGENT
+   ========================================================== */
+
+.gmPackBriefStats{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:12px;
+}
+
+.gmPackBriefStats span{
+  display:inline-flex;
+  align-items:baseline;
+  gap:5px;
+  padding:6px 9px;
+  border:1px solid #42515a;
+  border-radius:999px;
+  background:#131d22;
+  color:#9eafb8;
+  font-size:.72rem;
+}
+
+.gmPackBriefStats strong{
+  color:#ead7a5;
+  font-size:.9rem;
+}
+
+.gmPackPlotGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:10px;
+}
+
+.gmPackPlotGrid article{
+  display:grid;
+  gap:8px;
+  padding:13px;
+  border:1px solid #35454e;
+  border-radius:10px;
+  background:#151f24;
+}
+
+.gmPackPlotGrid article.majeur,
+.gmPackPlotGrid article.major{
+  border-color:#8a7342;
+  background:rgba(138,115,66,.11);
+}
+
+.gmPackPlotGrid h3{
+  margin:0;
+}
+
+.gmPackPlotGrid small{
+  color:#81929c;
+}
+
+.gmPackPlotGrid p{
+  margin:0;
+  color:#c7d0d5;
+  line-height:1.45;
+}
+
+.gmPackPlotGrid footer{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  padding-top:7px;
+  border-top:1px solid #2d3a42;
+  color:#82939d;
+  font-size:.68rem;
+}
+
+.gmPackPlotGrid footer strong{
+  color:#d7bd7a;
+}
+
+.gmClueModeSummary{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:8px;
+}
+
+.gmClueModeSummary article{
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  padding:10px 12px;
+  border:1px solid #34444d;
+  border-radius:9px;
+  background:#151f24;
+}
+
+.gmClueModeSummary strong{
+  color:#ead7a5;
+  font-size:1.15rem;
+}
+
+.gmClueModeSummary span{
+  color:#a8b5bc;
+  font-size:.75rem;
+}
+
+.gmPackMicroNote{
+  margin-top:10px;
+  color:#85959e;
+  font-size:.72rem;
+}
+
+
+/* Dossier MJ — brief et chronologie */
+
+.gmBriefMetrics>div{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:4mm;
+}
+
+.gmBriefMetrics span{
+  display:grid;
+  gap:1mm;
+  padding:4mm;
+  border:1px solid #cfcfcf;
+  border-radius:2mm;
+}
+
+.gmBriefMetrics strong{
+  font-size:18pt;
+}
+
+.gmDossierTimelineList{
+  display:grid;
+  gap:4mm;
+}
+
+.gmDossierTimelineList>section{
+  display:grid;
+  grid-template-columns:32mm 1fr;
+  gap:5mm;
+  break-inside:avoid;
+  padding:3mm 0;
+  border-bottom:1px solid #ddd;
+}
+
+.gmDossierTimelineList>section>strong{
+  font-size:11pt;
+}
+
+.gmDossierTimelineList h3{
+  margin:0 0 1mm;
+}
+
+.gmDossierTimelineList p{
+  margin:0 0 1mm;
+}
+
+.gmDossierPlotList{
+  display:grid;
+  gap:4mm;
+}
+
+.gmDossierPlotList>section{
+  break-inside:avoid;
+  padding:4mm;
+  border:1px solid #d1d1d1;
+  border-radius:2mm;
+}
+
+.gmDossierPlotTitle{
+  display:flex;
+  justify-content:space-between;
+  gap:5mm;
+  align-items:baseline;
+}
+
+.gmDossierPlotTitle h3{
+  margin:0;
+}
+
+.gmDossierPlotTitle span{
+  color:#666;
+  font-size:8pt;
+}
+
+.gmDossierPlotList p{
+  margin:2mm 0 0;
+}
+
+.gmClueMetaLine{
+  display:flex;
+  flex-wrap:wrap;
+  gap:2mm;
+  align-items:center;
+  margin:2mm 0;
+  font-size:8pt;
+  color:#555;
+}
+
+.gmClueMode{
+  display:inline-block;
+  padding:1mm 2mm;
+  border:1px solid #bbb;
+  border-radius:99mm;
+  font-weight:700;
+}
+
+.gmClueMode.location,
+.gmClueMode.object,
+.gmClueMode.document{
+  border-color:#7f8e99;
+  background:#eef2f4;
+}
+
+.gmClueMode.rumor{
+  border-color:#9b7e4c;
+  background:#f7f0df;
+}
+
+.gmClueMode.interaction,
+.gmClueMode.hook{
+  border-color:#746c9b;
+  background:#f0eef8;
+}
+
+.gmClueMode.digital{
+  border-color:#5d8e82;
+  background:#edf7f4;
+}
+
+.gmClueMode.unplaced{
+  border-color:#a95d5d;
+  background:#faeeee;
+}
+
+@media(max-width:700px){
+  .gmPackPlotGrid{
+    grid-template-columns:1fr;
+  }
+}
+
+@media print{
+  .gmBriefMetrics>div{
+    grid-template-columns:repeat(4,1fr);
+  }
+
+  .gmDossierPlotList>section,
+  .gmDossierTimelineList>section,
+  .gmClueIndexRow{
+    break-inside:avoid;
+  }
+}
