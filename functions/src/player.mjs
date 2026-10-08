@@ -56,7 +56,11 @@ query PlayerSource($versionId: UUID!) {
   facts(where: {scenarioVersionId: {eq: $versionId}}) {
     externalId title text nature importance notebookCategory isPublic active
   }
-  clues(where: {scenarioVersionId: {eq: $versionId}}) {
+  clues(
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {externalId: ASC}
+    limit: 2000
+  ) {
     externalId playerName clueType playerText discoveryHook support presentationMode shareable transferable consumable addToNotebook locationExternalId objectExternalId documentExternalId logisticsCode mediaExternalId major active
   }
   clueFacts(where: {scenarioVersionId: {eq: $versionId}}) { clueExternalId factExternalId }
