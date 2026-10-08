@@ -673,7 +673,7 @@ function effectiveAbilities(source, characterExternalId, session=null) {
   }).filter(Boolean);
 }
 
-function clueTargetCharacter(clue){
+function clueTargetCharacters(clue){
   const hook=String(clue?.discoveryHook??'').trim();
 
   const patterns=[
@@ -685,10 +685,19 @@ function clueTargetCharacter(clue){
 
   for(const pattern of patterns){
     const match=hook.match(pattern);
-    if(match)return String(match[1]).trim();
+    if(!match)continue;
+
+    return String(match[1])
+      .split(/[;,|]/)
+      .map(x=>x.trim())
+      .filter(Boolean);
   }
 
-  return null;
+  return [];
+}
+
+function clueTargetCharacter(clue){
+  return clueTargetCharacters(clue)[0]??null;
 }
 
 function rumorTargetCharacter(clue){
@@ -1728,7 +1737,8 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
   const discoverableAboutMe=(source.clues??[])
     .filter(clue=>
       clue.active!==false &&
-      clueTargetCharacter(clue)===characterExternalId
+      String(clue.clueType??'').trim().toUpperCase()!=='RUMOR' &&
+      clueTargetCharacters(clue).includes(characterExternalId)
     )
     .sort((a,b)=>
       Number(Boolean(b.major))-Number(Boolean(a.major)) ||
