@@ -42,3 +42,8 @@ jobs:
           GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
           GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
         run: node functions/tools/check-latest-showbiz-player-portals.mjs
+      - name: Audit SHOWBIZ V1.7.2 action data
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+          GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: node functions/tools/audit-showbiz-v172-action-data.mjs
