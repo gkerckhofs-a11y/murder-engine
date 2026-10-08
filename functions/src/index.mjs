@@ -22,6 +22,7 @@ import { updateScenarioAppearanceFamily } from './scenario-appearance.mjs';
 import {
   listMediaLibrary,
   uploadMediaLibraryAsset,
+  deleteMediaLibraryAsset,
   setScenarioMediaOverride
 } from './media-library.mjs';
 import { purgeGameSession, purgeScenarioFamily } from './cleanup.mjs';
@@ -268,6 +269,47 @@ export const uploadMediaLibraryAssetView = onRequest(
     }
   }
 );
+
+export const deleteMediaLibraryAssetView = onRequest(
+  { region:'europe-west1', cors:true, invoker:'public', maxInstances:5, timeoutSeconds:60 },
+  async (req,res)=>{
+    if(req.method!=='POST')
+      return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
+    if(!await requireOrganizerAuth(req,res)) return;
+
+    const versionId=String(req.body?.versionId??'').trim();
+    const assetExternalId=String(req.body?.assetExternalId??'').trim();
+
+    if(!versionId)
+      return res.status(400).json({error:'VERSION_ID_REQUIRED'});
+    if(!assetExternalId)
+      return res.status(400).json({error:'MEDIA_ASSET_ID_REQUIRED'});
+
+    try{
+      const result=await deleteMediaLibraryAsset(
+        versionId,
+        assetExternalId
+      );
+
+      return res.status(200).json({ok:true,...result});
+    }catch(error){
+      logger.error('Media library delete failed',error);
+      const status=
+        error instanceof Error &&
+        ['MEDIA_ASSET_ID_REQUIRED','MEDIA_ASSET_NOT_FOUND']
+          .includes(error.message)
+          ? 400
+          : 500;
+
+      return res.status(status).json({
+        error:'MEDIA_LIBRARY_DELETE_FAILED',
+        message:error instanceof Error?error.message:String(error),
+        details:error?.details??undefined,
+      });
+    }
+  }
+);
+
 
 export const setScenarioMediaOverrideView = onRequest(
   { region:'europe-west1', cors:true, invoker:'public', maxInstances:5, timeoutSeconds:60 },
