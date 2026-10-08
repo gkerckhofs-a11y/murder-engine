@@ -14128,8 +14128,12 @@ button.skinGalleryCard:disabled{
 .gmQrSheetPortrait{
   width:100%;
   height:32mm;
-  object-fit:cover;
+  padding:2mm;
+  object-fit:contain;
+  object-position:center center;
+  box-sizing:border-box;
   border-radius:2mm;
+  background:#eee8da;
 }
 
 .gmDossierCharacter section,
