@@ -381,6 +381,9 @@ export function shapeGmPack(data) {
     const hook=String(clue.discoveryHook??'').trim();
     const hookUpper=hook.toUpperCase();
 
+    if(clueType==='RUMOR' || hookUpper.startsWith('RUMOR_TARGET:'))
+      return {type:'RUMOR',label:'Rumeur',physical:false};
+
     if(clue.locationExternalId)
       return {type:'LOCATION',label:'Lieu',physical:true};
 
@@ -389,9 +392,6 @@ export function shapeGmPack(data) {
 
     if(clue.documentExternalId)
       return {type:'DOCUMENT',label:'Document',physical:support!=='DIGITAL'};
-
-    if(clueType==='RUMOR' || hookUpper.startsWith('RUMOR_TARGET:'))
-      return {type:'RUMOR',label:'Rumeur',physical:false};
 
     if(
       hookUpper.includes('INTERACTION') ||
