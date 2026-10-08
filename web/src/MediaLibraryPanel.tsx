@@ -296,6 +296,50 @@ export default function MediaLibraryPanel({
     }
   }
 
+  async function deleteAsset(asset:Asset){
+    const confirmed=window.confirm(
+      `Supprimer « ${asset.label} » de la médiathèque ?\n\nCette image sera retirée de la bibliothèque et de toutes ses attributions dans cette version. Les autres scénarios qui l’utilisent ne sont pas modifiés.`
+    );
+    if(!confirmed)return;
+
+    setBusy(true);
+    setError('');
+    setAssignmentSummary('');
+
+    try{
+      const result=await postJson<{
+        ok:boolean;
+        overrides:Record<string,Override>;
+        removedAssignments:number;
+      }>('/api/media/delete',{
+        versionId:version.id,
+        assetExternalId:asset.externalId,
+      });
+
+      setAssets(prev=>prev.filter(x=>x.externalId!==asset.externalId));
+      setOverrides(result.overrides??{});
+      setPendingAssignments(prev=>{
+        const next={...prev};
+        for(const [key,value] of Object.entries(next)){
+          if(value===asset.externalId)delete next[key];
+        }
+        return next;
+      });
+
+      setAssignmentSummary(
+        result.removedAssignments
+          ? `Image supprimée · ${result.removedAssignments} attribution(s) retirée(s) ✓`
+          : 'Image supprimée de la médiathèque ✓'
+      );
+
+      if(onChanged)await onChanged();
+    }catch(e){
+      setError(e instanceof Error?e.message:String(e));
+    }finally{
+      setBusy(false);
+    }
+  }
+
   const uploadKey=(file:File)=>
     `${file.name}::${file.size}::${file.lastModified}`;
 
@@ -550,7 +594,7 @@ export default function MediaLibraryPanel({
 
               {currentOverride?.source&&
                 <button className="secondary mediaResetButton" disabled={busy} onClick={()=>assign(null)}>
-                  Réinitialiser
+                  Retirer l’attribution
                 </button>
               }
             </div>
@@ -688,21 +732,34 @@ export default function MediaLibraryPanel({
           <div className="mediaAssetGrid">
             {visibleAssets.length===0
               ? <p className="empty">Aucune image compatible dans la bibliothèque.</p>
-              : visibleAssets.map(asset=><button
+              : visibleAssets.map(asset=><article
                   key={asset.externalId}
                   className={`mediaAssetCard ${currentOverride?.assetExternalId===asset.externalId?'selected':''}`}
-                  disabled={!selected||busy}
-                  onClick={()=>assign(asset.externalId)}
                 >
-                  <span className="mediaAssetVisual">
-                    <img src={asset.source} alt={asset.altText||asset.label}/>
-                    {currentOverride?.assetExternalId===asset.externalId&&<b className="mediaAssetSelectedBadge">✓ Utilisée</b>}
-                  </span>
-                  <span className="mediaAssetMeta">
-                    <strong>{asset.label}</strong>
-                    <small>{asset.tags||asset.category}</small>
-                  </span>
-                </button>)
+                  <button
+                    className="mediaAssetChoose"
+                    disabled={!selected||busy}
+                    onClick={()=>assign(asset.externalId)}
+                  >
+                    <span className="mediaAssetVisual">
+                      <img src={asset.source} alt={asset.altText||asset.label}/>
+                      {currentOverride?.assetExternalId===asset.externalId&&<b className="mediaAssetSelectedBadge">✓ Utilisée</b>}
+                    </span>
+                    <span className="mediaAssetMeta">
+                      <strong>{asset.label}</strong>
+                      <small>{asset.tags||asset.category}</small>
+                    </span>
+                  </button>
+
+                  <button
+                    className="mediaAssetDelete"
+                    disabled={busy}
+                    title="Supprimer cette image de la médiathèque"
+                    onClick={()=>void deleteAsset(asset)}
+                  >
+                    🗑 Supprimer
+                  </button>
+                </article>)
             }
           </div>
         </div>
