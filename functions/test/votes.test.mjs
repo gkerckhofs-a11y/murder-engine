@@ -19,6 +19,64 @@ test('LIST electorate keeps only cast and allowed characters',()=>{
   assert.deepEqual(resolveElectorate(source().voteDefinitions[0],session().sessionParticipants_on_gameSession),['CHAR_A','CHAR_B','CHAR_C']);
 });
 
+test('VOTE_WINNERS electorate resolves character winners from prior closed votes',()=>{
+  const def={
+    externalId:'VOTE_FINAL',
+    scopeType:'VOTE_WINNERS',
+    scopeRef:'VOTE_SEAT_A;VOTE_SEAT_B',
+  };
+
+  const src=source();
+  src.voteOptionDefinitions.push(
+    {externalId:'SEAT_A_OPT',voteExternalId:'VOTE_SEAT_A',orderIndex:1,label:'Alice',characterExternalId:'CHAR_A',active:true},
+    {externalId:'SEAT_B_OPT',voteExternalId:'VOTE_SEAT_B',orderIndex:1,label:'Bob',characterExternalId:'CHAR_B',active:true},
+  );
+
+  const rt=runtime();
+  rt.sessionVotes=[
+    {voteExternalId:'VOTE_SEAT_A',round:1,status:'CLOSED',resultJson:JSON.stringify({winnerOptionExternalId:'SEAT_A_OPT'})},
+    {voteExternalId:'VOTE_SEAT_B',round:2,status:'CLOSED',resultJson:JSON.stringify({winnerOptionExternalId:'SEAT_B_OPT'})},
+  ];
+
+  assert.deepEqual(
+    resolveElectorate(def,session().sessionParticipants_on_gameSession,rt,src),
+    ['CHAR_A','CHAR_B']
+  );
+});
+
+test('VOTE_WINNERS remains locked until every referenced jury seat has a winner',()=>{
+  const def={
+    externalId:'VOTE_FINAL',
+    scopeType:'VOTE_WINNERS',
+    scopeRef:'VOTE_SEAT_A;VOTE_SEAT_B',
+  };
+
+  const src=source();
+  src.voteOptionDefinitions.push(
+    {externalId:'SEAT_A_OPT',voteExternalId:'VOTE_SEAT_A',orderIndex:1,label:'Alice',characterExternalId:'CHAR_A',active:true},
+    {externalId:'SEAT_B_OPT',voteExternalId:'VOTE_SEAT_B',orderIndex:1,label:'Bob',characterExternalId:'CHAR_B',active:true},
+  );
+
+  const rt=runtime();
+  rt.sessionVotes=[
+    {voteExternalId:'VOTE_SEAT_A',round:1,status:'CLOSED',resultJson:JSON.stringify({winnerOptionExternalId:'SEAT_A_OPT'})},
+  ];
+
+  assert.deepEqual(
+    resolveElectorate(def,session().sessionParticipants_on_gameSession,rt,src),
+    []
+  );
+
+  rt.sessionVotes.push(
+    {voteExternalId:'VOTE_SEAT_B',round:1,status:'CLOSED',resultJson:JSON.stringify({winnerOptionExternalId:null})},
+  );
+
+  assert.deepEqual(
+    resolveElectorate(def,session().sessionParticipants_on_gameSession,rt,src),
+    []
+  );
+});
+
 test('tally detects absolute majority',()=>{
   const out=tallyVote({definition:source().voteDefinitions[0],options:source().voteOptionDefinitions,electorate:['CHAR_A','CHAR_B','CHAR_C'],ballots:[
     {electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:'OPT_A',weight:1},
@@ -28,7 +86,7 @@ test('tally detects absolute majority',()=>{
   assert.equal(out.majorityAbsolute,true); assert.equal(out.winnerOptionExternalId,'OPT_A'); assert.equal(out.suggestSecondRound,false);
 });
 
-test('no majority suggests second round with top two',()=>{
+test('no majority suggests second round and keeps ties at the qualification cutoff',()=>{
   const electorate=['A','B','C','D'];
   const out=tallyVote({definition:source().voteDefinitions[0],options:source().voteOptionDefinitions,electorate,ballots:[
     {electorCharacterExternalId:'A',selectedOptionExternalIds:'OPT_A',weight:1},
@@ -36,7 +94,45 @@ test('no majority suggests second round with top two',()=>{
     {electorCharacterExternalId:'C',selectedOptionExternalIds:'OPT_B',weight:1},
     {electorCharacterExternalId:'D',selectedOptionExternalIds:'OPT_C',weight:1},
   ]});
-  assert.equal(out.majorityAbsolute,false); assert.equal(out.suggestSecondRound,true); assert.deepEqual(out.secondRoundOptionExternalIds,['OPT_A','OPT_B']);
+  assert.equal(out.majorityAbsolute,false);
+  assert.equal(out.suggestSecondRound,true);
+  assert.deepEqual(out.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C']);
+});
+
+test('second round keeps every candidate tied at the qualification cutoff',()=>{
+  const electorate=['A','B','C','D','E'];
+  const options=[
+    {externalId:'OPT_A',orderIndex:1,label:'A'},
+    {externalId:'OPT_B',orderIndex:2,label:'B'},
+    {externalId:'OPT_C',orderIndex:3,label:'C'},
+    {externalId:'OPT_D',orderIndex:4,label:'D'},
+    {externalId:'OPT_E',orderIndex:5,label:'E'},
+  ];
+  const definition={tieRule:'SECOND_ROUND',votesPerElector:1};
+
+  const allTied=tallyVote({
+    definition,options,electorate,
+    ballots:[
+      {electorCharacterExternalId:'A',selectedOptionExternalIds:'OPT_A',weight:1},
+      {electorCharacterExternalId:'B',selectedOptionExternalIds:'OPT_B',weight:1},
+      {electorCharacterExternalId:'C',selectedOptionExternalIds:'OPT_C',weight:1},
+      {electorCharacterExternalId:'D',selectedOptionExternalIds:'OPT_D',weight:1},
+      {electorCharacterExternalId:'E',selectedOptionExternalIds:'OPT_E',weight:1},
+    ]
+  });
+  assert.deepEqual(allTied.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C','OPT_D','OPT_E']);
+
+  const tiedForSecond=tallyVote({
+    definition,options,electorate,
+    ballots:[
+      {electorCharacterExternalId:'A',selectedOptionExternalIds:'OPT_A',weight:1},
+      {electorCharacterExternalId:'B',selectedOptionExternalIds:'OPT_A',weight:1},
+      {electorCharacterExternalId:'C',selectedOptionExternalIds:'OPT_B',weight:1},
+      {electorCharacterExternalId:'D',selectedOptionExternalIds:'OPT_C',weight:1},
+      {electorCharacterExternalId:'E',selectedOptionExternalIds:'OPT_D',weight:1},
+    ]
+  });
+  assert.deepEqual(tiedForSecond.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C','OPT_D']);
 });
 
 test('dashboard hides nothing from MJ but tracks who voted',()=>{

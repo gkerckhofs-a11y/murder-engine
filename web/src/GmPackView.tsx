@@ -3,11 +3,13 @@ import { QRCodeSVG } from 'qrcode.react';
 import JSZip from 'jszip';
 import QRCode from 'qrcode';
 import { asSkinId, skinClassFor, defaultAccentForSkin } from './skin-registry';
+import NarrativeText from './NarrativeText';
+import { organizerToken } from './admin-auth';
 
 type Props={versionId?:string;sessionId?:string};
 
-async function fetchJson<T=any>(url:string):Promise<T>{
-  const r=await fetch(url);
+async function fetchJson<T=any>(url:string,init?:RequestInit):Promise<T>{
+  const r=await fetch(url,init);
 
   const contentType=
     r.headers.get('content-type')??'';
@@ -94,62 +96,108 @@ async function addQrFiles(
   );
 }
 
-async function downloadQrZip(pack:any){
+async function downloadQrZip(
+  pack:any,
+  kind:'full'|'locations'|'access'|'characters'='full'
+){
   const zip=new JSZip();
 
-  const charactersFolder=zip.folder('personnages');
-  const locationsFolder=zip.folder('lieux');
+  async function addCharacters(){
+    const folder=zip.folder('QR-PERSONNAGES-INTERACTIONS');
+    if(!folder)throw new Error('ZIP_FOLDER_ERROR');
 
-  if(!charactersFolder||!locationsFolder)
-    throw new Error('ZIP_FOLDER_ERROR');
+    for(const character of pack.logistics.qrCharacters??[]){
+      const url=
+        window.location.origin+
+        '/scan/character/'+
+        encodeURIComponent(character.externalId);
 
-  for(const character of pack.logistics.qrCharacters??[]){
-    const url=
-      `${window.location.origin}/scan/character/${encodeURIComponent(character.externalId)}`;
+      const filename=
+        safeFilename(character.externalId)+
+        '-'+
+        safeFilename(character.name);
 
-    const filename=
-      `${safeFilename(character.externalId)}-${safeFilename(character.name)}`;
-
-    await addQrFiles(
-      charactersFolder,
-      filename,
-      url
-    );
+      await addQrFiles(folder,filename,url);
+    }
   }
 
-  for(const location of pack.logistics.qrLocations??[]){
-    const url=
-      `${window.location.origin}/scan/${encodeURIComponent(location.externalId)}`;
+  async function addLocations(){
+    const folder=zip.folder('QR-LIEUX');
+    if(!folder)throw new Error('ZIP_FOLDER_ERROR');
 
-    const filename=
-      `${safeFilename(location.externalId)}-${safeFilename(location.name)}`;
+    for(const location of pack.logistics.qrLocations??[]){
+      const url=
+        window.location.origin+
+        '/scan/'+
+        encodeURIComponent(location.externalId);
 
-    await addQrFiles(
-      locationsFolder,
-      filename,
-      url
-    );
+      const filename=
+        safeFilename(location.externalId)+
+        '-'+
+        safeFilename(location.name);
+
+      await addQrFiles(folder,filename,url);
+    }
   }
+
+  async function addAccess(){
+    if(!pack.session)throw new Error('PACK_SESSION_REQUIRED');
+
+    const folder=zip.folder('QR-ACCES-JOUEURS');
+    if(!folder)throw new Error('ZIP_FOLDER_ERROR');
+
+    const rows=pack.session.playerAccess??[];
+
+    for(const row of rows){
+      const url=
+        window.location.origin+
+        '/?player='+
+        encodeURIComponent(row.playerAccessToken);
+
+      const filename=
+        safeFilename(row.characterExternalId)+
+        '-'+
+        safeFilename(row.characterName);
+
+      await addQrFiles(folder,filename,url);
+    }
+
+    const escapeCsv=(value:any)=>
+      '"'+String(value??'').replace(/"/g,'""')+'"';
+
+    const csv=[
+      'Personnage,Joueur,Lien',
+      ...rows.map((row:any)=>{
+        const url=
+          window.location.origin+
+          '/?player='+
+          encodeURIComponent(row.playerAccessToken);
+
+        return [
+          escapeCsv(row.characterName),
+          escapeCsv(row.participantDisplayName),
+          escapeCsv(url),
+        ].join(',');
+      }),
+    ].join('\n');
+
+    folder.file('correspondance-joueurs.csv',csv);
+  }
+
+  if(kind==='full'||kind==='locations')await addLocations();
+  if(kind==='full'||kind==='characters')await addCharacters();
+  if(kind==='full'||kind==='access')await addAccess();
 
   const readme=[
-    'MURDER ENGINE — PACK QR',
+    'MURDER ENGINE — PACK ORGANISATEUR',
     '',
-    `Scénario : ${pack.scenario.title}`,
-    `Version : ${pack.scenario.versionLabel}`,
+    'Scénario : '+pack.scenario.title,
+    pack.session?'Session : '+pack.session.name:'Version : '+pack.scenario.versionLabel,
     '',
-    `QR personnages : ${pack.logistics.qrCharacters?.length??0}`,
-    `QR lieux : ${pack.logistics.qrLocations?.length??0}`,
+    'QR lieux et QR personnages : réutilisables entre sessions.',
+    'QR accès joueurs : propres à la session.',
     '',
-    'Chaque QR est fourni en :',
-    '- SVG vectoriel pour impression',
-    '- PNG haute résolution',
-    '',
-    'Les QR personnages sont statiques :',
-    'un même personnage conserve le même QR entre les sessions.',
-    '',
-    'Le QR identifie la cible. Le contexte de la session est',
-    'déterminé par le joueur connecté à Murder Engine.',
-    '',
+    'Les planches A4 sont accessibles depuis l’écran Pack MJ.',
   ].join('\n');
 
   zip.file('LISEZ-MOI.txt',readme);
@@ -161,19 +209,29 @@ async function downloadQrZip(pack:any){
   });
 
   const url=URL.createObjectURL(blob);
-
   const anchor=document.createElement('a');
-
   anchor.href=url;
+
+  const prefix=
+    kind==='locations'
+      ? 'QR-LIEUX'
+      : kind==='access'
+        ? 'QR-ACCES-JOUEURS'
+        : kind==='characters'
+          ? 'QR-PERSONNAGES'
+          : 'PACK-ORGANISATEUR';
+
   anchor.download=
-    pack.session
-      ? `QR-${safeFilename(pack.scenario.title)}-${safeFilename(pack.session.name||'session')}.zip`
-      : `QR-${safeFilename(pack.scenario.title)}-${safeFilename(pack.scenario.versionLabel)}.zip`;
+    prefix+
+    '-'+
+    safeFilename(pack.scenario.title)+
+    '-'+
+    safeFilename(pack.session?.name||pack.scenario.versionLabel)+
+    '.zip';
 
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-
   URL.revokeObjectURL(url);
 }
 
@@ -194,6 +252,7 @@ function CharacterSheets({pack,skinClass}:{pack:any;skinClass:string}){
 
         <header className="gmPrintHeader">
           <p>{pack.scenario.title} · {pack.scenario.era||''}</p>
+          {c.portrait?.source&&<img className="gmCharacterPortrait" src={c.portrait.source} alt={c.portrait.altText||c.name}/>}
           <h1>{c.name}</h1>
           <h2>{c.publicRole||'Personnage'}</h2>
           {c.narrativeAge&&<span>{c.narrativeAge}</span>}
@@ -205,41 +264,41 @@ function CharacterSheets({pack,skinClass}:{pack:any;skinClass:string}){
 
         <section>
           <h3>Mon histoire</h3>
-          <p>{c.biography||'—'}</p>
+          <NarrativeText text={c.biography||'—'} className="gmNarrativeText"/>
         </section>
 
         {c.interpretationNotes&&
           <section>
             <h3>Comment me la jouer</h3>
-            <p>{c.interpretationNotes}</p>
+            <NarrativeText text={c.interpretationNotes} className="gmNarrativeText"/>
           </section>
         }
 
         {c.appearanceNotes&&
           <section>
             <h3>Mon apparence</h3>
-            <p>{c.appearanceNotes}</p>
+            <NarrativeText text={c.appearanceNotes} className="gmNarrativeText"/>
           </section>
         }
 
         {c.secretIntro&&
           <section className="gmPrintSecret">
             <h3>Ce que vous seul savez</h3>
-            <p>{c.secretIntro}</p>
+            <NarrativeText text={c.secretIntro} className="gmNarrativeText compact"/>
           </section>
         }
 
         {c.apparentMotive&&
           <section>
             <h3>Ma position</h3>
-            <p>{c.apparentMotive}</p>
+            <NarrativeText text={c.apparentMotive} className="gmNarrativeText compact"/>
           </section>
         }
 
         {c.personalTimeline&&
           <section>
             <h3>Ma chronologie</h3>
-            <p>{c.personalTimeline}</p>
+            <NarrativeText text={c.personalTimeline} className="gmNarrativeText"/>
           </section>
         }
 
@@ -398,11 +457,307 @@ function LabelsPrint({pack,skinClass}:{pack:any;skinClass:string}){
   </main>;
 }
 
+function QrSheetPrint({
+  pack,
+  skinClass,
+  mode,
+}:{
+  pack:any;
+  skinClass:string;
+  mode:'locations'|'access'|'characters';
+}){
+  const locationItems=(pack.logistics?.qrLocations??[]).map((x:any)=>({
+    key:x.externalId,
+    name:x.name,
+    subtitle:x.externalId,
+    url:window.location.origin+'/scan/'+encodeURIComponent(x.externalId),
+    portrait:null,
+  }));
+
+  const accessItems=(pack.session?.playerAccess??[]).map((x:any)=>({
+    key:x.characterExternalId,
+    name:x.characterName,
+    subtitle:x.participantDisplayName,
+    url:window.location.origin+'/?player='+encodeURIComponent(x.playerAccessToken),
+    portrait:null,
+  }));
+
+  const characterItems=(pack.logistics?.qrCharacters??[]).map((x:any)=>({
+    key:x.externalId,
+    name:x.name,
+    subtitle:x.publicRole||x.externalId,
+    url:window.location.origin+'/scan/character/'+encodeURIComponent(x.externalId),
+    portrait:x.portrait?.source||null,
+  }));
+
+  const items=
+    mode==='locations'
+      ? locationItems
+      : mode==='access'
+        ? accessItems
+        : characterItems;
+
+  const title=
+    mode==='locations'
+      ? 'QR des lieux'
+      : mode==='access'
+        ? 'QR accès joueurs · cette session'
+        : 'QR personnages · interactions';
+
+  return <main className={'gmPrintRoot '+skinClass}>
+    <PrintControls/>
+
+    <article className="gmPrintPage gmQrSheetPage">
+      <header className="gmPrintHeader">
+        <p>MURDER ENGINE · PLANCHES A4</p>
+        <h1>{title}</h1>
+        <h2>{pack.scenario.title}</h2>
+      </header>
+
+      <div className={mode==='characters'?'gmQrSheetGrid illustrated':'gmQrSheetGrid'}>
+        {items.map((item:any)=>
+          <article className="gmQrSheetCard" key={item.key}>
+            {item.portrait&&
+              <img className="gmQrSheetPortrait" src={item.portrait} alt={item.name}/>
+            }
+            <QRCodeSVG value={item.url} size={mode==='characters'?126:150} level="M" includeMargin/>
+            <strong>{item.name}</strong>
+            <small>{item.subtitle}</small>
+          </article>
+        )}
+      </div>
+    </article>
+  </main>;
+}
+
+function OrganizerDossier({
+  pack,
+  skinClass,
+}:{
+  pack:any;
+  skinClass:string;
+}){
+  const characters=pack.printables?.characterSheets??[];
+  const clues=pack.materials?.clues??[];
+  const plots=pack.preparation?.plots??pack.materials?.plots??[];
+  const events=pack.preparation?.events??[];
+  const locations=new Map(
+    (pack.materials?.locations??[]).map((x:any)=>[x.externalId,x.name])
+  );
+  const objects=new Map(
+    (pack.materials?.objects??[]).map((x:any)=>[x.externalId,x.name])
+  );
+  const documents=new Map(
+    (pack.materials?.documents??[]).map((x:any)=>[x.externalId,x.title])
+  );
+  const plotNames=new Map(
+    plots.map((x:any)=>[x.externalId,x.title])
+  );
+
+  const clueWhere=(clue:any)=>{
+    if(clue.locationExternalId)
+      return 'Lieu : '+(locations.get(clue.locationExternalId)||clue.locationExternalId);
+    if(clue.objectExternalId)
+      return 'Objet : '+(objects.get(clue.objectExternalId)||clue.objectExternalId);
+    if(clue.documentExternalId)
+      return 'Document : '+(documents.get(clue.documentExternalId)||clue.documentExternalId);
+    return clue.acquisition?.label||'À préciser';
+  };
+
+  return <main className={'gmPrintRoot '+skinClass}>
+    <PrintControls/>
+
+    <article className="gmPrintPage gmDossierCover">
+      <header className="gmPrintHeader">
+        <p>MURDER ENGINE · DOSSIER MJ</p>
+        <h1>{pack.scenario.title}</h1>
+        <h2>{pack.session?.name||('Version '+pack.scenario.versionLabel)}</h2>
+      </header>
+
+      <section>
+        <h3>Brief MJ — la vérité à garder en tête</h3>
+        <NarrativeText
+          text={pack.preparation?.brief?.gmSummary||pack.preparation?.gmSummary||'—'}
+          className="gmNarrativeText"
+        />
+      </section>
+
+      <section className="gmBriefMetrics">
+        <h3>Repères immédiats</h3>
+        <div>
+          <span><strong>{characters.length}</strong> personnages</span>
+          <span><strong>{plots.length}</strong> intrigues</span>
+          <span><strong>{clues.filter((x:any)=>x.major).length}</strong> indices majeurs</span>
+          <span><strong>{events.length}</strong> événements live</span>
+        </div>
+      </section>
+
+      {pack.preparation?.brief?.essentialPlots?.length>0&&
+        <section>
+          <h3>Intrigues essentielles</h3>
+          <ul>
+            {pack.preparation.brief.essentialPlots.map((plot:any)=>
+              <li key={plot.externalId}>
+                <strong>{plot.title}</strong> — {plot.gmSummary}
+              </li>
+            )}
+          </ul>
+        </section>
+      }
+    </article>
+
+    <article className="gmPrintPage gmDossierTimeline">
+      <header className="gmPrintHeader">
+        <p>DOSSIER MJ · CONDUITE</p>
+        <h1>Chronologie de la partie</h1>
+        <h2>{events.length} événement(s) programmé(s)</h2>
+      </header>
+
+      <div className="gmDossierTimelineList">
+        {events.length===0
+          ? <p>Aucun événement programmé.</p>
+          : events.map((event:any)=>
+            <section key={event.externalId}>
+              <strong>
+                {event.absoluteTime||
+                  (event.delayMinutes!=null?'+ '+event.delayMinutes+' min':'Déclencheur')}
+              </strong>
+              <div>
+                <h3>{event.title}</h3>
+                <p>{event.gmDescription}</p>
+                {event.fallbackGm&&<small>Plan B : {event.fallbackGm}</small>}
+              </div>
+            </section>
+          )
+        }
+      </div>
+    </article>
+
+    <article className="gmPrintPage gmDossierPlots">
+      <header className="gmPrintHeader">
+        <p>DOSSIER MJ · STRUCTURE</p>
+        <h1>Tableau des intrigues</h1>
+        <h2>{plots.length} intrigue(s)</h2>
+      </header>
+
+      <div className="gmDossierPlotList">
+        {plots.map((plot:any)=>
+          <section key={plot.externalId}>
+            <div className="gmDossierPlotTitle">
+              <h3>{plot.title}</h3>
+              <span>{plot.plotType} · {plot.importance}</span>
+            </div>
+            <p>{plot.gmSummary}</p>
+            <p>
+              <strong>Personnages :</strong>{' '}
+              {plot.characters?.length
+                ? plot.characters.map((x:any)=>x.name).join(', ')
+                : '—'}
+            </p>
+            <p>
+              <strong>Indices :</strong>{' '}
+              {plot.clues?.length??0}
+              {plot.majorClueCount?(' dont '+plot.majorClueCount+' majeur(s)'):''}
+            </p>
+          </section>
+        )}
+      </div>
+    </article>
+
+    {characters.map((character:any)=>
+      <article className="gmPrintPage gmDossierCharacter" key={character.externalId}>
+        <header className="gmPrintHeader">
+          {character.portrait?.source&&
+            <img
+              className="gmCharacterPortrait"
+              src={character.portrait.source}
+              alt={character.name}
+            />
+          }
+          <p>PERSONNAGE · SYNTHÈSE MJ</p>
+          <h1>{character.name}</h1>
+          <h2>{character.publicRole||'Personnage'}</h2>
+          {character.participantDisplayName&&
+            <span>Joué par {character.participantDisplayName}</span>
+          }
+        </header>
+
+        <section>
+          <h3>En bref</h3>
+          {character.dramaticFunction&&
+            <p><strong>Fonction dramatique :</strong> {character.dramaticFunction}</p>
+          }
+          {character.apparentMotive&&
+            <p><strong>Position / mobile apparent :</strong> {character.apparentMotive}</p>
+          }
+          {character.secretIntro&&<>
+            <h4>Secret / connaissance sensible</h4>
+            <NarrativeText
+              text={character.secretIntro}
+              className="gmNarrativeText compact"
+            />
+          </>}
+        </section>
+
+        <section>
+          <h3>Objectifs</h3>
+          <ul>
+            {(character.objectives??[]).map((o:any)=>
+              <li key={o.externalId}>
+                <strong>{o.title}</strong> — {o.description}
+              </li>
+            )}
+          </ul>
+        </section>
+
+        <section>
+          <h3>Relations clés</h3>
+          {(character.relationships??[]).map((rel:any)=>
+            <p key={rel.externalId}>
+              <strong>{rel.otherName}</strong> — {rel.text}
+            </p>
+          )}
+        </section>
+      </article>
+    )}
+
+    <article className="gmPrintPage gmDossierClues">
+      <header className="gmPrintHeader">
+        <p>DOSSIER MJ</p>
+        <h1>Index des indices</h1>
+        <h2>{clues.length} éléments</h2>
+      </header>
+
+      <div className="gmClueIndex">
+        {clues.map((clue:any)=>
+          <section className="gmClueIndexRow" key={clue.externalId}>
+            <h3>{clue.major?'★ ':''}{clue.playerName}</h3>
+            <small>
+              {clue.externalId} · {clue.clueType} · {clue.support}
+              {clue.plotExternalId&&<> · {plotNames.get(clue.plotExternalId)||clue.plotExternalId}</>}
+            </small>
+            <div className="gmClueMetaLine">
+              <span className={'gmClueMode '+String(clue.acquisition?.type||'').toLowerCase()}>
+                {clue.acquisition?.label||'À préciser'}
+              </span>
+              <span>{clueWhere(clue)}</span>
+            </div>
+            <p>{clue.playerText}</p>
+            {clue.gmInterpretation&&
+              <p><strong>Lecture MJ :</strong> {clue.gmInterpretation}</p>
+            }
+          </section>
+        )}
+      </div>
+    </article>
+  </main>;
+}
+
 export default function GmPackView({versionId,sessionId}:Props){
   const [pack,setPack]=useState<any|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
-  const [qrZipBusy,setQrZipBusy]=useState(false);
+  const [productionBusy,setProductionBusy]=useState('');
 
   useEffect(()=>{
     let alive=true;
@@ -414,9 +769,22 @@ export default function GmPackView({versionId,sessionId}:Props){
             ? `/api/sessions/gm-pack?sessionId=${encodeURIComponent(sessionId)}`
             : `/api/library/gm-pack?versionId=${encodeURIComponent(versionId??'')}`;
 
+        const init:RequestInit={};
+
+        if(sessionId){
+          const token=await organizerToken(true);
+          if(!token)
+            throw new Error('ORGANIZER_AUTH_REQUIRED');
+
+          init.headers={
+            authorization:'Bearer '+token,
+          };
+        }
+
         const r=
           await fetchJson<{ok:boolean;pack:any}>(
-            apiUrl
+            apiUrl,
+            init
           );
         if(!r?.pack)
           throw new Error(
@@ -455,6 +823,18 @@ export default function GmPackView({versionId,sessionId}:Props){
 
   if(printMode==='labels')
     return <LabelsPrint pack={pack} skinClass={skinClass}/>;
+
+  if(printMode==='dossier')
+    return <OrganizerDossier pack={pack} skinClass={skinClass}/>;
+
+  if(printMode==='qr-locations')
+    return <QrSheetPrint pack={pack} skinClass={skinClass} mode="locations"/>;
+
+  if(printMode==='qr-access')
+    return <QrSheetPrint pack={pack} skinClass={skinClass} mode="access"/>;
+
+  if(printMode==='qr-characters')
+    return <QrSheetPrint pack={pack} skinClass={skinClass} mode="characters"/>;
 
   const s=pack.scenario;
   const c=pack.counts;
@@ -503,27 +883,6 @@ export default function GmPackView({versionId,sessionId}:Props){
           ✉ Étiquettes
         </button>
 
-        <button
-          disabled={qrZipBusy}
-          onClick={async()=>{
-            setQrZipBusy(true);
-
-            try{
-              await downloadQrZip(pack);
-            }catch(error){
-              alert(
-                error instanceof Error
-                  ? error.message
-                  : 'Impossible de générer le ZIP.'
-              );
-            }finally{
-              setQrZipBusy(false);
-            }
-          }}
-        >
-          {qrZipBusy?'⏳ Préparation…':'⬇ ZIP de tous les QR'}
-        </button>
-
         <button onClick={()=>window.print()}>
           🖨 Imprimer le Pack
         </button>
@@ -532,6 +891,131 @@ export default function GmPackView({versionId,sessionId}:Props){
       </div>
     </header>
 
+
+    {pack.session&&<section className="gmPackProduction">
+      <div className="gmPackProductionHead">
+        <div>
+          <p className="gmPackKicker">PRODUCTION DE SESSION</p>
+          <h2>Préparer cette partie</h2>
+          <p>
+            Les QR lieux et personnages sont réutilisables entre sessions.
+            Les QR d’accès joueurs sont propres à cette session.
+          </p>
+        </div>
+      </div>
+
+      <div className="gmPackProductionGrid">
+        <article>
+          <strong>📦 Pack complet</strong>
+          <span>Les 3 familles de QR pour cette session.</span>
+          <button disabled={Boolean(productionBusy)} onClick={async()=>{
+            setProductionBusy('full');
+            try{
+              await downloadQrZip(pack,'full');
+            }catch(e){
+              alert(e instanceof Error?e.message:String(e));
+            }finally{
+              setProductionBusy('');
+            }
+          }}>
+            Télécharger le ZIP complet
+          </button>
+        </article>
+
+        <article>
+          <strong>📍 QR lieux</strong>
+          <span>QR statiques, réutilisables.</span>
+          <div>
+            <button disabled={Boolean(productionBusy)} onClick={async()=>{
+              setProductionBusy('locations');
+              try{
+                await downloadQrZip(pack,'locations');
+              }catch(e){
+                alert(e instanceof Error?e.message:String(e));
+              }finally{
+                setProductionBusy('');
+              }
+            }}>
+              ZIP
+            </button>
+            <button className="secondary" onClick={()=>
+              window.open(printUrl(versionId,'qr-locations',sessionId),'_blank')
+            }>
+              Planche A4
+            </button>
+          </div>
+        </article>
+
+        <article>
+          <strong>👤 Accès joueurs</strong>
+          <span>{pack.session.playerAccess?.length??0} QR personnels de cette session.</span>
+          <div>
+            <button
+              disabled={Boolean(productionBusy)||!(pack.session.playerAccess?.length)}
+              onClick={async()=>{
+                setProductionBusy('access');
+                try{
+                  await downloadQrZip(pack,'access');
+                }catch(e){
+                  alert(e instanceof Error?e.message:String(e));
+                }finally{
+                  setProductionBusy('');
+                }
+              }}
+            >
+              ZIP
+            </button>
+            <button
+              className="secondary"
+              disabled={!(pack.session.playerAccess?.length)}
+              onClick={()=>window.open(printUrl(versionId,'qr-access',sessionId),'_blank')}
+            >
+              Planche A4
+            </button>
+          </div>
+        </article>
+
+        <article>
+          <strong>🎭 QR personnages</strong>
+          <span>QR d’interaction + portraits attribués.</span>
+          <div>
+            <button disabled={Boolean(productionBusy)} onClick={async()=>{
+              setProductionBusy('characters');
+              try{
+                await downloadQrZip(pack,'characters');
+              }catch(e){
+                alert(e instanceof Error?e.message:String(e));
+              }finally{
+                setProductionBusy('');
+              }
+            }}>
+              ZIP
+            </button>
+            <button className="secondary" onClick={()=>
+              window.open(printUrl(versionId,'qr-characters',sessionId),'_blank')
+            }>
+              Cartes A4 illustrées
+            </button>
+          </div>
+        </article>
+
+        <article className="gmPackProductionDossier">
+          <strong>📘 Dossier MJ</strong>
+          <span>Résumé, synthèse des personnages et index des indices.</span>
+          <button onClick={()=>
+            window.open(printUrl(versionId,'dossier',sessionId),'_blank')
+          }>
+            Ouvrir / enregistrer en PDF
+          </button>
+        </article>
+      </div>
+
+      {productionBusy&&
+        <p className="gmPackProductionBusy">
+          Préparation du fichier…
+        </p>
+      }
+    </section>}
 
     <section className="gmPackCounters">
       <article><strong>{c.characters}</strong><span>Personnages</span></article>
@@ -596,8 +1080,14 @@ export default function GmPackView({versionId,sessionId}:Props){
       <h2>Ce que le MJ doit savoir</h2>
 
       <div className="gmPackPaper">
-        <h3>Résumé MJ</h3>
-        <p>{pack.preparation.gmSummary||'Aucun résumé MJ renseigné.'}</p>
+        <h3>Brief MJ</h3>
+        <p>{pack.preparation.brief?.gmSummary||pack.preparation.gmSummary||'Aucun résumé MJ renseigné.'}</p>
+
+        <div className="gmPackBriefStats">
+          <span><strong>{pack.preparation.plots?.length??0}</strong> intrigues</span>
+          <span><strong>{pack.logistics.majorClues?.length??0}</strong> indices majeurs</span>
+          <span><strong>{pack.preparation.events?.length??0}</strong> événements</span>
+        </div>
       </div>
     </section>
 
@@ -631,7 +1121,30 @@ export default function GmPackView({versionId,sessionId}:Props){
 
 
     <section className="gmPackSection">
-      <p className="gmPackKicker">03 · MATÉRIEL</p>
+      <p className="gmPackKicker">03 · INTRIGUES</p>
+      <h2>Carte narrative</h2>
+
+      <div className="gmPackPlotGrid">
+        {(pack.preparation.plots??[]).map((plot:any)=>
+          <article key={plot.externalId} className={String(plot.importance||'').toLowerCase()}>
+            <div>
+              <h3>{plot.title}</h3>
+              <small>{plot.plotType} · {plot.importance}</small>
+            </div>
+            <p>{plot.gmSummary}</p>
+            <footer>
+              <span>{plot.characters?.length??0} personnage(s)</span>
+              <span>{plot.clues?.length??0} indice(s)</span>
+              {plot.majorClueCount>0&&<strong>{plot.majorClueCount} majeur(s)</strong>}
+            </footer>
+          </article>
+        )}
+      </div>
+    </section>
+
+
+    <section className="gmPackSection">
+      <p className="gmPackKicker">04 · MATÉRIEL</p>
       <h2>Préparation physique</h2>
 
       <div className="gmPackTwoCols">
@@ -659,7 +1172,7 @@ export default function GmPackView({versionId,sessionId}:Props){
 
 
     <section className="gmPackSection gmPackQrSection">
-      <p className="gmPackKicker">04 · QR PERSONNAGES</p>
+      <p className="gmPackKicker">05 · QR PERSONNAGES</p>
       <h2>QR statiques</h2>
 
       <div className="gmPackQrGrid">
@@ -677,7 +1190,7 @@ export default function GmPackView({versionId,sessionId}:Props){
 
 
     <section className="gmPackSection gmPackQrSection">
-      <p className="gmPackKicker">05 · QR LIEUX</p>
+      <p className="gmPackKicker">06 · QR LIEUX</p>
       <h2>Lieux de jeu</h2>
 
       <div className="gmPackQrGrid">
@@ -695,7 +1208,32 @@ export default function GmPackView({versionId,sessionId}:Props){
 
 
     <section className="gmPackSection">
-      <p className="gmPackKicker">06 · CONTRÔLE</p>
+      <p className="gmPackKicker">07 · INDICES</p>
+      <h2>Modes d’obtention</h2>
+
+      <div className="gmClueModeSummary">
+        {Object.entries(
+          (pack.materials.clues??[]).reduce((acc:any,clue:any)=>{
+            const label=clue.acquisition?.label||'À préciser';
+            acc[label]=(acc[label]||0)+1;
+            return acc;
+          },{})
+        ).map(([label,count]:any)=>
+          <article key={label}>
+            <strong>{count}</strong>
+            <span>{label}</span>
+          </article>
+        )}
+      </div>
+
+      <p className="gmPackMicroNote">
+        Le détail complet, avec intrigue, emplacement et lecture MJ, se trouve dans le Dossier MJ / PDF.
+      </p>
+    </section>
+
+
+    <section className="gmPackSection">
+      <p className="gmPackKicker">08 · CONTRÔLE</p>
       <h2>Points d’attention</h2>
 
       {!pack.diagnostics.length

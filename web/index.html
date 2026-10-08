@@ -1,5 +1,61 @@
 <!doctype html>
 <html lang="fr">
-  <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Murder Engine — Importateur</title></head>
-  <body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Murder Engine</title>
+  </head>
+  <body>
+    <div id="root">
+      <main style="max-width:720px;margin:0 auto;padding:32px 18px;font-family:system-ui,sans-serif;color:#eee;background:#111318;min-height:100vh;box-sizing:border-box">
+        <p style="opacity:.65;letter-spacing:.08em">MURDER ENGINE</p>
+        <h1 style="font-size:1.6rem">Chargement…</h1>
+        <p style="opacity:.8">Loading…</p>
+      </main>
+    </div>
+
+    <script>
+      (function(){
+        function showBootError(message){
+          var root=document.getElementById('root');
+          if(!root)return;
+          root.innerHTML=
+            '<main style="max-width:720px;margin:0 auto;padding:32px 18px;font-family:system-ui,sans-serif;color:#eee;background:#111318;min-height:100vh;box-sizing:border-box">'+
+            '<p style="opacity:.65;letter-spacing:.08em">MURDER ENGINE</p>'+
+            '<h1 style="font-size:1.6rem">Erreur de chargement</h1>'+
+            '<p style="padding:12px;border-radius:10px;background:#451f24;border:1px solid #913d49">'+
+            String(message||'BOOT_ERROR').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];})+
+            '</p>'+
+            '<button onclick="location.reload()" style="padding:12px 16px;border:0;border-radius:10px;font-weight:700">Recharger</button>'+
+            '</main>';
+        }
+
+        window.addEventListener('error',function(event){
+          var target=event.target;
+          if(target && target !== window && target.src){
+            showBootError('Impossible de charger : '+target.src);
+            return;
+          }
+          if(event.message)showBootError(event.message);
+        },true);
+
+        window.addEventListener('unhandledrejection',function(event){
+          var reason=event.reason;
+          showBootError(reason && reason.message ? reason.message : String(reason||'UNHANDLED_REJECTION'));
+        });
+
+        window.setTimeout(function(){
+          var root=document.getElementById('root');
+          if(root && /Chargement/.test(root.textContent||'')){
+            showBootError('L’application JavaScript ne s’est pas chargée. Rechargez cette page.');
+          }
+        },7000);
+      })();
+    </script>
+
+    <script defer src="/__/firebase/8.10.1/firebase-app.js"></script>
+    <script defer src="/__/firebase/8.10.1/firebase-auth.js"></script>
+    <script defer src="/__/firebase/init.js"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

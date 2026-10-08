@@ -292,6 +292,13 @@
         }
       },
       {
+        "source": "/api/sessions/live/business-deal",
+        "function": {
+          "functionId": "validateLiveBusinessDeal",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/sessions/interactions",
         "function": {
           "functionId": "getInteractionState",
@@ -418,6 +425,13 @@
         }
       },
       {
+        "source": "/api/player/clue/share",
+        "function": {
+          "functionId": "sharePublicPlayerClue",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/player/object",
         "function": {
           "functionId": "transferPublicPlayerObject",
@@ -453,8 +467,76 @@
         }
       },
       {
+        "source": "/api/media/library",
+        "function": {
+          "functionId": "getMediaLibraryView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/media/upload",
+        "function": {
+          "functionId": "uploadMediaLibraryAssetView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/media/assign",
+        "function": {
+          "functionId": "setScenarioMediaOverrideView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/media/delete",
+        "function": {
+          "functionId": "deleteMediaLibraryAssetView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/scan/**",
+        "destination": "/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "/scan/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          },
+          {
+            "key": "Pragma",
+            "value": "no-cache"
+          },
+          {
+            "key": "Expires",
+            "value": "0"
+          }
+        ]
+      },
+      {
+        "source": "/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          },
+          {
+            "key": "Pragma",
+            "value": "no-cache"
+          },
+          {
+            "key": "Expires",
+            "value": "0"
+          }
+        ]
       }
     ]
   },

@@ -62,18 +62,52 @@ test('participant defaults to active involvement and no casting', async () => {
   assert.equal(write.vars.data.active,true);
 });
 
-test('casting prevents the same character from being assigned twice', async () => {
-  await assert.rejects(() => assignCharacterToParticipant('S1','P2','CHAR_A',{
+test('casting can move an already assigned character to another participant', async () => {
+  let write;
+  const out=await assignCharacterToParticipant('S1','P2','CHAR_A',{
     reader: async () => ({ gameSession:{
       id:'S1',
-      scenarioVersion:{characters_on_scenarioVersion:[{externalId:'CHAR_A',playable:true,active:true}]},
+      scenarioVersion:{characters_on_scenarioVersion:[
+        {externalId:'CHAR_A',playable:true,active:true},
+        {externalId:'CHAR_B',playable:true,active:true},
+      ]},
       sessionParticipants_on_gameSession:[
         {id:'P1',displayName:'A',active:true,characterExternalId:'CHAR_A'},
         {id:'P2',displayName:'B',active:true,characterExternalId:null},
       ],
     }}),
-    executor: async()=>({}),
-  }), /CHARACTER_ALREADY_ASSIGNED/);
+    executor: async(op,vars)=>{write={op,vars};return {};},
+  });
+  assert.equal(out.reassigned,true);
+  assert.equal(out.characterExternalId,'CHAR_A');
+  assert.equal(out.previousHolderParticipantId,'P1');
+  assert.equal(out.previousHolderCharacterExternalId,null);
+  assert.match(write.op,/ReassignSessionCharacter/);
+  assert.equal(write.vars.conflictParticipantId,'P1');
+  assert.equal(write.vars.replacementCharacterExternalId,null);
+});
+
+test('casting swaps roles when both participants already have a character', async () => {
+  let write;
+  const out=await assignCharacterToParticipant('S1','P2','CHAR_A',{
+    reader: async () => ({ gameSession:{
+      id:'S1',
+      scenarioVersion:{characters_on_scenarioVersion:[
+        {externalId:'CHAR_A',playable:true,active:true},
+        {externalId:'CHAR_B',playable:true,active:true},
+      ]},
+      sessionParticipants_on_gameSession:[
+        {id:'P1',displayName:'A',active:true,characterExternalId:'CHAR_A'},
+        {id:'P2',displayName:'B',active:true,characterExternalId:'CHAR_B'},
+      ],
+    }}),
+    executor: async(op,vars)=>{write={op,vars};return {};},
+  });
+  assert.equal(out.reassigned,true);
+  assert.equal(out.previousHolderParticipantId,'P1');
+  assert.equal(out.previousHolderCharacterExternalId,'CHAR_B');
+  assert.equal(write.vars.replacementCharacterExternalId,'CHAR_B');
+  assert.equal(write.vars.replacementCastingLocked,true);
 });
 
 test('manual participant creation is locked after runtime initialization', async () => {

@@ -14,11 +14,17 @@ import { listScenarioLibrary, getScenarioVersionOverview, getCharacterDetail, se
 import { getGmPack } from './gm-pack.mjs';
 import { listGameSessions, getGameSession, createGameSession, addGameSessionParticipant, assignCharacterToParticipant, setGameSessionStatus, updateGameSessionDetails, setGameSessionArchived, deleteGameSession, configureGameSessionPrecast, getPublicPrecastSession, submitPublicPrecast, getSessionSetupAssistant, applySessionCastingAssignments } from './sessions.mjs';
 import { initializeSessionRuntime, getSessionRuntime } from './runtime.mjs';
-import { getLiveDashboard, controlLiveSession, changeLiveResource, setLiveCharacterState, setLiveEventStatus } from './live.mjs';
+import { getLiveDashboard, controlLiveSession, changeLiveResource, setLiveCharacterState, setLiveEventStatus, validateBusinessDeal } from './live.mjs';
 import { getInteractionDashboard, executeInteraction, revealClueToCharacter, transferSessionObject } from './interactions.mjs';
 import { getVoteDashboard, openSessionVote, castSessionBallot, closeSessionVote } from './votes.mjs';
-import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
+import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, sharePlayerClue, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
 import { updateScenarioAppearanceFamily } from './scenario-appearance.mjs';
+import {
+  listMediaLibrary,
+  uploadMediaLibraryAsset,
+  deleteMediaLibraryAsset,
+  setScenarioMediaOverride
+} from './media-library.mjs';
 import { purgeGameSession, purgeScenarioFamily } from './cleanup.mjs';
 import {
   listPrecastCampaigns,
@@ -141,6 +147,48 @@ export const commitImport = onRequest({ region: 'europe-west1', cors: true, maxI
 });
 
 
+async function requireOrganizerAuth(req,res){
+  const authorization=String(req.header('authorization')??'').trim();
+  const match=authorization.match(/^Bearer\s+(.+)$/i);
+
+  if(!match){
+    res.status(401).json({error:'ORGANIZER_AUTH_REQUIRED'});
+    return null;
+  }
+
+  try{
+    const [{initializeApp,getApps},{getAuth}]=await Promise.all([
+      import('firebase-admin/app'),
+      import('firebase-admin/auth'),
+    ]);
+
+    if(!getApps().length)initializeApp();
+
+    const decoded=await getAuth().verifyIdToken(match[1],true);
+    const email=String(decoded?.email??'').trim().toLowerCase();
+
+    const allowedEmails=new Set(
+      String(process.env.ORGANIZER_EMAILS??'gkerckhofs@gmail.com')
+        .split(',')
+        .map(v=>v.trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    if(!decoded?.email_verified || !allowedEmails.has(email)){
+      res.status(403).json({error:'ORGANIZER_NOT_ALLOWED'});
+      return null;
+    }
+
+    return decoded;
+  }catch(error){
+    logger.warn('Organizer auth rejected',{
+      message:error instanceof Error?error.message:String(error),
+    });
+    res.status(401).json({error:'ORGANIZER_AUTH_INVALID'});
+    return null;
+  }
+}
+
 function requireGet(req, res) {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
@@ -148,6 +196,158 @@ function requireGet(req, res) {
   }
   return true;
 }
+
+export const getMediaLibraryView = onRequest(
+  { region:'europe-west1', cors:true, invoker:'public', maxInstances:5, timeoutSeconds:60 },
+  async (req,res)=>{
+    if (!requireGet(req,res)) return;
+    if(!await requireOrganizerAuth(req,res)) return;
+
+    const versionId=String(req.query.versionId??'').trim();
+    if(!versionId)
+      return res.status(400).json({error:'VERSION_ID_REQUIRED'});
+
+    try{
+      const library=await listMediaLibrary(versionId);
+      return res.status(200).json({ok:true,...library});
+    }catch(error){
+      logger.error('Media library read failed',error);
+      return res.status(500).json({
+        error:'MEDIA_LIBRARY_READ_FAILED',
+        message:error instanceof Error?error.message:String(error),
+        details:error?.details??undefined,
+      });
+    }
+  }
+);
+
+export const uploadMediaLibraryAssetView = onRequest(
+  {
+    region:'europe-west1',
+    cors:true,
+    invoker:'public',
+    maxInstances:3,
+    timeoutSeconds:120,
+    memory:'512MiB',
+  },
+  async (req,res)=>{
+    if(req.method!=='POST')
+      return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
+    if(!await requireOrganizerAuth(req,res)) return;
+
+    const versionId=String(req.header('x-version-id')??'').trim();
+    if(!versionId)
+      return res.status(400).json({error:'VERSION_ID_REQUIRED'});
+
+    try{
+      const asset=await uploadMediaLibraryAsset(versionId,{
+        raw:req.rawBody,
+        filename:req.header('x-file-name')??'image',
+        contentType:req.header('content-type')??'',
+        label:req.header('x-media-label')??req.header('x-file-name')??'Image',
+        category:req.header('x-media-category')??'GENERAL',
+        tags:req.header('x-media-tags')??'',
+        altText:req.header('x-media-alt')??'',
+        skinId:req.header('x-skin-id')??'',
+      });
+
+      return res.status(201).json({ok:true,asset});
+    }catch(error){
+      logger.error('Media library upload failed',error);
+      const status=
+        error instanceof Error &&
+        ['IMAGE_MEDIA_REQUIRED','EMPTY_MEDIA_FILE','MEDIA_FILE_TOO_LARGE','INVALID_MEDIA_CATEGORY']
+          .includes(error.message)
+          ? 400
+          : 500;
+
+      return res.status(status).json({
+        error:'MEDIA_LIBRARY_UPLOAD_FAILED',
+        message:error instanceof Error?error.message:String(error),
+        details:error?.details??undefined,
+      });
+    }
+  }
+);
+
+export const deleteMediaLibraryAssetView = onRequest(
+  { region:'europe-west1', cors:true, invoker:'public', maxInstances:5, timeoutSeconds:60 },
+  async (req,res)=>{
+    if(req.method!=='POST')
+      return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
+    if(!await requireOrganizerAuth(req,res)) return;
+
+    const versionId=String(req.body?.versionId??'').trim();
+    const assetExternalId=String(req.body?.assetExternalId??'').trim();
+
+    if(!versionId)
+      return res.status(400).json({error:'VERSION_ID_REQUIRED'});
+    if(!assetExternalId)
+      return res.status(400).json({error:'MEDIA_ASSET_ID_REQUIRED'});
+
+    try{
+      const result=await deleteMediaLibraryAsset(
+        versionId,
+        assetExternalId
+      );
+
+      return res.status(200).json({ok:true,...result});
+    }catch(error){
+      logger.error('Media library delete failed',error);
+      const status=
+        error instanceof Error &&
+        ['MEDIA_ASSET_ID_REQUIRED','MEDIA_ASSET_NOT_FOUND']
+          .includes(error.message)
+          ? 400
+          : 500;
+
+      return res.status(status).json({
+        error:'MEDIA_LIBRARY_DELETE_FAILED',
+        message:error instanceof Error?error.message:String(error),
+        details:error?.details??undefined,
+      });
+    }
+  }
+);
+
+
+export const setScenarioMediaOverrideView = onRequest(
+  { region:'europe-west1', cors:true, invoker:'public', maxInstances:5, timeoutSeconds:60 },
+  async (req,res)=>{
+    if(req.method!=='POST')
+      return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
+    if(!await requireOrganizerAuth(req,res)) return;
+
+    const versionId=String(req.body?.versionId??'').trim();
+    if(!versionId)
+      return res.status(400).json({error:'VERSION_ID_REQUIRED'});
+
+    try{
+      const result=await setScenarioMediaOverride(versionId,{
+        targetType:req.body?.targetType,
+        targetExternalId:req.body?.targetExternalId,
+        assetExternalId:req.body?.assetExternalId,
+      });
+
+      return res.status(200).json({ok:true,...result});
+    }catch(error){
+      logger.error('Scenario media override failed',error);
+      const status=
+        error instanceof Error &&
+        ['INVALID_MEDIA_TARGET_TYPE','TARGET_EXTERNAL_ID_REQUIRED','MEDIA_ASSET_NOT_FOUND']
+          .includes(error.message)
+          ? 400
+          : 500;
+
+      return res.status(status).json({
+        error:'SCENARIO_MEDIA_OVERRIDE_FAILED',
+        message:error instanceof Error?error.message:String(error),
+        details:error?.details??undefined,
+      });
+    }
+  }
+);
+
 
 export const listScenarios = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   if (!requireGet(req, res)) return;
@@ -273,14 +473,16 @@ function requirePostJson(req, res) {
   return req.body ?? {};
 }
 
-export const purgeSessionView = onRequest({ region:'europe-west1', cors:true, maxInstances:3, timeoutSeconds:180 }, async (req,res)=>{
+export const purgeSessionView = onRequest({ region:'europe-west1', cors:true, invoker:'public', maxInstances:3, timeoutSeconds:180 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
+  if(!await requireOrganizerAuth(req,res)) return;
   try { return res.status(200).json({ok:true,result:await purgeGameSession(String(body.sessionId??'').trim())}); }
   catch(error){ logger.error('Session purge failed',error); return res.status(400).json({error:'SESSION_PURGE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const purgeScenarioView = onRequest({ region:'europe-west1', cors:true, maxInstances:2, timeoutSeconds:300 }, async (req,res)=>{
+export const purgeScenarioView = onRequest({ region:'europe-west1', cors:true, invoker:'public', maxInstances:2, timeoutSeconds:300 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
+  if(!await requireOrganizerAuth(req,res)) return;
   try { return res.status(200).json({ok:true,result:await purgeScenarioFamily(String(body.scenarioId??'').trim())}); }
   catch(error){ logger.error('Scenario purge failed',error); return res.status(400).json({error:'SCENARIO_PURGE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
@@ -580,6 +782,59 @@ export const updateLiveEvent = onRequest({ region:'europe-west1', cors:true, max
   catch(error){ logger.error('Live event update failed',error); return res.status(400).json({error:'LIVE_EVENT_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
+export const validateLiveBusinessDeal = onRequest(
+  { region:'europe-west1', cors:true, invoker:'public', maxInstances:8, timeoutSeconds:60 },
+  async (req,res)=>{
+    const body=requirePostJson(req,res); if(!body)return;
+    if(!await requireOrganizerAuth(req,res)) return;
+
+    try{
+      const result=await validateBusinessDeal(
+        String(body.sessionId??'').trim(),
+        body
+      );
+
+      try{
+        const live=await getLiveDashboard(String(body.sessionId??'').trim());
+        const deal=(live.businessDeals??[]).find(d=>d.dealId===String(body.dealId??'').trim());
+        if(deal){
+          await sendPlayerNotification(String(body.sessionId??'').trim(),{
+            characterExternalId:deal.actorCharacterExternalId,
+            kind:'BUSINESS_DEAL',
+            title:'Accord officialisé',
+            titleEn:'Deal made official',
+            body:'Le MJ a validé votre accord avec '+deal.targetName+'. Il est désormais officiel.',
+            bodyEn:'The GM validated your deal with '+deal.targetName+'. It is now official.',
+            refExternalId:deal.dealId,
+            priority:'IMPORTANT'
+          });
+          await sendPlayerNotification(String(body.sessionId??'').trim(),{
+            characterExternalId:deal.targetCharacterExternalId,
+            kind:'BUSINESS_DEAL',
+            title:'Accord officialisé',
+            titleEn:'Deal made official',
+            body:'Le MJ a validé votre accord avec '+deal.actorName+'. Il est désormais officiel.',
+            bodyEn:'The GM validated your deal with '+deal.actorName+'. It is now official.',
+            refExternalId:deal.dealId,
+            priority:'IMPORTANT'
+          });
+        }
+      }catch(notificationError){
+        logger.warn('Business Deal official notification skipped',notificationError);
+      }
+
+      return res.status(200).json({ok:true,result});
+    }catch(error){
+      logger.error('Business Deal validation failed',error);
+      return res.status(400).json({
+        error:'BUSINESS_DEAL_VALIDATE_FAILED',
+        message:error instanceof Error?error.message:String(error),
+        details:error?.details??undefined
+      });
+    }
+  }
+);
+
 
 
 export const getInteractionState = onRequest({ region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
@@ -597,7 +852,16 @@ export const executeLiveInteraction = onRequest({ region:'europe-west1', cors:tr
     const result=await executeInteraction(sessionId,body);
     if(['PLAYER','CHARACTER'].includes(String(result.targetType??'').toUpperCase())&&result.targetExternalId){
       try{
-        await sendPlayerNotification(sessionId,{characterExternalId:result.targetExternalId,kind:'INTERACTION_TARGET',title:'Action sur votre personnage',body:`Une action « ${result.interactionName} » vient d’être exercée sur votre personnage. ${result.success?'Elle a réussi.':'Elle a échoué.'} Murder Engine ne révèle pas son auteur.`,refExternalId:result.interactionExternalId,priority:'NORMAL'});
+        await sendPlayerNotification(sessionId,{
+          characterExternalId:result.targetExternalId,
+          kind:'INTERACTION_TARGET',
+          title:'Action sur votre personnage',
+          titleEn:'Action targeting your character',
+          body:`Une action « ${result.interactionName} » vient d’être exercée sur votre personnage. ${result.success?'Elle a réussi.':'Elle a échoué.'} Murder Engine ne révèle pas son auteur.`,
+          bodyEn:`An action “${result.interactionName}” has just been used on your character. ${result.success?'It succeeded.':'It failed.'} Murder Engine does not reveal who performed it.`,
+          refExternalId:result.interactionExternalId,
+          priority:'NORMAL'
+        });
       }catch(notificationError){logger.warn('Interaction target notification skipped',notificationError);}
     }
     return res.status(200).json({ok:true,result});
@@ -608,14 +872,47 @@ export const executeLiveInteraction = onRequest({ region:'europe-west1', cors:tr
 export const revealLiveClue = onRequest({ region:'europe-west1', cors:true, maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   const sessionId=String(body.sessionId??'').trim();
-  try { const result=await revealClueToCharacter(sessionId,body); try{await sendPlayerNotification(sessionId,{characterExternalId:String(body.characterExternalId??'').trim(),kind:'CLUE',title:'Nouvel indice',body:'Un nouvel indice a été ajouté à votre carnet.',refExternalId:String(body.clueExternalId??'').trim(),priority:'IMPORTANT'});}catch(notificationError){logger.warn('Player clue notification skipped',notificationError);} return res.status(200).json({ok:true,result}); }
+  try {
+    const result=await revealClueToCharacter(sessionId,body);
+    try{
+      await sendPlayerNotification(sessionId,{
+        characterExternalId:String(body.characterExternalId??'').trim(),
+        kind:'CLUE',
+        title:'Nouvel indice',
+        titleEn:'New clue',
+        body:'Un nouvel indice a été ajouté à votre Sac et à votre Carnet.',
+        bodyEn:'A new clue has been added to your Bag and Notebook.',
+        refExternalId:String(body.clueExternalId??'').trim(),
+        priority:'IMPORTANT'
+      });
+    }catch(notificationError){logger.warn('Player clue notification skipped',notificationError);}
+    return res.status(200).json({ok:true,result});
+  }
   catch(error){ logger.error('Clue reveal failed',error); return res.status(400).json({error:'CLUE_REVEAL_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const transferLiveObject = onRequest({ region:'europe-west1', cors:true, maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
+export const transferLiveObject = onRequest({ region:'europe-west1', cors:true, invoker:'public', maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
+  if(!await requireOrganizerAuth(req,res)) return;
   const sessionId=String(body.sessionId??'').trim();
-  try { const result=await transferSessionObject(sessionId,body); if(String(body.holderType??'').toUpperCase()==='CHARACTER'&&body.holderExternalId){try{await sendPlayerNotification(sessionId,{characterExternalId:String(body.holderExternalId),kind:'OBJECT',title:'Objet reçu',body:'Un objet vient d’être ajouté à votre inventaire.',refExternalId:String(body.objectExternalId??'').trim(),priority:'NORMAL'});}catch(notificationError){logger.warn('Player object notification skipped',notificationError);}} return res.status(200).json({ok:true,result}); }
+  try {
+    const result=await transferSessionObject(sessionId,body);
+    if(String(body.holderType??'').toUpperCase()==='CHARACTER'&&body.holderExternalId){
+      try{
+        await sendPlayerNotification(sessionId,{
+          characterExternalId:String(body.holderExternalId),
+          kind:'OBJECT',
+          title:'Objet reçu',
+          titleEn:'Item received',
+          body:'Un objet vient d’être ajouté à votre inventaire.',
+          bodyEn:'An item has been added to your inventory.',
+          refExternalId:String(body.objectExternalId??'').trim(),
+          priority:'NORMAL'
+        });
+      }catch(notificationError){logger.warn('Player object notification skipped',notificationError);}
+    }
+    return res.status(200).json({ok:true,result});
+  }
   catch(error){ logger.error('Object transfer failed',error); return res.status(400).json({error:'OBJECT_TRANSFER_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
@@ -705,6 +1002,27 @@ export const claimPublicPlayerStolenObject = onRequest({ region:'europe-west1', 
   try { return res.status(200).json({ok:true,result:await claimPlayerStolenObject(String(body.token??'').trim(),body)}); }
   catch(error){ logger.error('Player steal claim failed',error); return res.status(400).json({error:'PLAYER_STEAL_CLAIM_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
+
+export const sharePublicPlayerClue = onRequest(
+  { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 },
+  async (req,res)=>{
+    const body=requirePostJson(req,res);
+    if(!body)return;
+
+    try{
+      return res.status(200).json({
+        ok:true,
+        result:await sharePlayerClue(String(body.token??'').trim(),body)
+      });
+    }catch(error){
+      logger.error('Player clue share failed',error);
+      return res.status(400).json({
+        error:'PLAYER_CLUE_SHARE_FAILED',
+        message:error instanceof Error?error.message:String(error)
+      });
+    }
+  }
+);
 
 export const transferPublicPlayerObject = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
@@ -889,6 +1207,7 @@ export const getSessionGmPackView = onRequest(
   },
   async(req,res)=>{
     if(!requireGet(req,res))return;
+    if(!await requireOrganizerAuth(req,res))return;
 
     const sessionId=
       String(req.query.sessionId??'').trim();

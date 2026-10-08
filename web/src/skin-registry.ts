@@ -1,5 +1,12 @@
 export const SKIN_OPTIONS = [
   {
+    id:'HOLLYWOOD_1930',
+    label:'Hollywood 1930',
+    subtitle:'Studios · Art déco · Talking pictures',
+    defaultAccent:'#D4AF63',
+    preview:'✦',
+  },
+  {
     id:'RETRO_1900_1930',
     label:'Retro 1900–1930',
     subtitle:'Mafia · Prohibition · Art déco',

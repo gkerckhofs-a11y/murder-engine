@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shapePlayerPortal, configureSessionPlayerAccess, getPlayerPortal, executePlayerInteraction, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, isAutonomousLocationInteraction, interactionScanMode, clandestineInteractionKind, attemptPlayerClandestineAction, claimPlayerStolenObject, __playerOps } from '../src/player.mjs';
+import { shapePlayerPortal, configureSessionPlayerAccess, getPlayerPortal, executePlayerInteraction, sharePlayerClue, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, isAutonomousLocationInteraction, interactionScanMode, clandestineInteractionKind, attemptPlayerClandestineAction, claimPlayerStolenObject, __playerOps } from '../src/player.mjs';
 
 const participant=()=>({id:'P1',displayName:'Gael',active:true,characterExternalId:'CHAR_A',briefingStatus:'NOT_SENT',playerAccessToken:'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef1234567890_-',playerAccessEnabled:true,playerFirstOpenedAt:null,playerLastOpenedAt:null,playerOpenCount:0,briefingReadAt:null});
 const session=()=>({id:'S1',name:'Cosa',status:'LIVE',runtimeInitializedAt:'2026-09-21T18:00:00Z',scenarioVersion:{id:'V1',versionLabel:'2.3',playerSummary:'Pitch',scenario:{title:'Cosa Nostra'}},sessionParticipants_on_gameSession:[participant(),{id:'P2',displayName:'Bob',active:true,characterExternalId:'CHAR_B'}]});
@@ -46,6 +46,272 @@ test('player portal exposes only own runtime state and safe actions',()=>{
  assert.equal(out.character.name,'Alice');assert.equal(out.resources[0].currentValue,4);assert.equal(out.inventory.find(o=>o.objectExternalId==='ITEM1').name,'Clé');assert.equal(out.notifications.length,1);assert.equal(out.unreadNotificationCount,1);
  assert.equal(out.interactions.find(x=>x.externalId==='ACT1').directEnabled,true);assert.equal(out.interactions.find(x=>x.externalId==='ACT_GM').directEnabled,false);assert.equal(out.interactions.find(x=>x.externalId==='ACT_DIRECT').scanMode,'DIRECT');assert.equal(out.interactions.find(x=>x.externalId==='ACT_SPY').scanMode,'DISCRET');
  assert.equal(out.votes.length,1);assert.equal(out.otherCharacters[0].characterExternalId,'CHAR_B');
+});
+
+test('player notebook knowledge and discoveries are newest first',()=>{
+ const src=source();
+ src.facts=[
+   ...src.facts,
+   {externalId:'F2',title:'Older',text:'Older info',nature:'FACT',importance:'NORMAL',notebookCategory:'Test',active:true},
+   {externalId:'F3',title:'Newest',text:'Newest info',nature:'FACT',importance:'NORMAL',notebookCategory:'Test',active:true},
+ ];
+ src.clues=[
+   ...src.clues,
+   {externalId:'C3',playerName:'Older clue',clueType:'INFO',playerText:'Older clue',active:true},
+   {externalId:'C4',playerName:'Newest clue',clueType:'INFO',playerText:'Newest clue',active:true},
+ ];
+ const rt=runtime();
+ rt.sessionKnowledges=[
+   ...rt.sessionKnowledges,
+   {characterExternalId:'CHAR_A',factExternalId:'F2',sourceType:'TEST',learnedAt:'2026-09-21T18:01:00Z'},
+   {characterExternalId:'CHAR_A',factExternalId:'F3',sourceType:'TEST',learnedAt:'2026-09-21T18:06:00Z'},
+ ];
+ rt.sessionClueDiscoveries=[
+   ...rt.sessionClueDiscoveries,
+   {characterExternalId:'CHAR_A',clueExternalId:'C3',discoveredAt:'2026-09-21T18:02:00Z'},
+   {characterExternalId:'CHAR_A',clueExternalId:'C4',discoveredAt:'2026-09-21T18:07:00Z'},
+ ];
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   rt,
+   new Date('2026-09-21T18:08:00Z')
+ );
+
+ assert.equal(out.knowledge[0].factExternalId,'F3');
+ assert.equal(out.discoveries[0].clueExternalId,'C4');
+});
+
+test('player sheet exposes searchable traces about the current character but not rumours',()=>{
+ const src=source();
+ src.clues.push(
+   {
+     externalId:'RUMOR_SELF',
+     playerName:'Rumour about Alice',
+     clueType:'RUMOR',
+     playerText:'Alice once bribed a critic.',
+     discoveryHook:'RUMOR_TARGET:CHAR_A',
+     active:true
+   },
+   {
+     externalId:'RUMOR_OTHER',
+     playerName:'Rumour about Bob',
+     clueType:'RUMOR',
+     playerText:'Bob hides a contract.',
+     discoveryHook:'RUMOR_TARGET:CHAR_B',
+     active:true
+   },
+   {
+     externalId:'TRACE_SELF',
+     playerName:'Alice signed note',
+     clueType:'DOCUMENT',
+     playerText:'A signed note left by Alice.',
+     discoveryHook:'ABOUT_CHARACTER:CHAR_A',
+     active:true
+   },
+   {
+     externalId:'TRACE_SHARED',
+     playerName:'Shared photograph',
+     clueType:'PHYSICAL',
+     playerText:'A photograph implicates Alice and Bob.',
+     discoveryHook:'ABOUT_CHARACTER:CHAR_A;CHAR_B',
+     active:true
+   }
+ );
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   runtime(),
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ assert.deepEqual(
+   out.discoverableAboutMe.map(x=>x.externalId),
+   ['TRACE_SELF','TRACE_SHARED']
+ );
+ assert.equal(
+   out.discoverableAboutMe[0].playerText,
+   'A signed note left by Alice.'
+ );
+});
+
+test('player object visual inherits Media Library override from sibling scenario version',()=>{
+ const src=source();
+ const sess=session();
+
+ sess.scenarioVersion={
+   ...sess.scenarioVersion,
+   mediaOverridesJson:null,
+   scenario:{
+     ...sess.scenarioVersion.scenario,
+     scenarioVersions_on_scenario:[
+       {
+         id:'V2',
+         mediaOverridesJson:JSON.stringify({
+           'OBJECT:ITEM1':{
+             assetExternalId:'MEDIA_SHARED_KEY',
+             source:'https://example.test/shared-key.png',
+             altText:'Shared key image',
+             mediaType:'IMAGE'
+           }
+         }),
+         importedAt:'2026-10-07T10:00:00Z'
+       }
+     ]
+   }
+ };
+
+ const out=shapePlayerPortal(
+   participant(),
+   sess,
+   src,
+   runtime(),
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const key=out.inventory.find(
+   o=>o.objectExternalId==='ITEM1'
+ );
+
+ assert.equal(
+   key.visualMedia.source,
+   'https://example.test/shared-key.png'
+ );
+ assert.equal(key.visualMedia.inherited,true);
+});
+
+test('player object visual accepts a media override keyed by logistics code',()=>{
+ const src=source();
+ src.gameObjects=src.gameObjects.map(o=>
+   o.externalId==='ITEM2'
+     ? {...o,logisticsCode:'SB-OBJ-005'}
+     : o
+ );
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.map(o=>
+   o.objectExternalId==='ITEM2'
+     ? {...o,holderType:'CHARACTER',holderExternalId:'CHAR_A'}
+     : o
+ );
+ const sess=session();
+ sess.scenarioVersion={
+   ...sess.scenarioVersion,
+   mediaOverridesJson:JSON.stringify({
+     'OBJECT:SB-OBJ-005':{
+       assetExternalId:'MEDIA_VOCAL_TONIC',
+       source:'https://example.test/vocal-tonic.png',
+       altText:'Flacon de tonic vocal',
+       mediaType:'IMAGE'
+     }
+   })
+ };
+
+ const out=shapePlayerPortal(
+   participant(),
+   sess,
+   src,
+   rt,
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const tonic=out.inventory.find(
+   o=>o.objectExternalId==='ITEM2'
+ );
+
+ assert.equal(
+   tonic.visualMedia.source,
+   'https://example.test/vocal-tonic.png'
+ );
+});
+
+test('player object visual resolves a Media Library override through linked clue logistics code',()=>{
+ const src=source();
+ src.clues=src.clues.map(c=>
+   c.externalId==='C2'
+     ? {...c,logisticsCode:'SB-OBJ-005'}
+     : c
+ );
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.map(o=>
+   o.objectExternalId==='ITEM2'
+     ? {...o,holderType:'CHARACTER',holderExternalId:'CHAR_A'}
+     : o
+ );
+ const sess=session();
+ sess.scenarioVersion={
+   ...sess.scenarioVersion,
+   mediaOverridesJson:JSON.stringify({
+     'OBJECT:SB-OBJ-005':{
+       assetExternalId:'MEDIA_VOCAL_TONIC',
+       source:'https://example.test/vocal-tonic.png',
+       altText:'Flacon de tonic vocal',
+       mediaType:'IMAGE'
+     }
+   })
+ };
+
+ const out=shapePlayerPortal(
+   participant(),
+   sess,
+   src,
+   rt,
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const tonic=out.inventory.find(
+   o=>o.objectExternalId==='ITEM2'
+ );
+
+ assert.equal(
+   tonic.visualMedia.source,
+   'https://example.test/vocal-tonic.png'
+ );
+});
+
+test('player object visual falls back to the media of its linked clue',()=>{
+ const src=source();
+ src.mediaAssets=[
+   ...src.mediaAssets,
+   {
+     externalId:'MEDIA_LINKED_OBJECT',
+     mediaType:'IMAGE',
+     source:'/immersive/test/linked-object.png',
+     altText:'Linked object',
+     active:true
+   }
+ ];
+ src.clues=src.clues.map(c=>
+   c.externalId==='C2'
+     ? {...c,mediaExternalId:'MEDIA_LINKED_OBJECT'}
+     : c
+ );
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.map(o=>
+   o.objectExternalId==='ITEM2'
+     ? {...o,holderType:'CHARACTER',holderExternalId:'CHAR_A'}
+     : o
+ );
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   rt,
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const linked=out.inventory.find(
+   o=>o.objectExternalId==='ITEM2'
+ );
+
+ assert.equal(
+   linked.visualMedia.source,
+   '/immersive/test/linked-object.png'
+ );
 });
 
 test('Visual V1 exposes character portraits, relation portraits and object thumbnails',()=>{
@@ -101,6 +367,210 @@ test('player interaction actor identity is forced from token',async()=>{
  assert.equal(captured.actorCharacterExternalId,'CHAR_A');assert.equal(out.success,true);
 });
 
+test('discovered object clue exposes its directly assigned image in notebook and bag data',()=>{
+ const src=source();
+ src.mediaAssets=[
+   ...src.mediaAssets,
+   {
+     externalId:'MEDIA_TONIC',
+     mediaType:'IMAGE',
+     source:'/immersive/showbiz/vocal-tonic.png',
+     altText:'Flacon de tonic vocal',
+     active:true
+   }
+ ];
+ src.clues.push({
+   externalId:'SHW-COM-04',
+   playerName:'Flacon de tonic vocal',
+   clueType:'OBJET',
+   playerText:'Le flacon semble avoir été déplacé.',
+   logisticsCode:'SB-OBJ-005',
+   mediaExternalId:'MEDIA_TONIC',
+   shareable:true,
+   transferable:true,
+   addToNotebook:true,
+   active:true
+ });
+ const rt=runtime();
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_A',
+   clueExternalId:'SHW-COM-04',
+   discoveredAt:'2026-09-21T18:04:30Z'
+ });
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   rt,
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const discovery=out.discoveries.find(
+   d=>d.clueExternalId==='SHW-COM-04'
+ );
+
+ assert.equal(discovery.clue.inBag,true);
+ assert.equal(
+   discovery.clue.visualMedia.source,
+   '/immersive/showbiz/vocal-tonic.png'
+ );
+});
+
+test('discovered object clue resolves Media Library image from its logistics code without a GameObject',()=>{
+ const src=source();
+ src.clues.push({
+   externalId:'SHW-COM-04',
+   playerName:'Flacon de tonic vocal',
+   clueType:'OBJET',
+   playerText:'Le flacon semble avoir été déplacé.',
+   logisticsCode:'SB-OBJ-005',
+   shareable:true,
+   transferable:true,
+   addToNotebook:true,
+   active:true
+ });
+ const rt=runtime();
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_A',
+   clueExternalId:'SHW-COM-04',
+   discoveredAt:'2026-09-21T18:04:30Z'
+ });
+ const sess=session();
+ sess.scenarioVersion={
+   ...sess.scenarioVersion,
+   mediaOverridesJson:JSON.stringify({
+     'OBJECT:SB-OBJ-005':{
+       assetExternalId:'MEDIA_VOCAL_TONIC',
+       source:'https://example.test/vocal-tonic.png',
+       altText:'Flacon de tonic vocal',
+       mediaType:'IMAGE'
+     }
+   })
+ };
+
+ const out=shapePlayerPortal(
+   participant(),
+   sess,
+   src,
+   rt,
+   new Date('2026-09-21T18:05:00Z')
+ );
+
+ const discovery=out.discoveries.find(
+   d=>d.clueExternalId==='SHW-COM-04'
+ );
+
+ assert.equal(discovery.clue.inBag,true);
+ assert.equal(
+   discovery.clue.visualMedia.source,
+   'https://example.test/vocal-tonic.png'
+ );
+});
+
+test('discovered non-object clue is exposed as being in the player bag',()=>{
+ const src=source();
+ src.clues.push({
+   externalId:'C3',
+   playerName:'Whispered note',
+   clueType:'INFO',
+   playerText:'A private piece of information.',
+   shareable:true,
+   transferable:true,
+   addToNotebook:true,
+   active:true
+ });
+ const rt=runtime();
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_A',
+   clueExternalId:'C3',
+   discoveredAt:'2026-09-21T18:04:30Z'
+ });
+ const out=shapePlayerPortal(participant(),session(),src,rt,new Date('2026-09-21T18:05:00Z'));
+ const discovery=out.discoveries.find(d=>d.clueExternalId==='C3');
+ assert.equal(discovery.clue.inBag,true);
+ assert.equal(discovery.clue.shareable,true);
+});
+
+test('player can share a discovered clue directly with another player',async()=>{
+ const src=source();
+ src.clues.push({
+   externalId:'C3',
+   playerName:'Whispered note',
+   clueType:'INFO',
+   playerText:'A private piece of information.',
+   shareable:true,
+   transferable:true,
+   addToNotebook:true,
+   active:true
+ });
+ const rt=runtime();
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_A',
+   clueExternalId:'C3',
+   discoveredAt:'2026-09-21T18:04:30Z'
+ });
+
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+
+ const revealed=[];
+ const writes=[];
+ const out=await sharePlayerClue(
+   participant().playerAccessToken,
+   {clueExternalId:'C3',targetCharacterExternalId:'CHAR_B'},
+   {
+     reader,
+     executor:async(op,vars)=>{writes.push({op,vars});return{};},
+     clueReveal:async(sid,input)=>{revealed.push({sid,input});return{};},
+     now:new Date('2026-09-21T18:08:00Z')
+   }
+ );
+
+ assert.equal(out.shared,true);
+ assert.equal(out.alreadyKnown,false);
+ assert.equal(revealed.length,1);
+ assert.equal(revealed[0].input.characterExternalId,'CHAR_B');
+ assert.equal(revealed[0].input.clueExternalId,'C3');
+ assert.equal(writes.length,2);
+ assert.equal(writes[0].vars.data.characterExternalId,'CHAR_B');
+ assert.equal(writes[0].vars.data.kind,'CLUE');
+ assert.match(writes[0].vars.data.body,/Sac et à votre Carnet/);
+ assert.equal(writes[1].vars.data.characterExternalId,'CHAR_A');
+});
+
+test('player cannot share a clue they have not discovered',async()=>{
+ const src=source();
+ src.clues.push({
+   externalId:'C3',
+   playerName:'Whispered note',
+   clueType:'INFO',
+   playerText:'A private piece of information.',
+   shareable:true,
+   active:true
+ });
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();
+   throw new Error('bad op');
+ };
+ await assert.rejects(
+   ()=>sharePlayerClue(
+     participant().playerAccessToken,
+     {clueExternalId:'C3',targetCharacterExternalId:'CHAR_B'},
+     {reader,executor:async()=>({}),clueReveal:async()=>({})}
+   ),
+   /CLUE_NOT_OWNED_BY_PLAYER/
+ );
+});
+
 test('player may give only an object they own',async()=>{
  const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();};let moved;
  await transferPlayerObject(participant().playerAccessToken,{objectExternalId:'ITEM1',targetCharacterExternalId:'CHAR_B'},{reader,executor:async()=>({}),objectTransfer:async(sid,input)=>{moved=input;return input;}});assert.equal(moved.holderExternalId,'CHAR_B');
@@ -135,6 +605,84 @@ test('player cash transfer rejects self target and invalid amount',async()=>{
  await assert.rejects(()=>transferPlayerCash(participant().playerAccessToken,{targetCharacterExternalId:'CHAR_B',amount:1.5},{reader,executor:async()=>({})}),/INVALID_CASH_AMOUNT/);
 });
 
+test('completed player vote disappears from Play tab',()=>{
+ const src=source();
+ src.voteDefinitions=src.voteDefinitions.map(v=>({
+   ...v,
+   resultVisibility:'AFTER_CLOSE'
+ }));
+
+ const rt=runtime();
+ rt.sessionBallots=[
+   {
+     voteExternalId:'VOTE1',
+     round:1,
+     electorCharacterExternalId:'CHAR_A',
+     selectedOptionExternalIds:'OPT1',
+     weight:1,
+     castAt:'2026-09-21T18:05:00Z',
+     updatedAt:'2026-09-21T18:05:00Z'
+   }
+ ];
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   rt,
+   new Date('2026-09-21T18:06:00Z')
+ );
+
+ assert.equal(out.votes.length,0);
+});
+
+test('closed vote result appears as player-safe News data',()=>{
+ const src=source();
+ src.voteDefinitions=src.voteDefinitions.map(v=>({
+   ...v,
+   title:'Who takes the lead role?',
+   resultVisibility:'AFTER_CLOSE'
+ }));
+
+ const rt=runtime();
+ rt.sessionVotes=[
+   {
+     voteExternalId:'VOTE1',
+     round:1,
+     status:'CLOSED',
+     eligibleOptionExternalIds:'OPT1',
+     openedAt:'2026-09-21T18:00:00Z',
+     closedAt:'2026-09-21T18:10:00Z',
+     resultJson:JSON.stringify({
+       winnerOptionExternalId:'OPT1',
+       tieForLead:false,
+       suggestSecondRound:false,
+       ranked:[
+         {
+           optionExternalId:'OPT1',
+           label:'A',
+           votes:1
+         }
+       ]
+     })
+   }
+ ];
+
+ const out=shapePlayerPortal(
+   participant(),
+   session(),
+   src,
+   rt,
+   new Date('2026-09-21T18:11:00Z')
+ );
+
+ assert.equal(out.votes.length,0);
+ assert.equal(out.voteResults.length,1);
+ assert.equal(out.voteResults[0].title,'Who takes the lead role?');
+ assert.equal(out.voteResults[0].winnerLabel,'A');
+ assert.equal(out.voteResults[0].round,1);
+});
+
 test('player vote always uses character linked to token',async()=>{
  const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();};let ballot;
  await castPlayerVote(participant().playerAccessToken,{voteExternalId:'VOTE1',round:1,selectedOptionExternalIds:['OPT1'],electorCharacterExternalId:'CHAR_B'},{reader,voteCaster:async(sid,input)=>{ballot=input;return input;}});assert.equal(ballot.electorCharacterExternalId,'CHAR_A');
@@ -148,6 +696,31 @@ test('GM action can be requested by player and is logged instead of executed',as
 });
 
 
+test('English player portal localizes system blocked reasons',()=>{
+ const src=source();
+ const sess=session();
+ sess.language='EN';
+ const out=shapePlayerPortal(participant(),sess,src,runtime(),new Date('2026-09-21T18:05:00Z'));
+ const gm=out.interactions.find(x=>x.externalId==='ACT_GM');
+ assert.equal(gm.blockedReason,'Ask the GM');
+});
+
+test('English location fallback uses Search instead of Fouiller',async()=>{
+ const src=source();
+ src.interactions=[];
+ const sess=session();
+ sess.language='EN';
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:sess}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();
+   throw new Error('bad op');
+ };
+ const view=await getPlayerLocation(participant().playerAccessToken,'LOC1',{reader});
+ assert.equal(view.session.language,'EN');
+ assert.equal(view.actions[0].name,'Search');
+});
+
 test('location search interactions can be autonomous even when legacy resolution is GM',()=>{
  assert.equal(isAutonomousLocationInteraction({targetType:'LOCATION',name:'Fouiller le bureau',category:'INVESTIGATION',resolution:'GM',validation:'GM',targetSecret:false}),true);
  assert.equal(isAutonomousLocationInteraction({targetType:'CHARACTER',name:'Intimider',category:'SOCIAL',resolution:'GM',validation:'GM',targetSecret:false}),false);
@@ -159,11 +732,106 @@ test('QR location view exposes only autonomous actions for scanned location',asy
  assert.equal(out.location.name,'Bureau');assert.equal(out.actions.length,1);assert.equal(out.actions[0].externalId,'ACT1');assert.equal(out.actions[0].available,true);
 });
 
-test('QR location action forces player identity and automatically grants linked clue and object',async()=>{
- const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();throw new Error('bad op')};
- let interactionInput,clueInput,objectInput,notifications=0;
- const out=await executePlayerLocationAction(participant().playerAccessToken,{interactionExternalId:'ACT1',locationExternalId:'LOC1',actorCharacterExternalId:'CHAR_B'},{reader,executor:async()=>{notifications++;return{};},interactionExecutor:async(sid,input)=>{interactionInput=input;return{interactionExternalId:'ACT1',interactionName:'Fouiller',actorCharacterExternalId:input.actorCharacterExternalId,targetType:'LOCATION',targetExternalId:input.targetExternalId,success:true,resolution:'DICE',actorRoll:{rolls:[4,4],sum:8},actorTotal:10,targetTotal:8,abilityLevel:2,cost:{resourceExternalId:'RES_PA',value:1,remaining:3}};},clueReveal:async(sid,input)=>{clueInput=input;return{};},objectTransfer:async(sid,input)=>{objectInput=input;return{};}});
- assert.equal(interactionInput.actorCharacterExternalId,'CHAR_A');assert.equal(interactionInput.targetExternalId,'LOC1');assert.equal(clueInput.clueExternalId,'C2');assert.equal(objectInput.objectExternalId,'ITEM2');assert.equal(objectInput.holderExternalId,'CHAR_A');assert.equal(out.reward.kind,'CLUE_OBJECT');assert.equal(notifications,2);
+test('QR room search is normalized to automatic 1 PA and grants one reward',async()=>{
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();
+   throw new Error('bad op');
+ };
+
+ let interactionCalls=0;
+ let clueInput;
+ let objectInput;
+ const writes=[];
+
+ const view=await getPlayerLocation(
+   participant().playerAccessToken,
+   'LOC1',
+   {reader,now:new Date('2026-09-21T18:20:00Z')}
+ );
+
+ assert.equal(view.actions[0].resolution,'AUTO');
+ assert.equal(view.actions[0].costResourceExternalId,'RES_PA');
+ assert.equal(view.actions[0].costValue,1);
+ assert.equal(view.actions[0].diceCount,0);
+
+ const out=await executePlayerLocationAction(
+   participant().playerAccessToken,
+   {
+     interactionExternalId:'ACT1',
+     locationExternalId:'LOC1',
+     actorCharacterExternalId:'CHAR_B'
+   },
+   {
+     reader,
+     executor:async(op,vars)=>{writes.push({op,vars});return{};},
+     interactionExecutor:async()=>{interactionCalls++;throw new Error('should not run');},
+     clueReveal:async(sid,input)=>{clueInput=input;return{};},
+     objectTransfer:async(sid,input)=>{objectInput=input;return{};},
+     now:new Date('2026-09-21T18:20:00Z')
+   }
+ );
+
+ assert.equal(interactionCalls,0);
+ assert.equal(clueInput.clueExternalId,'C2');
+ assert.equal(objectInput.objectExternalId,'ITEM2');
+ assert.equal(objectInput.holderExternalId,'CHAR_A');
+ assert.equal(out.result.success,true);
+ assert.equal(out.result.resolution,'AUTO');
+ assert.equal(out.result.cost.value,1);
+ assert.equal(out.reward.kind,'CLUE_OBJECT');
+ assert.ok(writes.length>=2);
+});
+
+test('location discovery returns Media Library override for the physical object',async()=>{
+ const src=source();
+ src.interactions=[];
+ const sess=session();
+ sess.scenarioVersion={
+   ...sess.scenarioVersion,
+   mediaOverridesJson:JSON.stringify({
+     'OBJECT:ITEM2':{
+       assetExternalId:'MEDIA_CUSTOM_TONIC',
+       source:'https://example.test/vocal-tonic.png',
+       altText:'Vocal Tonic bottle',
+       mediaType:'IMAGE'
+     }
+   })
+ };
+
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:sess}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();
+   throw new Error('bad op');
+ };
+
+ const out=await executePlayerLocationAction(
+   participant().playerAccessToken,
+   {
+     interactionExternalId:'SYSTEM_LOCATION_SEARCH',
+     locationExternalId:'LOC1'
+   },
+   {
+     reader,
+     executor:async()=>({}),
+     clueReveal:async()=>({}),
+     objectTransfer:async()=>({}),
+     now:new Date('2026-09-21T18:20:00Z')
+   }
+ );
+
+ assert.equal(
+   out.reward.object.visualMedia.source,
+   'https://example.test/vocal-tonic.png'
+ );
+ assert.equal(
+   out.reward.object.visualMedia.altText,
+   'Vocal Tonic bottle'
+ );
 });
 
 test('QR location provides standard 1 PA fallback when no explicit automatic action exists',async()=>{
@@ -174,6 +842,129 @@ test('QR location provides standard 1 PA fallback when no explicit automatic act
  const out=await executePlayerLocationAction(participant().playerAccessToken,{interactionExternalId:'SYSTEM_LOCATION_SEARCH',locationExternalId:'LOC1'},{reader,executor:async(op,vars)=>{mutation={op,vars};return{};},clueReveal:async(sid,input)=>{clueInput=input;return{};},objectTransfer:async(sid,input)=>{objectInput=input;return{};}});
  assert.equal(mutation.op,__playerOps.INSERT_NOTIFICATION_MUTATION ?? mutation.op); // final write is notification
  assert.equal(clueInput.clueExternalId,'C2');assert.equal(objectInput.objectExternalId,'ITEM2');assert.equal(out.result.cost.remaining,3);
+});
+
+test('takeable clue is globally unavailable after another player found it',async()=>{
+ const src=source();
+ src.interactions=[];
+ src.clues.push({
+   externalId:'C_TAKE',
+   playerName:'Unique note',
+   clueType:'DOCUMENT',
+   playerText:'Only one copy exists.',
+   locationExternalId:'LOC1',
+   presentationMode:'TAKEABLE',
+   shareable:true,
+   addToNotebook:true,
+   active:true
+ });
+
+ // Remove the physical dossier so only this clue can make the room searchable.
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.filter(o=>o.objectExternalId!=='ITEM2');
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_B',
+   clueExternalId:'C_TAKE',
+   discoveredAt:'2026-09-21T18:01:00Z'
+ });
+
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+
+ const view=await getPlayerLocation(
+   participant().playerAccessToken,
+   'LOC1',
+   {reader,now:new Date('2026-09-21T18:20:00Z')}
+ );
+
+ assert.equal(view.empty,true);
+ assert.equal(view.actions.length,0);
+});
+
+test('static clue remains available to another player but loses priority to takeable evidence',async()=>{
+ const src=source();
+ src.interactions=[];
+ src.clues=src.clues.filter(c=>c.externalId!=='C2');
+ src.clues.push(
+   {
+     externalId:'C_TAKE',
+     playerName:'Unique note',
+     clueType:'DOCUMENT',
+     playerText:'Only one copy exists.',
+     locationExternalId:'LOC1',
+     presentationMode:'TAKEABLE',
+     shareable:true,
+     addToNotebook:true,
+     active:true
+   },
+   {
+     externalId:'C_STATIC',
+     playerName:'Scratch on the wall',
+     clueType:'OBSERVATION',
+     playerText:'A mark is carved into the wall.',
+     locationExternalId:'LOC1',
+     presentationMode:'PERSISTENT',
+     shareable:true,
+     addToNotebook:true,
+     active:true
+   }
+ );
+
+ const rt=runtime();
+ rt.sessionObjects=rt.sessionObjects.filter(o=>o.objectExternalId!=='ITEM2');
+
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+
+ let firstClue=null;
+ await executePlayerLocationAction(
+   participant().playerAccessToken,
+   {
+     interactionExternalId:'SYSTEM_LOCATION_SEARCH',
+     locationExternalId:'LOC1'
+   },
+   {
+     reader,
+     executor:async()=>({}),
+     clueReveal:async(sid,input)=>{firstClue=input.clueExternalId;return{};},
+     objectTransfer:async()=>({})
+   }
+ );
+ assert.equal(firstClue,'C_TAKE');
+
+ // Simulate the unique clue having been taken; the static clue remains.
+ rt.sessionClueDiscoveries.push({
+   characterExternalId:'CHAR_B',
+   clueExternalId:'C_TAKE',
+   discoveredAt:'2026-09-21T18:02:00Z'
+ });
+
+ let secondClue=null;
+ await executePlayerLocationAction(
+   participant().playerAccessToken,
+   {
+     interactionExternalId:'SYSTEM_LOCATION_SEARCH',
+     locationExternalId:'LOC1'
+   },
+   {
+     reader,
+     executor:async()=>({}),
+     clueReveal:async(sid,input)=>{secondClue=input.clueExternalId;return{};},
+     objectTransfer:async()=>({}),
+     now:new Date('2026-09-21T18:20:00Z')
+   }
+ );
+ assert.equal(secondClue,'C_STATIC');
 });
 
 test('global 10 minute search cooldown blocks any second location search without spending PA',async()=>{
@@ -233,12 +1024,315 @@ test('failed clandestine theft creates no grant but anonymously notifies victim'
  assert.equal(out.success,false);assert.equal(writes,1);assert.equal(out.items.length,0);
 });
 
+
+test('Charm is automatic, costs through interaction engine, and asks target to choose unknown information',async()=>{
+ const src=source();
+ src.facts.push({externalId:'F2',title:'Secret de Bob',text:'Bob connaît un secret.',nature:'FACT',importance:'NORMAL',notebookCategory:'Relations',active:true});
+ src.abilities.push({externalId:'ABILITY_CHARM',name:'Charm',description:'Obtenir une information',category:'SOCIAL',defaultLevel:1,defaultCooldownMinutes:60,secret:false,active:true});
+ src.abilityAssignments.push({externalId:'AA_CHARM',ownerType:'CHARACTER',ownerExternalId:'CHAR_A',abilityExternalId:'ABILITY_CHARM',level:1,flatBonus:0,cooldownOverrideMinutes:60,active:true});
+ src.interactions.push({externalId:'ACT_CHARM',name:'Charm',category:'SOCIAL',targetType:'CHARACTER',scanMode:'DIRECT',abilityExternalId:'ABILITY_CHARM',actorScope:'ABILITY_HOLDER',resolution:'GM',validation:'GM',costResourceExternalId:'RES_PA',costValue:1,costTiming:'BEFORE',limitPerTarget:1,cooldownMinutes:60,targetSecret:false,active:true});
+ const rt=runtime();
+ rt.sessionKnowledges.push({characterExternalId:'CHAR_B',factExternalId:'F2',sourceType:'INITIAL',learnedAt:'2026-09-21T18:00:00Z'});
+
+ const shaped=shapePlayerPortal(participant(),session(),src,rt,new Date('2026-09-21T18:05:00Z'));
+ const action=shaped.interactions.find(x=>x.externalId==='ACT_CHARM');
+ assert.equal(action.directEnabled,true);
+ assert.equal(action.cooldownMinutes,0);
+ assert.deepEqual(action.targets.map(x=>x.id),['CHAR_B']);
+
+ const writes=[];let executionInput=null;
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+ const out=await executePlayerInteraction(
+   participant().playerAccessToken,
+   {interactionExternalId:'ACT_CHARM',targetExternalId:'CHAR_B'},
+   {
+     reader,
+     executor:async(op,vars)=>{writes.push({op,vars});return{};},
+     interactionExecutor:async(sid,input)=>{executionInput=input;return{interactionName:'Charm',success:true};},
+     now:new Date('2026-09-21T18:05:00Z')
+   }
+ );
+ assert.equal(out.pending,true);
+ assert.equal(out.specialKind,'CHARM');
+ assert.equal(executionInput.gmOutcome,'SUCCESS');
+ const grant=writes.map(x=>x.vars?.data).find(x=>x?.kind==='CHARM'&&x?.grantToken);
+ assert.equal(grant.targetCharacterExternalId,'CHAR_B');
+});
+
+test('Charm target chooses the information and actor receives it without removing it from target',async()=>{
+ const src=source();
+ src.facts.push({externalId:'F2',title:'Secret de Bob',text:'Bob connaît un secret.',nature:'FACT',importance:'NORMAL',notebookCategory:'Relations',active:true});
+ const rt=runtime();
+ rt.sessionKnowledges.push({characterExternalId:'CHAR_B',factExternalId:'F2',sourceType:'INITIAL',learnedAt:'2026-09-21T18:00:00Z'});
+ rt.sessionStealGrants.push({
+   grantToken:'CHARM_GRANT_123456789012345678901234',
+   interactionExternalId:'ACT_CHARM',
+   actorCharacterExternalId:'CHAR_A',
+   targetCharacterExternalId:'CHAR_B',
+   kind:'CHARM',
+   status:'OPEN',
+   createdAt:'2026-09-21T18:05:00Z',
+   expiresAt:'2026-09-21T22:05:00Z',
+   usedAt:null,
+   chosenObjectExternalId:null
+ });
+ const bob={id:'P2',displayName:'Bob',active:true,characterExternalId:'CHAR_B',briefingStatus:'READ',playerAccessToken:'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',playerAccessEnabled:true,playerOpenCount:1};
+ const sess=session();
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...bob,gameSession:sess}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+ let resolved;
+ const out=await executePlayerInteraction(
+   bob.playerAccessToken,
+   {grantToken:'CHARM_GRANT_123456789012345678901234',selectionExternalId:'F2'},
+   {reader,executor:async(op,vars)=>{resolved=vars;return{};},now:new Date('2026-09-21T18:06:00Z')}
+ );
+ assert.equal(out.kind,'CHARM');
+ assert.equal(out.fact.factExternalId,'F2');
+ assert.equal(resolved.knowledge.characterExternalId,'CHAR_A');
+ assert.equal(resolved.knowledge.factExternalId,'F2');
+});
+
+test('Negotiation stores actor offer and target response swaps two transferable proofs',async()=>{
+ const src=source();
+ src.abilities.push({externalId:'ABILITY_NEGOTIATION',name:'Negotiation',description:'Échange forcé',category:'SOCIAL',defaultLevel:1,defaultCooldownMinutes:60,secret:false,active:true});
+ src.abilityAssignments.push({externalId:'AA_NEG',ownerType:'CHARACTER',ownerExternalId:'CHAR_A',abilityExternalId:'ABILITY_NEGOTIATION',level:1,active:true});
+ src.interactions.push({externalId:'ACT_NEGOTIATION',name:'Negotiation',category:'SOCIAL',targetType:'CHARACTER',scanMode:'DIRECT',abilityExternalId:'ABILITY_NEGOTIATION',actorScope:'ABILITY_HOLDER',resolution:'GM',validation:'GM',costResourceExternalId:'RES_PA',costValue:1,costTiming:'BEFORE',limitPerTarget:1,cooldownMinutes:60,targetSecret:false,active:true});
+ const rt=runtime();
+ const readerA=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+ const writes=[];
+ const start=await executePlayerInteraction(
+   participant().playerAccessToken,
+   {interactionExternalId:'ACT_NEGOTIATION',targetExternalId:'CHAR_B',offeredObjectExternalId:'ITEM1'},
+   {reader:readerA,executor:async(op,vars)=>{writes.push({op,vars});return{};},interactionExecutor:async()=>({interactionName:'Negotiation',success:true}),now:new Date('2026-09-21T18:05:00Z')}
+ );
+ assert.equal(start.pending,true);
+ const createdGrant=writes.map(x=>x.vars?.data).find(x=>x?.kind==='NEGOTIATION'&&x?.grantToken);
+ assert.equal(createdGrant.chosenObjectExternalId,'ITEM1');
+
+ rt.sessionStealGrants.push({...createdGrant});
+ const bob={id:'P2',displayName:'Bob',active:true,characterExternalId:'CHAR_B',briefingStatus:'READ',playerAccessToken:'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',playerAccessEnabled:true,playerOpenCount:1};
+ const readerB=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...bob,gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+ let swapVars=null;
+ const done=await executePlayerInteraction(
+   bob.playerAccessToken,
+   {grantToken:createdGrant.grantToken,selectionExternalId:'ITEM_B'},
+   {reader:readerB,executor:async(op,vars)=>{swapVars=vars;return{};},clueReveal:async()=>({}),now:new Date('2026-09-21T18:06:00Z')}
+ );
+ assert.equal(done.kind,'NEGOTIATION');
+ assert.equal(done.given.objectExternalId,'ITEM1');
+ assert.equal(done.received.objectExternalId,'ITEM_B');
+ assert.equal(swapVars.actorObjectExternalId,'ITEM1');
+ assert.equal(swapVars.targetObjectExternalId,'ITEM_B');
+});
+
+test('Police Intimidation takes one transferable proof directly and identifies the intimidator',async()=>{
+ const src=source();
+ src.abilities.push({externalId:'ABILITY_POLICE_INTIMIDATION',name:'Police Intimidation',description:'Prendre une preuve',category:'INTIMIDATION',defaultLevel:1,defaultCooldownMinutes:60,secret:false,active:true});
+ src.abilityAssignments.push({externalId:'AA_INT',ownerType:'CHARACTER',ownerExternalId:'CHAR_A',abilityExternalId:'ABILITY_POLICE_INTIMIDATION',level:1,active:true});
+ src.interactions.push({externalId:'ACT_POLICE_INTIMIDATION',name:'Police Intimidation',category:'INTIMIDATION',targetType:'CHARACTER',scanMode:'DIRECT',abilityExternalId:'ABILITY_POLICE_INTIMIDATION',actorScope:'ABILITY_HOLDER',resolution:'GM',validation:'GM',costResourceExternalId:'RES_PA',costValue:1,costTiming:'BEFORE',limitPerTarget:1,cooldownMinutes:60,targetSecret:false,active:true});
+ const rt=runtime();
+ const reader=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+ const writes=[];let executionInput;
+ const attempt=await attemptPlayerClandestineAction(
+   participant().playerAccessToken,
+   {interactionExternalId:'ACT_POLICE_INTIMIDATION',targetCharacterExternalId:'CHAR_B'},
+   {reader,executor:async(op,vars)=>{writes.push({op,vars});return{};},interactionExecutor:async(sid,input)=>{executionInput=input;return{interactionName:'Police Intimidation',success:true};},now:new Date('2026-09-21T18:05:00Z')}
+ );
+ assert.equal(attempt.kind,'INTIMIDATION');
+ assert.equal(attempt.items[0].objectExternalId,'ITEM_B');
+ assert.equal(executionInput.gmOutcome,'SUCCESS');
+ const grant=writes.map(x=>x.vars?.data).find(x=>x?.kind==='INTIMIDATION'&&x?.grantToken);
+ assert.ok(grant);
+
+ rt.sessionStealGrants.push(grant);
+ let claimVars=null;
+ const claimed=await claimPlayerStolenObject(
+   participant().playerAccessToken,
+   {grantToken:grant.grantToken,objectExternalId:'ITEM_B'},
+   {reader,executor:async(op,vars)=>{claimVars=vars;return{};},clueReveal:async()=>({}),now:new Date('2026-09-21T18:06:00Z')}
+ );
+ assert.equal(claimed.intimidated,true);
+ assert.equal(claimed.stolen,false);
+ assert.match(claimVars.notification.body,/Alice/);
+ assert.match(claimVars.notification.body,/Portefeuille/);
+});
+
+test('Business Deal creates a formal proposal that the target may accept',async()=>{
+ const src=source();
+ src.abilities.push({
+   externalId:'ABILITY_BUSINESS_DEAL',
+   name:'Business Deal',
+   description:'Formal deal',
+   category:'SOCIAL',
+   defaultLevel:1,
+   defaultCooldownMinutes:60,
+   secret:false,
+   active:true
+ });
+ src.abilityAssignments.push({
+   externalId:'AA_DEAL',
+   ownerType:'CHARACTER',
+   ownerExternalId:'CHAR_A',
+   abilityExternalId:'ABILITY_BUSINESS_DEAL',
+   level:1,
+   active:true
+ });
+ src.interactions.push({
+   externalId:'ACT_BUSINESS_DEAL',
+   name:'Formalize a Deal',
+   category:'SOCIAL',
+   targetType:'CHARACTER',
+   scanMode:'DIRECT',
+   abilityExternalId:'ABILITY_BUSINESS_DEAL',
+   actorScope:'ABILITY_HOLDER',
+   resolution:'GM',
+   validation:'GM',
+   costResourceExternalId:'RES_PA',
+   costValue:1,
+   costTiming:'BEFORE',
+   cooldownMinutes:60,
+   targetSecret:false,
+   active:true
+ });
+
+ const rt=runtime();
+ rt.businessDealProposals=[];
+ rt.businessDealAccepted=[];
+ rt.businessDealDeclined=[];
+ rt.businessDealOfficial=[];
+
+ const readerA=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...participant(),gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+
+ const writes=[];
+ const out=await executePlayerInteraction(
+   participant().playerAccessToken,
+   {
+     interactionExternalId:'ACT_BUSINESS_DEAL',
+     targetExternalId:'CHAR_B',
+     businessDealTerms:'Je finance ton prochain film contre 10 % des bénéfices.'
+   },
+   {
+     reader:readerA,
+     executor:async(op,vars)=>{writes.push({op,vars});return{};},
+     interactionExecutor:async()=>({
+       interactionName:'Formalize a Deal',
+       success:true
+     }),
+     now:new Date('2026-09-21T18:05:00Z')
+   }
+ );
+
+ assert.equal(out.pending,true);
+ assert.equal(out.specialKind,'BUSINESS_DEAL');
+
+ const proposal=writes
+   .map(x=>x.vars?.data)
+   .find(x=>x?.actionType==='BUSINESS_DEAL_PROPOSED');
+ assert.ok(proposal);
+ assert.match(proposal.note,/10 % des bénéfices/);
+
+ const grant=writes
+   .map(x=>x.vars?.data)
+   .find(x=>x?.kind==='BUSINESS_DEAL'&&x?.grantToken);
+ assert.ok(grant);
+
+ rt.sessionStealGrants.push(grant);
+ rt.businessDealProposals.push(proposal);
+
+ const bob={
+   id:'P2',
+   displayName:'Bob',
+   active:true,
+   characterExternalId:'CHAR_B',
+   briefingStatus:'READ',
+   playerAccessToken:'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+   playerAccessEnabled:true,
+   playerOpenCount:1
+ };
+ const readerB=async op=>{
+   if(op===__playerOps.PLAYER_ACCESS_QUERY)
+     return{sessionParticipants:[{...bob,gameSession:session()}]};
+   if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;
+   if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;
+   throw new Error('bad op');
+ };
+
+ let acceptedWrite=null;
+ const accepted=await executePlayerInteraction(
+   bob.playerAccessToken,
+   {grantToken:grant.grantToken,decision:'ACCEPT'},
+   {
+     reader:readerB,
+     executor:async(op,vars)=>{acceptedWrite={op,vars};return{};},
+     now:new Date('2026-09-21T18:06:00Z')
+   }
+ );
+
+ assert.equal(accepted.kind,'BUSINESS_DEAL');
+ assert.equal(accepted.status,'ACCEPTED');
+ assert.equal(acceptedWrite.vars.log.actionType,'BUSINESS_DEAL_ACCEPTED');
+});
+
 test('scan mode is explicit when present and backwards-compatible with secret_cible',()=>{
  assert.equal(interactionScanMode({targetType:'CHARACTER',scanMode:'DIRECT',targetSecret:true}),'DIRECT');
  assert.equal(interactionScanMode({targetType:'CHARACTER',scanMode:'DISCRET',targetSecret:false}),'DISCRET');
+ assert.equal(interactionScanMode({targetType:'CHARACTER',scanMode:'SELECT',targetSecret:false}),'SELECT');
  assert.equal(interactionScanMode({targetType:'CHARACTER',targetSecret:true}),'DISCRET');
  assert.equal(interactionScanMode({targetType:'CHARACTER',targetSecret:false}),'DIRECT');
  assert.equal(interactionScanMode({targetType:'LOCATION',scanMode:'DIRECT'}),null);
+});
+
+test('Informant SELECT action reveals a prepared target rumor without GM approval',async()=>{
+ const src=source();
+ src.abilities.push({externalId:'ABILITY_INFORMANT',name:'Rumour Network',description:'Get rumour',category:'INFORMATION',defaultLevel:1,secret:false,active:true});
+ src.abilityAssignments.push({externalId:'AA_RUMOR',ownerType:'CHARACTER',ownerExternalId:'CHAR_A',abilityExternalId:'ABILITY_INFORMANT',level:1,flatBonus:0,active:true});
+ src.interactions.push({externalId:'ACT_INFORMANT',name:'Get a Rumour',category:'INFORMATION',targetType:'CHARACTER',scanMode:'SELECT',abilityExternalId:'ABILITY_INFORMANT',resolution:'AUTO',validation:'AUTO',costResourceExternalId:'RES_PA',costValue:1,limitPerTarget:1,targetSecret:false,active:true});
+ src.clues.push({externalId:'RUMOR_1',playerName:'Rumour about Bob',clueType:'RUMOR',playerText:'Bob may be hiding a contract.',discoveryHook:'RUMOR_TARGET:CHAR_B',addToNotebook:true,active:true});
+
+ const rt=runtime();
+ const shaped=shapePlayerPortal(participant(),session(),src,rt,new Date('2026-09-21T18:05:00Z'));
+ const action=shaped.interactions.find(x=>x.externalId==='ACT_INFORMANT');
+ assert.equal(action.scanMode,'SELECT');
+ assert.deepEqual(action.targets.map(x=>x.id),['CHAR_B']);
+
+ const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return src;if(op===__playerOps.PLAYER_RUNTIME_QUERY)return rt;throw new Error('bad op')};
+ const revealed=[];const writes=[];
+ const out=await executePlayerInteraction(participant().playerAccessToken,{interactionExternalId:'ACT_INFORMANT',targetExternalId:'CHAR_B'},{reader,executor:async(op,vars)=>{writes.push({op,vars});return{};},interactionExecutor:async()=>({interactionName:'Get a Rumour',success:true}),clueReveal:async(sid,input)=>{revealed.push(input);return{};}});
+ assert.equal(out.scanMode,'SELECT');
+ assert.equal(out.rumor.text,'Bob may be hiding a contract.');
+ assert.equal(revealed[0].clueExternalId,'RUMOR_1');
+ const target=writes.map(x=>x.vars?.data).find(x=>x?.characterExternalId==='CHAR_B');
+ assert.match(target.body,/rumeur|rumor/i);
 });
 
 test('direct character action notifies target without revealing actor',async()=>{

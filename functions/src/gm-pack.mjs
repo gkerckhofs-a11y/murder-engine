@@ -23,6 +23,7 @@ query GmPack($versionId: UUID!) {
     accentColor
     logoMediaExternalId
     backgroundMediaExternalId
+    mediaOverridesJson
 
     scenario {
       id
@@ -53,7 +54,21 @@ query GmPack($versionId: UUID!) {
     apparentMotive
     personalTimeline
     motto
+    portraitMediaId
+    portraitArchetypeCode
     playable
+    active
+  }
+
+  plots(
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {externalId: ASC}
+  ) {
+    externalId
+    title
+    plotType
+    importance
+    gmSummary
     active
   }
 
@@ -93,7 +108,11 @@ query GmPack($versionId: UUID!) {
     clueType
     playerText
     gmInterpretation
+    discoveryHook
+    plotExternalId
     support
+    presentationMode
+    addToNotebook
     locationExternalId
     objectExternalId
     documentExternalId
@@ -147,6 +166,8 @@ query GmPack($versionId: UUID!) {
     stealable
     consumable
     critical
+    mediaExternalId
+    visualArchetypeCode
     active
   }
 
@@ -271,11 +292,22 @@ async function read(operation, variables) {
 
 const active = rows => (rows ?? []).filter(x => x?.active !== false);
 
+function parseMediaOverrides(value){
+  if(!value)return {};
+  try{
+    const parsed=JSON.parse(value);
+    return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{};
+  }catch{
+    return {};
+  }
+}
+
 export function shapeGmPack(data) {
   const version = data?.scenarioVersion;
   if (!version) return null;
 
   const characters = active(data.characters);
+  const plots = active(data.plots);
   const objectives = active(data.objectives);
   const relationships = active(data.relationships);
   const clues = active(data.clues);
@@ -284,6 +316,34 @@ export function shapeGmPack(data) {
   const objects = active(data.gameObjects);
   const locations = active(data.gameLocations);
   const interactions = active(data.interactions);
+  const mediaOverrides=parseMediaOverrides(version.mediaOverridesJson);
+  const mediaMap=new Map(media.map(m=>[m.externalId,m]));
+
+  const mediaFor=(targetType,targetExternalId,fallbackExternalId=null)=>{
+    const override=
+      mediaOverrides[`${String(targetType??'').toUpperCase()}:${targetExternalId}`];
+
+    if(override?.source)return {
+      externalId:override.assetExternalId??null,
+      mediaType:override.mediaType??'IMAGE',
+      source:override.source,
+      altText:override.altText??override.label??null,
+      override:true,
+    };
+
+    if(fallbackExternalId){
+      const fallback=mediaMap.get(fallbackExternalId);
+      if(fallback)return {
+        externalId:fallback.externalId,
+        mediaType:fallback.mediaType,
+        source:fallback.source,
+        altText:fallback.altText??null,
+        override:false,
+      };
+    }
+
+    return null;
+  };
 
   const phases = active(data.gamePhaseDefinitions)
     .sort((a,b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0));
@@ -314,11 +374,89 @@ export function shapeGmPack(data) {
 
   const majorClues = clues.filter(c => c.major === true);
 
-  const unplacedMajorClues = majorClues.filter(c =>
-    !c.locationExternalId &&
-    !c.objectExternalId &&
-    !c.documentExternalId
+  const clueAcquisition = clue => {
+    const clueType=String(clue.clueType??'').toUpperCase();
+    const support=String(clue.support??'').toUpperCase();
+    const presentation=String(clue.presentationMode??'').toUpperCase();
+    const hook=String(clue.discoveryHook??'').trim();
+    const hookUpper=hook.toUpperCase();
+
+    if(clueType==='RUMOR' || hookUpper.startsWith('RUMOR_TARGET:'))
+      return {type:'RUMOR',label:'Rumeur',physical:false};
+
+    if(clue.locationExternalId)
+      return {type:'LOCATION',label:'Lieu',physical:true};
+
+    if(clue.objectExternalId)
+      return {type:'OBJECT',label:'Objet',physical:true};
+
+    if(clue.documentExternalId)
+      return {type:'DOCUMENT',label:'Document',physical:support!=='DIGITAL'};
+
+    if(
+      hookUpper.includes('INTERACTION') ||
+      hookUpper.includes('ABILITY') ||
+      hookUpper.includes('ACTION')
+    )
+      return {type:'INTERACTION',label:'Interaction',physical:false};
+
+    if(hook)
+      return {type:'HOOK',label:'Déclencheur / révélation',physical:false};
+
+    if(support==='DIGITAL' || presentation==='TEXT' || presentation==='DIGITAL')
+      return {type:'DIGITAL',label:'Révélation numérique / MJ',physical:false};
+
+    return {type:'UNPLACED',label:'À préciser',physical:support==='PHYSICAL'};
+  };
+
+  const clueIndex=clues.map(clue=>({
+    ...clue,
+    acquisition:clueAcquisition(clue),
+  }));
+
+  const trulyUnplacedMajorClues = clueIndex.filter(clue =>
+    clue.major===true &&
+    clue.acquisition.type==='UNPLACED' &&
+    clue.acquisition.physical===true
   );
+
+  const nonPhysicalMajorClues = clueIndex.filter(clue =>
+    clue.major===true &&
+    !clue.locationExternalId &&
+    !clue.objectExternalId &&
+    !clue.documentExternalId &&
+    clue.acquisition.type!=='UNPLACED'
+  );
+
+  const plotRows=plots.map(plot=>{
+    const plotRelationships=relationships.filter(r=>
+      r.plotExternalId===plot.externalId
+    );
+
+    const characterIds=[
+      ...new Set(
+        plotRelationships.flatMap(r=>[
+          r.characterAExternalId,
+          r.characterBExternalId,
+        ]).filter(Boolean)
+      ),
+    ];
+
+    const plotClues=clueIndex.filter(clue=>
+      clue.plotExternalId===plot.externalId
+    );
+
+    return {
+      ...plot,
+      characterIds,
+      characters:characterIds.map(id=>({
+        externalId:id,
+        name:characters.find(c=>c.externalId===id)?.name??id,
+      })),
+      clues:plotClues,
+      majorClueCount:plotClues.filter(clue=>clue.major===true).length,
+    };
+  });
 
   const gmValidatedInteractions = interactions.filter(i =>
     String(i.validation ?? '').toUpperCase() === 'GM' ||
@@ -379,10 +517,14 @@ export function shapeGmPack(data) {
 
       return {
         ...character,
+        portrait:mediaFor('CHARACTER',character.externalId,character.portraitMediaId),
         objectives:sheetObjectives,
         relationships:sheetRelationships,
         startingDocuments,
-        startingObjects,
+        startingObjects:startingObjects.map(o=>({
+          ...o,
+          media:mediaFor('OBJECT',o.externalId,o.mediaExternalId),
+        })),
       };
     });
 
@@ -405,8 +547,8 @@ export function shapeGmPack(data) {
 
   const placementRows = [];
 
-  for(const clue of clues){
-    let placement='À déterminer';
+  for(const clue of clueIndex){
+    let placement=clue.acquisition.label;
 
     if(clue.locationExternalId)
       placement=locationMap.get(clue.locationExternalId)?.name ?? clue.locationExternalId;
@@ -473,9 +615,9 @@ export function shapeGmPack(data) {
       group:'PLACEMENT',
       label:`Vérifier le placement des ${clues.length} indices`,
     },
-    ...(unplacedMajorClues.length ? [{
+    ...(trulyUnplacedMajorClues.length ? [{
       group:'ATTENTION',
-      label:`Résoudre ${unplacedMajorClues.length} indice(s) majeur(s) sans placement`,
+      label:`Résoudre ${trulyUnplacedMajorClues.length} indice(s) majeur(s) physique(s) sans placement`,
     }] : []),
     ...(events.length ? [{
       group:'LIVE',
@@ -518,11 +660,19 @@ export function shapeGmPack(data) {
     });
   }
 
-  if (unplacedMajorClues.length) {
+  if (trulyUnplacedMajorClues.length) {
     diagnostics.push({
       severity: 'WARNING',
-      title: 'Indices majeurs sans placement',
-      message: `${unplacedMajorClues.length} indice(s) majeur(s) ne sont reliés ni à un lieu, ni à un objet, ni à un document.`,
+      title: 'Indices physiques majeurs sans placement',
+      message: `${trulyUnplacedMajorClues.length} indice(s) majeur(s) déclaré(s) physique(s) n’ont aucun lieu, objet ou document associé.`,
+    });
+  }
+
+  if (nonPhysicalMajorClues.length) {
+    diagnostics.push({
+      severity: 'INFO',
+      title: 'Indices majeurs non physiques',
+      message: `${nonPhysicalMajorClues.length} indice(s) majeur(s) sont obtenus par rumeur, déclencheur, interaction ou révélation numérique ; aucun placement physique n’est requis.`,
     });
   }
 
@@ -572,6 +722,7 @@ export function shapeGmPack(data) {
     counts: {
       characters: characters.filter(c => c.playable !== false).length,
       objectives: objectives.length,
+      plots: plots.length,
       majorClues: majorClues.length,
       documents: documents.length,
       media: media.length,
@@ -591,13 +742,22 @@ export function shapeGmPack(data) {
       events,
       votes: shapedVotes,
       interactions,
+      plots:plotRows,
+      brief:{
+        gmSummary:version.gmSummary??'',
+        essentialPlots:plotRows
+          .filter(plot=>String(plot.importance??'').toUpperCase()==='MAJEUR' || String(plot.importance??'').toUpperCase()==='MAJOR')
+          .slice(0,8),
+        majorClues:clueIndex.filter(clue=>clue.major===true).slice(0,12),
+      },
     },
 
     materials: {
       characters,
+      plots:plotRows,
       objectives,
       relationships,
-      clues,
+      clues:clueIndex,
       documents,
       media,
       objects,

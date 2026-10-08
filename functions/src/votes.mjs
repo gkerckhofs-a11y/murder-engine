@@ -86,13 +86,54 @@ const splitIds = value => String(value ?? '').split(';').map(x => x.trim()).filt
 const joinIds = values => (values ?? []).filter(Boolean).join(';');
 const byId = (rows, key='externalId') => new Map((rows ?? []).map(row => [row[key], row]));
 
-export function resolveElectorate(definition, participants) {
-  const cast = (participants ?? []).filter(p => p.active !== false && p.characterExternalId).map(p => p.characterExternalId);
-  if (definition.scopeType === 'ALL') return [...new Set(cast)];
+export function resolveElectorate(definition, participants, runtime=null, source=null) {
+  const cast = (participants ?? [])
+    .filter(p => p.active !== false && p.characterExternalId)
+    .map(p => p.characterExternalId);
+
+  if (definition.scopeType === 'ALL')
+    return [...new Set(cast)];
+
   if (definition.scopeType === 'LIST') {
     const allowed = new Set(splitIds(definition.scopeRef));
     return cast.filter(id => allowed.has(id));
   }
+
+  if (definition.scopeType === 'VOTE_WINNERS') {
+    if(!runtime||!source)return [];
+
+    const castSet=new Set(cast);
+    const optionMap=new Map(
+      (source.voteOptionDefinitions??[]).map(option=>[option.externalId,option])
+    );
+
+    const sourceVoteExternalIds=splitIds(definition.scopeRef);
+    if(!sourceVoteExternalIds.length)return [];
+
+    const winners=[];
+
+    for(const sourceVoteExternalId of sourceVoteExternalIds){
+      const closed=(runtime.sessionVotes??[])
+        .filter(v=>v.voteExternalId===sourceVoteExternalId&&v.status==='CLOSED'&&v.resultJson)
+        .sort((a,b)=>Number(b.round??0)-Number(a.round??0))[0];
+
+      if(!closed)return [];
+
+      let result=null;
+      try{result=JSON.parse(closed.resultJson)}catch{}
+      const winnerOptionExternalId=result?.winnerOptionExternalId;
+      const characterExternalId=optionMap.get(winnerOptionExternalId)?.characterExternalId;
+
+      if(!characterExternalId||!castSet.has(characterExternalId))
+        return [];
+
+      winners.push(characterExternalId);
+    }
+
+    const unique=[...new Set(winners)];
+    return unique.length===sourceVoteExternalIds.length?unique:[];
+  }
+
   return [];
 }
 
@@ -118,6 +159,23 @@ export function tallyVote({ definition, options, electorate, ballots }) {
   const majorityAbsolute = winner ? winner.votes > totalWeight / 2 : false;
   const tieForLead = ranked.length > 1 && ranked[0].votes === ranked[1].votes;
   const suggestSecondRound = definition.tieRule === 'SECOND_ROUND' && !majorityAbsolute && ranked.length > 2;
+
+  let secondRoundOptionExternalIds=[];
+  if(suggestSecondRound&&ranked.length>=2){
+    const leadVotes=ranked[0].votes;
+    const leadGroup=ranked.filter(x=>x.votes===leadVotes);
+
+    if(leadGroup.length>=2){
+      secondRoundOptionExternalIds=leadGroup.map(x=>x.optionExternalId);
+    }else{
+      const secondVotes=ranked[1].votes;
+      secondRoundOptionExternalIds=[
+        ranked[0].optionExternalId,
+        ...ranked.filter((x,index)=>index>0&&x.votes===secondVotes).map(x=>x.optionExternalId),
+      ];
+    }
+  }
+
   return {
     electorateCount: electorSet.size,
     ballotsCast: (ballots ?? []).filter(b=>electorSet.has(b.electorCharacterExternalId)).length,
@@ -129,7 +187,7 @@ export function tallyVote({ definition, options, electorate, ballots }) {
     winnerOptionExternalId: majorityAbsolute && !tieForLead ? winner?.optionExternalId ?? null : null,
     ranked,
     suggestSecondRound,
-    secondRoundOptionExternalIds: suggestSecondRound ? ranked.slice(0,2).map(x=>x.optionExternalId) : [],
+    secondRoundOptionExternalIds,
   };
 }
 
@@ -151,7 +209,7 @@ export function shapeVoteDashboard(session, source, runtime) {
   const participantMap = new Map((session.sessionParticipants_on_gameSession ?? []).filter(p=>p.characterExternalId).map(p=>[p.characterExternalId,p]));
   const resources = runtime.sessionResources ?? [];
   const votes = (source.voteDefinitions ?? []).filter(v=>v.active!==false).map(def => {
-    const electorate = resolveElectorate(def, session.sessionParticipants_on_gameSession ?? []);
+    const electorate = resolveElectorate(def, session.sessionParticipants_on_gameSession ?? [], runtime, source);
     const rounds = (roundsByVote.get(def.externalId) ?? []).sort((a,b)=>a.round-b.round);
     const activeRound = [...rounds].reverse().find(r=>r.status==='OPEN') ?? rounds.at(-1) ?? null;
     const eligibleIds = activeRound?.eligibleOptionExternalIds ? splitIds(activeRound.eligibleOptionExternalIds) : (optionsByVote.get(def.externalId) ?? []).map(x=>x.externalId);
@@ -231,7 +289,7 @@ export async function openSessionVote(sessionId,input,{reader=defaultReader,exec
     eligible=(result.secondRoundOptionExternalIds??[]).filter(Boolean);
     if(eligible.length<2) throw new Error('SECOND_ROUND_NOT_AVAILABLE');
   }
-  const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[]);
+  const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[],runtime,source);
   if(!electorate.length) throw new Error('VOTE_ELECTORATE_EMPTY');
   const openedAt=now().toISOString();
   await executor(INSERT_SESSION_VOTE,{data:{gameSessionId:sessionId,voteExternalId:def.externalId,round,status:'OPEN',eligibleOptionExternalIds:joinIds(eligible),openedAt,closedAt:null,resultJson:null,note:null}});
@@ -246,7 +304,7 @@ export async function castSessionBallot(sessionId,input,{reader=defaultReader,ex
   const open=(runtime.sessionVotes??[]).filter(v=>v.voteExternalId===def.externalId&&v.status==='OPEN').sort((a,b)=>b.round-a.round)[0];
   if(!open) throw new Error('VOTE_NOT_OPEN');
   const voter=String(input.electorCharacterExternalId??'').trim();
-  const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[]);
+  const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[],runtime,source);
   if(!electorate.includes(voter)) throw new Error('VOTER_NOT_ELIGIBLE');
   const eligible=new Set(splitIds(open.eligibleOptionExternalIds));
   const selected=Array.isArray(input.selectedOptionExternalIds)?input.selectedOptionExternalIds.map(String).filter(Boolean):splitIds(input.selectedOptionExternalIds);
@@ -278,7 +336,7 @@ export async function closeSessionVote(sessionId,input,{reader=defaultReader,exe
   if(!open) throw new Error('VOTE_NOT_OPEN');
   const eligibleIds=splitIds(open.eligibleOptionExternalIds);
   const options=optionsFor(source,def.externalId).filter(o=>eligibleIds.includes(o.externalId));
-  const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[]);
+  const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[],runtime,source);
   const ballots=(runtime.sessionBallots??[]).filter(b=>b.voteExternalId===def.externalId&&b.round===open.round);
   const result=tallyVote({definition:def,options,electorate,ballots});
   const closedAt=now().toISOString();

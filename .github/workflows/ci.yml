@@ -1,0 +1,45 @@
+name: Murder Engine CI
+
+on:
+  push:
+    branches:
+      - main
+      - media-library-v2
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - precasting-before-session-v1
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            functions/package-lock.json
+            web/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Run Functions tests
+        working-directory: functions
+        run: npm test
+
+      - name: Install Web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build Web
+        working-directory: web
+        run: npm run build
