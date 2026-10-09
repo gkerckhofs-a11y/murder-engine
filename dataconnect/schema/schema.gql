@@ -528,6 +528,9 @@ type SessionParticipant @table {
   playerLastOpenedAt: Timestamp
   playerOpenCount: Int! @default(value: 0)
   briefingReadAt: Timestamp
+  # Private notebook: participant-owned, never included in scenario/GM exports.
+  privateNotesJson: String
+  privateNotesRevision: Int! @default(value: 0)
   source: String! @default(value: "MANUAL")
   precastSubmittedAt: Timestamp
   notes: String
@@ -716,3 +719,4 @@ type SessionPlayerNotification @table {
   createdAt: Timestamp! @default(expr: "request.time")
   readAt: Timestamp
 }
+

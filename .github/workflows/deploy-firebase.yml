@@ -77,6 +77,12 @@ jobs:
           echo "Firebase project: $FIREBASE_PROJECT_ID"
           echo "Deploying ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}"
 
+      - name: Deploy compatible Data Connect schema
+        if: github.event_name == 'push' || inputs.target != 'hosting-only'
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: firebase deploy --project "$FIREBASE_PROJECT_ID" --only dataconnect:murder-engine:schema --non-interactive
+
       - name: Deploy selected scope
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
@@ -84,7 +90,7 @@ jobs:
         run: |
           case "$DEPLOY_TARGET" in
             player-media-and-hosting)
-              ONLY="functions:getPublicPlayerPortal,functions:executePublicPlayerInteraction,functions:attemptPublicPlayerClandestineAction,functions:claimPublicPlayerStolenObject,functions:executePublicPlayerLocationAction,functions:getSessionGmPackView,functions:validateLiveBusinessDeal,functions:setScenarioMediaOverrideView,functions:deleteMediaLibraryAssetView,hosting"
+              ONLY="functions:managePublicPlayerNotes,functions:getPublicPlayerPortal,functions:executePublicPlayerInteraction,functions:attemptPublicPlayerClandestineAction,functions:claimPublicPlayerStolenObject,functions:executePublicPlayerLocationAction,functions:getSessionGmPackView,functions:validateLiveBusinessDeal,functions:setScenarioMediaOverrideView,functions:deleteMediaLibraryAssetView,hosting"
               ;;
             hosting-only)
               ONLY="hosting"
@@ -109,3 +115,4 @@ jobs:
           echo "- Ref: \`${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Scope: \`${{ github.event_name == 'workflow_dispatch' && inputs.target || 'player-media-and-hosting' }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Project: \`${{ vars.FIREBASE_PROJECT_ID }}\`" >> "$GITHUB_STEP_SUMMARY"
+

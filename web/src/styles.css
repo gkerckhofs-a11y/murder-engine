@@ -14497,3 +14497,21 @@ button.skinGalleryCard:disabled{
   background:#3a2020!important;
   color:#ffd0d0!important;
 }
+
+
+/* Participant-private notebook, matching each scenario's existing palette. */
+.personalNotes{display:grid;gap:16px}
+.personalNotesIntro,.personalNotesEmpty{margin:0;line-height:1.55}
+.personalNoteActions{display:flex;flex-wrap:wrap;gap:8px}
+.personalNoteActions button{min-height:44px;padding:10px 14px;font:inherit;font-weight:700;color:inherit;border:1px solid currentColor;border-radius:10px;background:transparent}
+.personalNoteActions button.primary{background:var(--skin-accent,#b78938);color:#17120b;border-color:var(--skin-accent,#b78938)}
+.personalNoteActions button:disabled{opacity:.5;cursor:not-allowed}
+.personalNoteActions button:focus-visible,.personalNoteEditor textarea:focus-visible{outline:3px solid var(--skin-accent,#b78938);outline-offset:3px}
+.personalNoteEditor{display:grid;gap:10px}
+.personalNoteEditor label{font-weight:800}
+.personalNoteEditor textarea{box-sizing:border-box;width:100%;min-height:160px;padding:12px;border:1px solid currentColor;border-radius:10px;background:transparent;color:inherit;font:inherit;font-size:16px;line-height:1.55;resize:vertical}
+.personalNoteEditor textarea::placeholder{color:inherit;opacity:.6}
+.personalNoteList{display:grid;gap:12px}
+.personalNote{min-width:0;padding:16px;border:1px solid color-mix(in srgb,currentColor 25%,transparent);border-radius:12px}
+.personalNote time{font-size:.8rem;opacity:.8}
+.personalNote p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;margin:10px 0 16px}

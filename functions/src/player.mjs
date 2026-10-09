@@ -3099,3 +3099,7 @@ export async function castPlayerVote(token,input,{reader=defaultReader,voteCaste
 }
 
 export const __playerOps={PLAYER_ACCESS_QUERY,PLAYER_SOURCE_QUERY,PLAYER_RUNTIME_QUERY,UPDATE_PLAYER_ACCESS_MUTATION,TRACK_PLAYER_OPEN_MUTATION,MARK_BRIEFING_READ_MUTATION,INSERT_NOTIFICATION_MUTATION,MARK_NOTIFICATION_READ_MUTATION,INSERT_PLAYER_ACTION_LOG_MUTATION,SYSTEM_LOCATION_SEARCH_MUTATION,INSERT_STEAL_GRANT_MUTATION,CLAIM_STEAL_MUTATION,TRANSFER_PLAYER_CASH_MUTATION};
+
+
+// Shared authorization and Data Connect transport for participant-private features.
+export { loadPlayerAccess as authorizePlayerAccess, defaultReader as readPlayerData, defaultExecutor as writePlayerData };

@@ -6,6 +6,7 @@ import QrCharacterScanner from './QrCharacterScanner';
 import ImmersiveDocument from './ImmersiveDocument';
 import NarrativeText from './NarrativeText';
 import ShowbizGameRules from './ShowbizGameRules';
+import PlayerPersonalNotes from './PlayerPersonalNotes';
 import { asSkinId, skinClassFor, defaultAccentForSkin } from './skin-registry';
 
 type Portal = any;
@@ -172,7 +173,7 @@ export default function PlayerPortal({token}:{token:string}){
     {portal.states?.length>0&&<section className="playerStates">{portal.states.map((st:any)=><span key={st.stateExternalId}><b>{st.name}</b>{st.description?` · ${st.description}`:''}</span>)}</section>}
     {flash&&<p className="playerFlash">{flash}</p>}{error&&<p className="playerError">{error}</p>}
     {tab==='fiche'&&<PlayerSheet portal={portal} busy={busy} onRead={()=>void act(()=>postJson('/api/player/briefing/read',{token}))}/>} 
-    {tab==='carnet'&&<PlayerNotebook portal={portal}/>} 
+    <div hidden={tab!=='carnet'}><PlayerNotebook key={`${token}:${s.id}`} portal={portal} token={token} active={tab==='carnet'}/></div>
     {tab==='actions'&&<PlayerActions token={token} portal={portal} busy={busy} onRefresh={()=>load(false)} onExecute={async(interactionExternalId,targetExternalId,requestOnly,options)=>{
       const response=await act(
         ()=>postJson('/api/player/interaction',{
@@ -455,8 +456,8 @@ function PlayerSheet({portal,busy,onRead}:{portal:Portal;busy:boolean;onRead:()=
   </div>;
 }
 
-function PlayerNotebook({portal}:{portal:Portal}){
-  type NotebookTab='context'|'relations'|'info'|'clues';
+function PlayerNotebook({portal,token,active}:{portal:Portal;token:string;active:boolean}){
+  type NotebookTab='context'|'relations'|'info'|'clues'|'notes';
   const [tab,setTab]=useState<NotebookTab>('relations');
   const [category,setCategory]=useState('ALL');
 
@@ -498,6 +499,7 @@ function PlayerNotebook({portal}:{portal:Portal}){
     string,
     number|null
   ][]=[
+    ['notes',tr(portal,'Mes notes','My notes'),null],
     ['relations',tr(portal,'Relations','Relations'),portal.relationships?.length??0],
     ['info',tr(portal,'Infos','Info'),rows.length],
     ['clues',tr(portal,'Indices','Clues'),clueRows.length],
@@ -505,7 +507,7 @@ function PlayerNotebook({portal}:{portal:Portal}){
   ];
 
   return <div className="playerStack notebookShell">
-    <nav className="notebookTabs" aria-label="Rubriques du carnet">
+    <nav className="notebookTabs" aria-label={tr(portal,'Rubriques du carnet','Notebook sections')}>
       {tabs.map(([id,label,count])=>
         <button
           key={id}
@@ -517,6 +519,8 @@ function PlayerNotebook({portal}:{portal:Portal}){
         </button>
       )}
     </nav>
+
+    <div hidden={tab!=='notes'}><PlayerPersonalNotes token={token} language={portal.session?.language} active={active && tab==='notes'}/></div>
 
     {tab==='context'&&<section className="playerCard notebookContextCard">
       <p className="playerSectionKicker">{tr(portal,'L’HISTOIRE','THE STORY')}</p>
@@ -1572,5 +1576,6 @@ function NewsNotification({n,busy,onRead,portal}:{n:any;busy:boolean;onRead:(id:
     {!n.readAt&&<button className="playerSecondary" disabled={busy} onClick={()=>onRead(n.id)}>{tr(portal,'Marquer comme lu','Mark as read')}</button>}
   </article>;
 }
+
 
 

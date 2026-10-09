@@ -49,6 +49,7 @@ const sections = [
       <p>Your <strong>Notebook</strong> holds your knowledge and discoveries. Your <strong>Bag</strong> contains the evidence and objects you possess.</p>
       <p><strong>Sharing information</strong> lets someone else learn it. <strong>Giving evidence</strong> transfers possession. A discovery saved in your Notebook stays there even after the associated object changes hands.</p>
       <p>Use the buttons provided by the app to record your exchanges.</p>
+      <p>In <strong>Notebook → My notes</strong>, add, edit or delete your own notes for free. They are private to your player in this session. Press <strong>Save</strong> to keep them.</p>
     </>,
   },
   {
@@ -81,3 +82,4 @@ export default function ShowbizGameRules() {
     </details>)}
   </section>;
 }
+

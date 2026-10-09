@@ -1,3 +1,4 @@
+import { getPlayerPersonalNotes, changePlayerPersonalNote } from './player-notes.mjs';
 import {getSessionGmPack} from './gm-pack-session.mjs';
 import {
   getSessionIncarnations as readSessionIncarnations,
@@ -1289,3 +1290,24 @@ export const updateScenarioAppearanceView = onRequest(
     }
   }
 );
+
+
+export const managePublicPlayerNotes = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+  res.set('Cache-Control','private, no-store');
+  if (!['GET','POST'].includes(req.method)) return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
+  const body = typeof req.body === 'object' && req.body ? req.body : {};
+  const token = String(req.method === 'GET' ? (req.query.token ?? '') : (body.token ?? '')).trim();
+  try {
+    const result = req.method === 'GET'
+      ? await getPlayerPersonalNotes(token)
+      : await changePlayerPersonalNote(token,body);
+    return res.status(200).json({ok:true,...result});
+  } catch(error) {
+    // Never log private note contents or database errors containing variables.
+    const code = error instanceof Error ? error.message : '';
+    const known = /^(PLAYER_NOTE_[A-Z_]+|PLAYER_NOTES_INVALID_DATA|PLAYER_LINK_NOT_FOUND|PLAYER_NOT_CAST|RUNTIME_NOT_INITIALIZED|SESSION_ARCHIVED|INVALID_PLAYER_TOKEN)$/.test(code);
+    const message = known ? code : 'PLAYER_NOTES_FAILED';
+    if (!known) logger.error('Player notes operation failed');
+    return res.status(code === 'PLAYER_NOTE_CONFLICT' ? 409 : known ? 400 : 500).json({error:message,message});
+  }
+});
