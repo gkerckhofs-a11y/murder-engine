@@ -608,6 +608,29 @@ function applySessionIncarnations(
 }
 
 function visibilityAllowed(value) { return !['MJ','MJ_ONLY','SECRET_MJ','GM_ONLY'].includes(String(value ?? '').toUpperCase()); }
+
+// Merge only already-filtered, actor-facing relationships. Never mix the
+// other character's perspective or GM-only information into a player sheet.
+function mergePlayerRelationships(relationships) {
+  const groups = new Map();
+  for (const relationship of relationships) {
+    const key = relationship.otherExternalId || relationship.externalId;
+    const group = groups.get(key) ?? [];
+    group.push(relationship);
+    groups.set(key, group);
+  }
+  return [...groups.values()].map(group => {
+    if (group.length === 1) return group[0];
+    const texts = [...new Set(group.flatMap(r =>
+      String(r.text ?? '').split(/\n\s*\n/g).map(p => p.trim()).filter(Boolean)
+    ))];
+    const types = [...new Set(group.map(r =>
+      String(r.relationType ?? '').trim()
+    ).filter(Boolean))];
+    return {...group[0], text:texts.join('\n\n'), relationType:types.join(' · ')};
+  });
+}
+
 function sessionIsEnglish(session){return String(session?.language??'FR').trim().toUpperCase()==='EN';}
 function sessionText(session,fr,en){return sessionIsEnglish(session)?en:fr;}
 
@@ -1761,7 +1784,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
       owned:true,
     }));
   const actionLogs=(runtime.sessionActionLogs??[]).filter(l=>l.characterExternalId===characterExternalId).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()).slice(0,50);
-  const relationships=(source.relationships??[]).filter(r=>r.active!==false&&visibilityAllowed(r.visibility)&&(r.characterAExternalId===characterExternalId||r.characterBExternalId===characterExternalId)).map(r=>{const isA=r.characterAExternalId===characterExternalId;const otherExternalId=isA?r.characterBExternalId:r.characterAExternalId;const other=charMap.get(otherExternalId);return{externalId:r.externalId,otherExternalId,otherName:other?.name??otherExternalId,otherPublicRole:other?.publicRole??null,relationType:r.relationType,text:isA?r.textA:(r.textB||r.textA),visibility:r.visibility,portrait:mediaOverrideVisual(session,'CHARACTER',otherExternalId)??visualMedia(mediaMap,other?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',other?.portraitArchetypeCode)};});
+  const relationships=mergePlayerRelationships((source.relationships??[]).filter(r=>r.active!==false&&visibilityAllowed(r.visibility)&&(r.characterAExternalId===characterExternalId||r.characterBExternalId===characterExternalId)).map(r=>{const isA=r.characterAExternalId===characterExternalId;const otherExternalId=isA?r.characterBExternalId:r.characterAExternalId;const other=charMap.get(otherExternalId);return{externalId:r.externalId,otherExternalId,otherName:other?.name??otherExternalId,otherPublicRole:other?.publicRole??null,relationType:r.relationType,text:isA?r.textA:(r.textB||r.textA),visibility:r.visibility,portrait:mediaOverrideVisual(session,'CHARACTER',otherExternalId)??visualMedia(mediaMap,other?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',other?.portraitArchetypeCode)};}));
   const discoverableAboutMe=(source.clues??[])
     .filter(clue=>
       clue.active!==false &&

@@ -325,7 +325,7 @@ function PlayerPrintableSheet({portal}:{portal:Portal}){
           <div className="playerPdfRelation" key={r.externalId}>
             <strong>{r.otherName}</strong>
             {r.otherPublicRole&&<span> · {r.otherPublicRole}</span>}
-            <p>{r.text}</p>
+            <NarrativeText text={r.text}/>
           </div>
         )}
       </section>}
@@ -555,7 +555,7 @@ function PlayerNotebook({portal,token,active}:{portal:Portal;token:string;active
                 </span>}
               </div>
               {r.otherPublicRole&&<em>{r.otherPublicRole}</em>}
-              <p>{r.text}</p>
+              <NarrativeText text={r.text}/>
             </div>
           </article>
         )}

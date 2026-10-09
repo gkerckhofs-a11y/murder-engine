@@ -84,6 +84,43 @@ test('player notebook knowledge and discoveries are newest first',()=>{
  assert.equal(out.discoveries[0].clueExternalId,'C4');
 });
 
+test('reciprocal relationships merge once per person without leaking either perspective or GM details',()=>{
+ const src=source();
+ src.relationships=[
+   {externalId:'R1',characterAExternalId:'CHAR_A',characterBExternalId:'CHAR_B',textA:'A knows the support.',textB:'B knows the candidate.',relationType:'ALLY',visibility:'PRIVATE',active:true},
+   {externalId:'R2',characterAExternalId:'CHAR_B',characterBExternalId:'CHAR_A',textA:'B knows the risk.',textB:'A knows the telegram.',relationType:'RISK',visibility:'PRIVATE',active:true},
+   {externalId:'GM',characterAExternalId:'CHAR_A',characterBExternalId:'CHAR_B',textA:'GM truth',textB:'GM truth',visibility:'GM_ONLY',active:true},
+   {externalId:'OFF',characterAExternalId:'CHAR_A',characterBExternalId:'CHAR_B',textA:'Inactive truth',textB:'Inactive truth',active:false},
+ ];
+ const before=JSON.stringify(src);
+ const a=shapePlayerPortal(participant(),session(),src,runtime()).relationships;
+ const b=shapePlayerPortal({...participant(),characterExternalId:'CHAR_B'},session(),src,runtime()).relationships;
+ assert.equal(a.length,1);
+ assert.equal(a[0].text,'A knows the support.\n\nA knows the telegram.');
+ assert.equal(a[0].relationType,'ALLY · RISK');
+ assert.equal(b.length,1);
+ assert.equal(b[0].text,'B knows the candidate.\n\nB knows the risk.');
+ assert.equal(a[0].portrait.source,'/immersive/test/bob.png');
+ assert.equal(JSON.stringify(src),before);
+});
+
+test('relationship merging uses character IDs, preserves distinct facts and removes identical paragraphs',()=>{
+ const src=source();
+ src.characters.push({...src.characters[1],externalId:'CHAR_C'});
+ src.relationships=[
+   {externalId:'R1',characterAExternalId:'CHAR_A',characterBExternalId:'CHAR_B',textA:'Shared detail.\n\nFirst fact.',relationType:'ALLY',active:true},
+   {externalId:'R2',characterAExternalId:'CHAR_A',characterBExternalId:'CHAR_B',textA:'Shared detail.\n\nSecond fact.',relationType:'ALLY',active:true},
+   {externalId:'R3',characterAExternalId:'CHAR_A',characterBExternalId:'CHAR_C',textA:'Another person with the same name.',relationType:'ALLY',active:true},
+ ];
+ const out=shapePlayerPortal(participant(),session(),src,runtime()).relationships;
+ assert.equal(out.length,2);
+ assert.equal(out[0].text,'Shared detail.\n\nFirst fact.\n\nSecond fact.');
+ assert.equal(out[0].relationType,'ALLY');
+ assert.equal(out[1].otherName,out[0].otherName);
+ assert.equal(out[1].otherExternalId,'CHAR_C');
+ assert.equal(out[1].text,'Another person with the same name.');
+});
+
 test('player sheet exposes searchable traces about the current character but not rumours',()=>{
  const src=source();
  src.clues.push(
