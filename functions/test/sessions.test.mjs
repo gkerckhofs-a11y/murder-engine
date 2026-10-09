@@ -228,11 +228,17 @@ test('public precast rejects a missing age bracket', async () => {
   );
 });
 
-test('manual participant creation rejects a missing age bracket', async () => {
-  await assert.rejects(
-    addGameSessionParticipant('S1',{displayName:'Bob',email:'bob@example.com',desiredInvolvement:'ACTIF'}, {reader:async()=>({gameSession:{id:'S1',runtimeInitializedAt:null,scenarioVersion:{characters_on_scenarioVersion:[]},sessionParticipants_on_gameSession:[]}}),executor:async()=>({})}),
-    /AGE_BRACKET_REQUIRED/
-  );
+test('manual participant creation preserves an unknown age and rejects an invalid supplied age', async () => {
+  let saved;
+  const dependencies = {
+    reader: async()=>({gameSession:{id:'S1',runtimeInitializedAt:null,scenarioVersion:{characters_on_scenarioVersion:[]},sessionParticipants_on_gameSession:[]}}),
+    executor: async(op,vars)=>{saved=vars.data;return {};}
+  };
+  const input={displayName:'Bob',email:'bob@example.com',desiredInvolvement:'ACTIF'};
+  await addGameSessionParticipant('S1',input,dependencies);
+  assert.equal(saved.ageBracket,null);
+  assert.equal(saved.source,'MANUAL');
+  await assert.rejects(addGameSessionParticipant('S1',{...input,ageBracket:'unknown-value'},dependencies),/INVALID_AGE_BRACKET/);
 });
 
 
@@ -394,6 +400,19 @@ test('V1.6 preparation assistant becomes ready when all participants are cast', 
   assert.equal(prep.progress,100);
 });
 
+test('manual casting can be ready without an age only after the organizer assigns every role', () => {
+  const session=assistantSession();
+  session.participants.forEach((p,index)=>Object.assign(p,{
+    ageBracket:null,source:'MANUAL',castingLocked:true,characterExternalId:`C${index+1}`
+  }));
+  assert.equal(buildSessionPreparation(session).canMarkReady,true);
+  session.participants[0].castingLocked=false;
+  assert.equal(buildSessionPreparation(session).canMarkReady,false);
+  session.participants[0].castingLocked=true;
+  session.participants[0].source='PRECAST';
+  assert.equal(buildSessionPreparation(session).canMarkReady,false);
+});
+
 test('V1.6 bulk casting validates all assignments before writing', async () => {
   const raw=assistantSession();
   const dbSession={
@@ -413,3 +432,4 @@ test('V1.6 bulk casting validates all assignments before writing', async () => {
   assert.equal(writes.length,2);
   assert.equal(writes[0].vars.castingLocked,true);
 });
+

@@ -92,7 +92,7 @@ jobs:
         run: |
           case "$DEPLOY_TARGET" in
             player-media-and-hosting)
-              ONLY="functions:managePublicPlayerNotes,functions:getPublicPlayerPortal,functions:executePublicPlayerInteraction,functions:attemptPublicPlayerClandestineAction,functions:claimPublicPlayerStolenObject,functions:executePublicPlayerLocationAction,functions:getSessionGmPackView,functions:validateLiveBusinessDeal,functions:setScenarioMediaOverrideView,functions:deleteMediaLibraryAssetView,hosting"
+              ONLY="functions:addSessionParticipant,functions:getSessionSetup,functions:managePublicPlayerNotes,functions:getPublicPlayerPortal,functions:executePublicPlayerInteraction,functions:attemptPublicPlayerClandestineAction,functions:claimPublicPlayerStolenObject,functions:executePublicPlayerLocationAction,functions:getSessionGmPackView,functions:validateLiveBusinessDeal,functions:setScenarioMediaOverrideView,functions:deleteMediaLibraryAssetView,hosting"
               ;;
             hosting-only)
               ONLY="hosting"

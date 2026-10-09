@@ -520,7 +520,10 @@ export function buildSessionPreparation(session) {
   const minPlayers = Number(session.scenarioVersion?.minPlayers ?? characters.length ?? 0);
   const maxPlayers = Number(session.scenarioVersion?.maxPlayers ?? characters.length ?? 0);
   const countCompatible = participants.length > 0 && participants.length >= minPlayers && participants.length <= maxPlayers;
-  const profilesComplete = participants.length > 0 && participants.every(p => Boolean(p.email && p.ageBracket && p.desiredInvolvement));
+  const profilesComplete = participants.length > 0 && participants.every(p => Boolean(
+    p.email && p.desiredInvolvement && (p.ageBracket || (p.source === 'MANUAL' && p.castingLocked && p.characterExternalId))
+  ));
+  const manuallyAssignedWithoutAge = profilesComplete && participants.some(p => !p.ageBracket);
   const assigned = participants.filter(p => Boolean(p.characterExternalId));
   const uniqueAssignments = new Set(assigned.map(p => p.characterExternalId)).size === assigned.length;
   const allAssigned = participants.length > 0 && assigned.length === participants.length && uniqueAssignments;
@@ -529,7 +532,7 @@ export function buildSessionPreparation(session) {
   const steps = [
     { id:'VARIANT', label:'Variante sélectionnée', ready:Boolean(session.scenarioVersion?.id), detail:session.scenarioVersion?.variantName || `V${session.scenarioVersion?.versionLabel ?? ''}` },
     { id:'GROUP', label:'Groupe compatible', ready:countCompatible, detail:`${participants.length} participant(s) · attendu ${minPlayers === maxPlayers ? minPlayers : `${minPlayers}–${maxPlayers}`}` },
-    { id:'PROFILES', label:'Profils participants', ready:profilesComplete, detail:profilesComplete ? 'Préférences exploitables' : 'E-mail, âge ou implication à compléter' },
+    { id:'PROFILES', label:'Profils participants', ready:profilesComplete, detail:profilesComplete ? (manuallyAssignedWithoutAge ? 'Attribution manuelle validée · âge facultatif' : 'Préférences exploitables') : 'Profil ou attribution manuelle à compléter' },
     { id:'CASTING', label:'Casting complet', ready:allAssigned && assignedKnown, detail:`${assigned.length}/${participants.length} rôle(s) attribué(s)` },
     { id:'READY', label:'Session marquée prête', ready:session.status === 'READY', detail:session.status === 'READY' ? 'Prête pour initialisation' : 'À valider par le MJ' },
     { id:'RUNTIME', label:'Runtime initialisé', ready:Boolean(session.runtimeInitializedAt), detail:session.runtimeInitializedAt ? 'État joueur créé' : 'Après validation du casting' },
@@ -656,8 +659,9 @@ export async function addGameSessionParticipant(sessionId, input, { reader = def
   if (!email.includes('@') || email.length > 254) throw new Error('INVALID_EMAIL');
 
   const ageBracket = String(input?.ageBracket ?? '').trim().toUpperCase();
-  if (!ageBracket) throw new Error('AGE_BRACKET_REQUIRED');
-  if (!ALLOWED_AGE_BRACKETS.has(ageBracket)) throw new Error('INVALID_AGE_BRACKET');
+  // Manual casting can be supplied without demographic information. Keep an
+  // unknown age unknown; public registration still validates its required age.
+  if (ageBracket && !ALLOWED_AGE_BRACKETS.has(ageBracket)) throw new Error('INVALID_AGE_BRACKET');
 
   const id = randomUUID();
   await executor(ADD_PARTICIPANT_MUTATION, {
@@ -666,7 +670,7 @@ export async function addGameSessionParticipant(sessionId, input, { reader = def
       gameSessionId: sessionId,
       displayName,
       email,
-      ageBracket,
+      ageBracket: ageBracket || null,
       genderPreference: String(input?.genderPreference ?? '').trim() || null,
       desiredInvolvement: involvement,
       characterExternalId: null,
@@ -899,3 +903,4 @@ export const __sessionOps = {
   TRACK_PRECAST_OPEN_MUTATION,
   TRACK_PRECAST_SUBMISSION_MUTATION,
 };
+
