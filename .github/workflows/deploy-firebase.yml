@@ -81,7 +81,9 @@ jobs:
         if: github.event_name == 'push' || inputs.target != 'hosting-only'
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-        run: firebase deploy --project "$FIREBASE_PROJECT_ID" --only dataconnect:murder-engine:schema --non-interactive
+        run: |
+          firebase dataconnect:sql:migrate --service murder-engine --project "$FIREBASE_PROJECT_ID" --non-interactive
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only dataconnect:murder-engine:schema --non-interactive
 
       - name: Deploy selected scope
         env:
