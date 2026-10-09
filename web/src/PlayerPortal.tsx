@@ -460,6 +460,12 @@ function PlayerNotebook({portal,token,active}:{portal:Portal;token:string;active
   type NotebookTab='context'|'relations'|'info'|'clues'|'notes';
   const [tab,setTab]=useState<NotebookTab>('relations');
   const [category,setCategory]=useState('ALL');
+  const playersByCharacter=useMemo(()=>new Map<string,string>(
+    (portal.otherCharacters??[]).map((character:any)=>[
+      character.characterExternalId,
+      String(character.participantName??'').trim(),
+    ])
+  ),[portal.otherCharacters]);
 
   const rows=useMemo(
     ()=>[...(portal.knowledge??[])].sort(
@@ -542,7 +548,12 @@ function PlayerNotebook({portal,token,active}:{portal:Portal;token:string;active
             {r.portrait&&<img className="relationPortrait" src={r.portrait.source} alt={r.portrait.altText||`Portrait de ${r.otherName}`}/>}
             <div className="relationContent">
               <small>{r.relationType||tr(portal,'Relation','Relationship')}</small>
-              <strong>{r.otherName}</strong>
+              <div className="relationIdentity">
+                <strong>{r.otherName}</strong>
+                {playersByCharacter.get(r.otherExternalId)&&<span className="relationPlayer">
+                  {tr(portal,'Joué par','Played by')} — {playersByCharacter.get(r.otherExternalId)}
+                </span>}
+              </div>
               {r.otherPublicRole&&<em>{r.otherPublicRole}</em>}
               <p>{r.text}</p>
             </div>
