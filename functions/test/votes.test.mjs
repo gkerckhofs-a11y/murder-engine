@@ -165,3 +165,75 @@ test('closing a vote stores calculated result',async()=>{
   const out=await closeSessionVote('S1',{voteExternalId:'VOTE_1'},{reader:readerFor(session(),source(),rt),executor:async(op,vars)=>{writes.push({op,vars});return{};},now:()=>new Date('2026-09-21T18:10:00Z')});
   assert.equal(out.result.winnerOptionExternalId,'OPT_A');assert.equal(writes.length,2);assert.match(writes[0].vars.resultJson,/OPT_A/);
 });
+
+
+test('same non-modifiable ballot retry is idempotent',async()=>{
+  const rt=runtime();
+  rt.sessionVotes=[{voteExternalId:'VOTE_1',round:1,status:'OPEN',eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C'}];
+  rt.sessionBallots=[{voteExternalId:'VOTE_1',round:1,electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:'OPT_A',weight:1}];
+  const writes=[];
+  const out=await castSessionBallot('S1',{voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{
+    reader:readerFor(session(),source(),rt),
+    executor:async(op,vars)=>{writes.push({op,vars});return{};}
+  });
+  assert.equal(out.alreadyRecorded,true);
+  assert.equal(out.updated,false);
+  assert.equal(writes.length,0);
+});
+
+test('session ballot primary-key race is an idempotent successful retry',async()=>{
+  const first=runtime();
+  first.sessionVotes=[{voteExternalId:'VOTE_1',round:1,status:'OPEN',eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C'}];
+  const refreshed=runtime();
+  refreshed.sessionVotes=[...first.sessionVotes];
+  refreshed.sessionBallots=[{voteExternalId:'VOTE_1',round:1,electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:'OPT_A',weight:1}];
+  let runtimeReads=0;
+  const reader=async operation=>{
+    if(operation.includes('VoteSession'))return {gameSession:session()};
+    if(operation.includes('VoteSource'))return source();
+    if(operation.includes('VoteRuntime'))return ++runtimeReads===1?first:refreshed;
+    throw new Error('UNEXPECTED_READ');
+  };
+  const writes=[];
+  const executor=async(op,vars)=>{
+    writes.push({op,vars});
+    if(op.includes('InsertBallot')){
+      const error=new Error('DATACONNECT_VOTE_WRITE_FAILED');
+      error.details=[{message:'violated SQL unique constrain: session ballot pkey'}];
+      throw error;
+    }
+    return{};
+  };
+  const out=await castSessionBallot('S1',{voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{reader,executor});
+  assert.equal(out.alreadyRecorded,true);
+  assert.equal(out.updated,false);
+  assert.equal(writes.length,1);
+  assert.match(writes[0].op,/InsertBallot/);
+});
+
+test('session ballot primary-key race does not overwrite a different non-modifiable choice',async()=>{
+  const first=runtime();
+  first.sessionVotes=[{voteExternalId:'VOTE_1',round:1,status:'OPEN',eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C'}];
+  const refreshed=runtime();
+  refreshed.sessionVotes=[...first.sessionVotes];
+  refreshed.sessionBallots=[{voteExternalId:'VOTE_1',round:1,electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:'OPT_B',weight:1}];
+  let runtimeReads=0;
+  const reader=async operation=>{
+    if(operation.includes('VoteSession'))return {gameSession:session()};
+    if(operation.includes('VoteSource'))return source();
+    if(operation.includes('VoteRuntime'))return ++runtimeReads===1?first:refreshed;
+    throw new Error('UNEXPECTED_READ');
+  };
+  const executor=async op=>{
+    if(op.includes('InsertBallot')){
+      const error=new Error('DATACONNECT_VOTE_WRITE_FAILED');
+      error.details=[{message:'duplicate key value violates unique constraint session_ballot_pkey'}];
+      throw error;
+    }
+    return{};
+  };
+  await assert.rejects(
+    ()=>castSessionBallot('S1',{voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{reader,executor}),
+    /BALLOT_NOT_MODIFIABLE/
+  );
+});

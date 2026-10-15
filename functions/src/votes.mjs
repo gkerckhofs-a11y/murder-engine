@@ -85,6 +85,25 @@ async function defaultExecutor(operation, variables) {
 const splitIds = value => String(value ?? '').split(';').map(x => x.trim()).filter(Boolean);
 const joinIds = values => (values ?? []).filter(Boolean).join(';');
 const byId = (rows, key='externalId') => new Map((rows ?? []).map(row => [row[key], row]));
+const normalizedIdSet = values => [...new Set((values ?? []).map(String).filter(Boolean))].sort();
+const sameIdSet = (left, right) => {
+  const a=normalizedIdSet(left);
+  const b=normalizedIdSet(right);
+  return a.length===b.length && a.every((value,index)=>value===b[index]);
+};
+function errorSearchText(error){
+  const parts=[error instanceof Error?error.message:String(error??'')];
+  if(error&&typeof error==='object'&&'details' in error){
+    try{parts.push(JSON.stringify(error.details));}
+    catch{parts.push(String(error.details??''));}
+  }
+  return parts.join(' ');
+}
+function isSessionBallotUniqueConstraint(error){
+  const compact=errorSearchText(error).toLowerCase().replace(/[^a-z0-9]+/g,'');
+  return compact.includes('sessionballotpkey') &&
+    (compact.includes('unique')||compact.includes('duplicate')||compact.includes('violatedsql'));
+}
 
 export function resolveElectorate(definition, participants, runtime=null, source=null) {
   const cast = (participants ?? [])
@@ -315,18 +334,56 @@ export async function castSessionBallot(sessionId,input,{reader=defaultReader,ex
   if(def.weighted&&def.weightResourceExternalId){
     const resource=(runtime.sessionResources??[]).find(r=>r.characterExternalId===voter&&r.resourceExternalId===def.weightResourceExternalId);
     weight=Math.max(0,Number(resource?.currentValue??0));
-  
   }
-  const previous=(runtime.sessionBallots??[]).find(b=>b.voteExternalId===def.externalId&&b.round===open.round&&b.electorCharacterExternalId===voter);
+
+  const ballotKeyMatches=ballot=>
+    ballot.voteExternalId===def.externalId &&
+    ballot.round===open.round &&
+    ballot.electorCharacterExternalId===voter;
+  const previous=(runtime.sessionBallots??[]).find(ballotKeyMatches);
   const stamp=now().toISOString();
+  const selectedOptionExternalIds=joinIds(selected);
+  const response=(updated=false,alreadyRecorded=false)=>({
+    voteExternalId:def.externalId,
+    round:open.round,
+    electorCharacterExternalId:voter,
+    updated,
+    alreadyRecorded,
+  });
+
   if(previous){
+    if(sameIdSet(splitIds(previous.selectedOptionExternalIds),selected))
+      return response(false,true);
     if(!def.modifiable) throw new Error('BALLOT_NOT_MODIFIABLE');
-    await executor(UPDATE_BALLOT,{sessionId,voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter,selectedOptionExternalIds:joinIds(selected),weight,updatedAt:stamp});
-  } else {
-    await executor(INSERT_BALLOT,{data:{gameSessionId:sessionId,voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter,selectedOptionExternalIds:joinIds(selected),weight,castAt:stamp,updatedAt:stamp}});
+    await executor(UPDATE_BALLOT,{sessionId,voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter,selectedOptionExternalIds,weight,updatedAt:stamp});
+    await executor(INSERT_ACTION_LOG,{data:{gameSessionId:sessionId,actionType:'BALLOT_CAST',characterExternalId:voter,refExternalId:def.externalId,afterValue:def.secret?'SECRET':selectedOptionExternalIds,note:`Tour ${open.round}`}});
+    return response(true,false);
   }
-  await executor(INSERT_ACTION_LOG,{data:{gameSessionId:sessionId,actionType:'BALLOT_CAST',characterExternalId:voter,refExternalId:def.externalId,afterValue:def.secret?'SECRET':joinIds(selected),note:`Tour ${open.round}`}});
-  return {voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter,updated:Boolean(previous)};
+
+  try{
+    await executor(INSERT_BALLOT,{data:{gameSessionId:sessionId,voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter,selectedOptionExternalIds,weight,castAt:stamp,updatedAt:stamp}});
+  }catch(error){
+    if(!isSessionBallotUniqueConstraint(error)) throw error;
+
+    // A double tap, retry, or concurrent request may insert the same
+    // primary key between our read and write. Re-read once and make
+    // that retry idempotent instead of exposing the SQL constraint.
+    const refreshed=await loadVoteState(sessionId,reader);
+    const current=(refreshed.runtime.sessionBallots??[]).find(ballotKeyMatches);
+    if(!current) throw error;
+
+    if(sameIdSet(splitIds(current.selectedOptionExternalIds),selected))
+      return response(false,true);
+
+    if(!def.modifiable) throw new Error('BALLOT_NOT_MODIFIABLE');
+
+    await executor(UPDATE_BALLOT,{sessionId,voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter,selectedOptionExternalIds,weight,updatedAt:stamp});
+    await executor(INSERT_ACTION_LOG,{data:{gameSessionId:sessionId,actionType:'BALLOT_CAST',characterExternalId:voter,refExternalId:def.externalId,afterValue:def.secret?'SECRET':selectedOptionExternalIds,note:`Tour ${open.round}`}});
+    return response(true,false);
+  }
+
+  await executor(INSERT_ACTION_LOG,{data:{gameSessionId:sessionId,actionType:'BALLOT_CAST',characterExternalId:voter,refExternalId:def.externalId,afterValue:def.secret?'SECRET':selectedOptionExternalIds,note:`Tour ${open.round}`}});
+  return response(false,false);
 }
 
 export async function closeSessionVote(sessionId,input,{reader=defaultReader,executor=defaultExecutor,now=()=>new Date()}={}) {
