@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import CharacterQrLanding from './CharacterQrLanding';
 import './styles.css';
 
 class AppErrorBoundary extends React.Component<
@@ -35,10 +36,32 @@ class AppErrorBoundary extends React.Component<
   }
 }
 
+const characterScanMatch =
+  window.location.pathname.match(
+    /^\/scan\/character\/([^/]+)\/?$/
+  );
+
+let characterExternalId = '';
+
+if (characterScanMatch) {
+  try {
+    characterExternalId = decodeURIComponent(
+      characterScanMatch[1]
+    );
+  } catch {
+    characterExternalId = characterScanMatch[1];
+  }
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AppErrorBoundary>
-      <App/>
+      {characterScanMatch
+        ? <CharacterQrLanding
+            characterExternalId={characterExternalId}
+          />
+        : <App />
+      }
     </AppErrorBoundary>
   </React.StrictMode>
 );

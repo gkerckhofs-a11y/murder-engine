@@ -1311,10 +1311,28 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
   const [choice,setChoice]=useState<Record<string,string>>({});
   const [confirmation,setConfirmation]=useState<{title:string;body:string}|null>(null);
 
+  function voteChoiceKey(v:any){
+    return `${v.externalId}:${v.round}`;
+  }
+
+  function currentChoice(v:any){
+    const eligible=new Set(
+      (v.options??[]).map((o:any)=>String(o.externalId))
+    );
+
+    const local=choice[voteChoiceKey(v)];
+
+    if(local&&eligible.has(local))
+      return local;
+
+    return (v.selectedOptionExternalIds??[])
+      .map(String)
+      .find((id:string)=>eligible.has(id))
+      ??'';
+  }
+
   async function submitVote(v:any){
-    const selected=
-      choice[v.externalId]
-      ||v.selectedOptionExternalIds?.[0];
+    const selected=currentChoice(v);
 
     if(!selected)return;
 
@@ -1389,16 +1407,11 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
                   <input
                     type="radio"
                     name={`${v.externalId}-${v.round}`}
-                    checked={
-                      (
-                        choice[v.externalId]
-                        ||v.selectedOptionExternalIds?.[0]
-                      )===o.externalId
-                    }
+                    checked={currentChoice(v)===o.externalId}
                     onChange={()=>
                       setChoice(c=>({
                         ...c,
-                        [v.externalId]:o.externalId
+                        [voteChoiceKey(v)]:o.externalId
                       }))
                     }
                   />
@@ -1415,10 +1428,7 @@ function PlayerVotes({portal,busy,onVote}:{portal:Portal;busy:boolean;onVote:(id
               className="playerPrimary"
               disabled={
                 busy
-                ||(
-                  !choice[v.externalId]
-                  &&!v.selectedOptionExternalIds?.length
-                )
+                ||!currentChoice(v)
                 ||(
                   v.hasVoted
                   &&!v.modifiable
