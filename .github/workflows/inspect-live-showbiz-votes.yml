@@ -1,0 +1,134 @@
+name: Inspect live SHOWBIZ votes
+
+on:
+  push:
+    branches:
+      - hotfix/register-mabel-press-winner
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-votes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+
+      - name: Verify production project
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur" || (echo "Unexpected Firebase project: $FIREBASE_PROJECT_ID" && exit 1)
+
+      - name: Read live SHOWBIZ vote state only
+        working-directory: functions
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { initializeApp, getApps } from 'firebase-admin/app';
+          import { getDataConnect } from 'firebase-admin/data-connect';
+
+          if (!getApps().length) initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID });
+          const dc = getDataConnect({ location: 'europe-west1', serviceId: 'murder-engine' });
+
+          async function read(query, variables = {}) {
+            const response = await dc.executeGraphqlRead(query, { variables });
+            const errors = response?.errors ?? response?.data?.errors ?? [];
+            if (errors.length) {
+              console.error(JSON.stringify(errors, null, 2));
+              throw new Error('DATACONNECT_READ_FAILED');
+            }
+            return response?.data ?? response;
+          }
+
+          const sessionData = await read(`
+            query InspectSessions {
+              gameSessions(orderBy: {createdAt: DESC}) {
+                id name status createdAt startedAt pausedAt finishedAt
+                scenarioVersion {
+                  id versionLabel
+                  scenario { title slug }
+                }
+                sessionParticipants_on_gameSession(orderBy: {createdAt: ASC}) {
+                  displayName active characterExternalId characterDisplayName
+                }
+              }
+            }
+          `);
+
+          const candidates = (sessionData.gameSessions ?? []).filter(session => {
+            const title = String(session.scenarioVersion?.scenario?.title ?? '');
+            return /showbiz/i.test(title) && ['LIVE', 'PAUSED', 'READY'].includes(String(session.status));
+          });
+
+          if (!candidates.length) {
+            console.log('NO_ACTIVE_SHOWBIZ_SESSION');
+            process.exit(0);
+          }
+
+          for (const session of candidates) {
+            const voteData = await read(`
+              query InspectVoteState($sessionId: UUID!, $versionId: UUID!) {
+                voteDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+                  externalId title question scopeType scopeRef tieRule active
+                }
+                voteOptionDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+                  externalId voteExternalId orderIndex label characterExternalId active
+                }
+                sessionVotes(where: {gameSessionId: {eq: $sessionId}}) {
+                  voteExternalId round status eligibleOptionExternalIds openedAt closedAt resultJson note
+                }
+                sessionBallots(where: {gameSessionId: {eq: $sessionId}}) {
+                  voteExternalId round electorCharacterExternalId selectedOptionExternalIds weight castAt updatedAt
+                }
+              }
+            `, {
+              sessionId: session.id,
+              versionId: session.scenarioVersion.id,
+            });
+
+            console.log('SHOWBIZ_VOTE_STATE_BEGIN');
+            console.log(JSON.stringify({
+              session: {
+                id: session.id,
+                name: session.name,
+                status: session.status,
+                scenario: session.scenarioVersion?.scenario?.title,
+                versionId: session.scenarioVersion?.id,
+                versionLabel: session.scenarioVersion?.versionLabel,
+              },
+              participants: (session.sessionParticipants_on_gameSession ?? [])
+                .filter(p => p.active !== false)
+                .map(p => ({
+                  displayName: p.displayName,
+                  characterExternalId: p.characterExternalId,
+                  characterDisplayName: p.characterDisplayName,
+                })),
+              voteDefinitions: voteData.voteDefinitions,
+              voteOptions: voteData.voteOptionDefinitions,
+              sessionVotes: voteData.sessionVotes,
+              sessionBallots: voteData.sessionBallots,
+            }, null, 2));
+            console.log('SHOWBIZ_VOTE_STATE_END');
+          }
+          NODE
