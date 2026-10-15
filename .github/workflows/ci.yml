@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            functions/package-lock.json
+            web/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Run Functions tests
+        working-directory: functions
+        run: npm test
+
+      - name: Install Web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build Web
+        working-directory: web
+        run: npm run build
+
+      - name: Verify character QR routing remains compatible
+        run: |
+          grep -q '/scan/character/' web/src/PlayerPortal.tsx
+          grep -q 'characterFromQr' web/src/QrCharacterScanner.tsx
+          grep -q 'CharacterQrLanding' web/src/main.tsx
