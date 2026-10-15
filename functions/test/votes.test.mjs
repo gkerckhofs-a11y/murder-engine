@@ -86,7 +86,7 @@ test('tally detects absolute majority',()=>{
   assert.equal(out.majorityAbsolute,true); assert.equal(out.winnerOptionExternalId,'OPT_A'); assert.equal(out.suggestSecondRound,false);
 });
 
-test('no majority suggests second round and keeps ties at the qualification cutoff',()=>{
+test('no majority suggests a second round with exactly the top two candidates',()=>{
   const electorate=['A','B','C','D'];
   const out=tallyVote({definition:source().voteDefinitions[0],options:source().voteOptionDefinitions,electorate,ballots:[
     {electorCharacterExternalId:'A',selectedOptionExternalIds:'OPT_A',weight:1},
@@ -96,10 +96,10 @@ test('no majority suggests second round and keeps ties at the qualification cuto
   ]});
   assert.equal(out.majorityAbsolute,false);
   assert.equal(out.suggestSecondRound,true);
-  assert.deepEqual(out.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C']);
+  assert.deepEqual(out.secondRoundOptionExternalIds,['OPT_A','OPT_B']);
 });
 
-test('second round keeps every candidate tied at the qualification cutoff',()=>{
+test('second round always keeps exactly the two highest-ranked candidates',()=>{
   const electorate=['A','B','C','D','E'];
   const options=[
     {externalId:'OPT_A',orderIndex:1,label:'A'},
@@ -120,7 +120,7 @@ test('second round keeps every candidate tied at the qualification cutoff',()=>{
       {electorCharacterExternalId:'E',selectedOptionExternalIds:'OPT_E',weight:1},
     ]
   });
-  assert.deepEqual(allTied.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C','OPT_D','OPT_E']);
+  assert.deepEqual(allTied.secondRoundOptionExternalIds,['OPT_A','OPT_B']);
 
   const tiedForSecond=tallyVote({
     definition,options,electorate,
@@ -132,7 +132,7 @@ test('second round keeps every candidate tied at the qualification cutoff',()=>{
       {electorCharacterExternalId:'E',selectedOptionExternalIds:'OPT_D',weight:1},
     ]
   });
-  assert.deepEqual(tiedForSecond.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C','OPT_D']);
+  assert.deepEqual(tiedForSecond.secondRoundOptionExternalIds,['OPT_A','OPT_B']);
 });
 
 test('dashboard hides nothing from MJ but tracks who voted',()=>{
@@ -236,4 +236,25 @@ test('session ballot primary-key race does not overwrite a different non-modifia
     ()=>castSessionBallot('S1',{voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{reader,executor}),
     /BALLOT_NOT_MODIFIABLE/
   );
+});
+
+
+test('opening a legacy second round trims stored qualifiers to the top two',async()=>{
+  const rt=runtime();
+  rt.sessionVotes=[{
+    voteExternalId:'VOTE_1',
+    round:1,
+    status:'CLOSED',
+    eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C',
+    resultJson:JSON.stringify({secondRoundOptionExternalIds:['OPT_A','OPT_B','OPT_C']})
+  }];
+  const writes=[];
+  const out=await openSessionVote('S1',{voteExternalId:'VOTE_1',secondRound:true},{
+    reader:readerFor(session(),source(),rt),
+    executor:async(op,vars)=>{writes.push({op,vars});return{};},
+    now:()=>new Date('2026-10-15T20:30:00Z')
+  });
+  assert.equal(out.round,2);
+  assert.deepEqual(out.eligibleOptionExternalIds,['OPT_A','OPT_B']);
+  assert.equal(writes[0].vars.data.eligibleOptionExternalIds,'OPT_A;OPT_B');
 });

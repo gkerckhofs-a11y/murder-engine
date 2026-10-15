@@ -179,21 +179,10 @@ export function tallyVote({ definition, options, electorate, ballots }) {
   const tieForLead = ranked.length > 1 && ranked[0].votes === ranked[1].votes;
   const suggestSecondRound = definition.tieRule === 'SECOND_ROUND' && !majorityAbsolute && ranked.length > 2;
 
-  let secondRoundOptionExternalIds=[];
-  if(suggestSecondRound&&ranked.length>=2){
-    const leadVotes=ranked[0].votes;
-    const leadGroup=ranked.filter(x=>x.votes===leadVotes);
-
-    if(leadGroup.length>=2){
-      secondRoundOptionExternalIds=leadGroup.map(x=>x.optionExternalId);
-    }else{
-      const secondVotes=ranked[1].votes;
-      secondRoundOptionExternalIds=[
-        ranked[0].optionExternalId,
-        ...ranked.filter((x,index)=>index>0&&x.votes===secondVotes).map(x=>x.optionExternalId),
-      ];
-    }
-  }
+  // A second round is always limited to the two highest-ranked candidates.
+  const secondRoundOptionExternalIds = suggestSecondRound
+    ? ranked.slice(0,2).map(x=>x.optionExternalId)
+    : [];
 
   return {
     electorateCount: electorSet.size,
@@ -305,7 +294,7 @@ export async function openSessionVote(sessionId,input,{reader=defaultReader,exec
   if(input.secondRound===true){
     if(!previous?.resultJson) throw new Error('SECOND_ROUND_REQUIRES_RESULT');
     const result=JSON.parse(previous.resultJson);
-    eligible=(result.secondRoundOptionExternalIds??[]).filter(Boolean);
+    eligible=(result.secondRoundOptionExternalIds??[]).filter(Boolean).slice(0,2);
     if(eligible.length<2) throw new Error('SECOND_ROUND_NOT_AVAILABLE');
   }
   const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[],runtime,source);
