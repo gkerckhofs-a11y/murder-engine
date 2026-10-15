@@ -1,0 +1,75 @@
+name: Deploy top-two second-round hotfix v3
+
+on:
+  push:
+    branches:
+      - hotfix/top-two-second-round
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[persisted]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: hotfix/top-two-second-round
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Apply top-two patch
+        run: python .github/scripts/apply_top_two_second_round.py
+
+      - name: Install dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Validate module and tests
+        working-directory: functions
+        run: |
+          node --check src/votes.mjs
+          npm test
+
+      - name: Verify patch scope
+        run: |
+          git diff --check
+          grep -q "ranked.slice(0,2)" functions/src/votes.mjs
+          grep -q "filter(Boolean).slice(0,2)" functions/src/votes.mjs
+          test "$(git diff --name-only | sort | tr '\n' ' ')" = "functions/src/votes.mjs functions/test/votes.test.mjs "
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Verify Firebase project
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+
+      - name: Deploy only vote functions
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: firebase deploy --project "$FIREBASE_PROJECT_ID" --only functions:openLiveVote,functions:closeLiveVote --non-interactive
+
+      - name: Persist tested source
+        run: |
+          git config user.name "gkerckhofs-a11y"
+          git config user.email "gkerckhofs@gmail.com"
+          git add functions/src/votes.mjs functions/test/votes.test.mjs
+          git commit -m "Limit second rounds to top two candidates [persisted]"
+          git push origin HEAD:hotfix/top-two-second-round
