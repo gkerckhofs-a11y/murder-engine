@@ -1,0 +1,171 @@
+name: Deploy top-two second-round hotfix
+
+on:
+  push:
+    branches:
+      - hotfix/top-two-second-round
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[persisted]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout live vote code with idempotent ballot fix
+        uses: actions/checkout@v4
+        with:
+          ref: hotfix/top-two-second-round
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Enforce exactly two candidates in every second round
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          votes_path = Path('functions/src/votes.mjs')
+          tests_path = Path('functions/test/votes.test.mjs')
+
+          text = votes_path.read_text()
+
+          old_tally = '''  let secondRoundOptionExternalIds=[];
+          if(suggestSecondRound&&ranked.length>=2){
+            const leadVotes=ranked[0].votes;
+            const leadGroup=ranked.filter(x=>x.votes===leadVotes);
+
+            if(leadGroup.length>=2){
+              secondRoundOptionExternalIds=leadGroup.map(x=>x.optionExternalId);
+            }else{
+              const secondVotes=ranked[1].votes;
+              secondRoundOptionExternalIds=[
+                ranked[0].optionExternalId,
+                ...ranked.filter((x,index)=>index>0&&x.votes===secondVotes).map(x=>x.optionExternalId),
+              ];
+            }
+          }
+          '''
+
+          new_tally = '''  // A second round is always a head-to-head contest between the
+          // two highest-ranked candidates from round one. Ranking is already
+          // deterministic: votes descending, then option order for an exact tie.
+          const secondRoundOptionExternalIds = suggestSecondRound
+            ? ranked.slice(0,2).map(x=>x.optionExternalId)
+            : [];
+          '''
+
+          if new_tally not in text:
+            if old_tally not in text:
+              raise SystemExit('Expected second-round tally block not found; refusing to patch')
+            text = text.replace(old_tally, new_tally, 1)
+
+          old_open = "eligible=(result.secondRoundOptionExternalIds??[]).filter(Boolean);"
+          new_open = "eligible=(result.secondRoundOptionExternalIds??[]).filter(Boolean).slice(0,2);"
+          if new_open not in text:
+            if old_open not in text:
+              raise SystemExit('Expected second-round opening line not found; refusing to patch')
+            text = text.replace(old_open, new_open, 1)
+
+          votes_path.write_text(text)
+
+          tests = tests_path.read_text()
+          replacements = {
+            "test('no majority suggests second round and keeps ties at the qualification cutoff'": "test('no majority suggests a second round with exactly the top two candidates'",
+            "assert.deepEqual(out.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C']);": "assert.deepEqual(out.secondRoundOptionExternalIds,['OPT_A','OPT_B']);",
+            "test('second round keeps every candidate tied at the qualification cutoff'": "test('second round always keeps exactly the two highest-ranked candidates'",
+            "assert.deepEqual(allTied.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C','OPT_D','OPT_E']);": "assert.deepEqual(allTied.secondRoundOptionExternalIds,['OPT_A','OPT_B']);",
+            "assert.deepEqual(tiedForSecond.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C','OPT_D']);": "assert.deepEqual(tiedForSecond.secondRoundOptionExternalIds,['OPT_A','OPT_B']);",
+          }
+          for old,new in replacements.items():
+            if old in tests:
+              tests = tests.replace(old,new,1)
+            elif new not in tests:
+              raise SystemExit(f'Expected test fragment not found: {old}')
+
+          marker = "opening a legacy second round trims stored qualifiers to the top two"
+          if marker not in tests:
+            tests += r'''
+
+          test('opening a legacy second round trims stored qualifiers to the top two',async()=>{
+            const rt=runtime();
+            rt.sessionVotes=[{
+              voteExternalId:'VOTE_1',
+              round:1,
+              status:'CLOSED',
+              eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C',
+              resultJson:JSON.stringify({secondRoundOptionExternalIds:['OPT_A','OPT_B','OPT_C']})
+            }];
+            const writes=[];
+            const out=await openSessionVote('S1',{voteExternalId:'VOTE_1',secondRound:true},{
+              reader:readerFor(session(),source(),rt),
+              executor:async(op,vars)=>{writes.push({op,vars});return{};},
+              now:()=>new Date('2026-10-15T20:30:00Z')
+            });
+            assert.equal(out.round,2);
+            assert.deepEqual(out.eligibleOptionExternalIds,['OPT_A','OPT_B']);
+            assert.equal(writes[0].vars.data.eligibleOptionExternalIds,'OPT_A;OPT_B');
+          });
+          '''
+
+          tests_path.write_text(tests)
+          PY
+
+      - name: Syntax check vote module
+        working-directory: functions
+        run: node --check src/votes.mjs
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Run complete Functions test suite
+        working-directory: functions
+        run: npm test
+
+      - name: Verify patch scope and rules
+        run: |
+          git diff --check
+          grep -q "ranked.slice(0,2)" functions/src/votes.mjs
+          grep -q "filter(Boolean).slice(0,2)" functions/src/votes.mjs
+          grep -q "opening a legacy second round trims stored qualifiers to the top two" functions/test/votes.test.mjs
+          test "$(git diff --name-only | sort | tr '\n' ' ')" = "functions/src/votes.mjs functions/test/votes.test.mjs "
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Verify production project
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur" || (echo "Unexpected Firebase project: $FIREBASE_PROJECT_ID" && exit 1)
+
+      - name: Deploy only vote opening and closing Functions
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          firebase deploy \
+            --project "$FIREBASE_PROJECT_ID" \
+            --only functions:openLiveVote,functions:closeLiveVote \
+            --non-interactive
+
+      - name: Persist tested source fix
+        run: |
+          git config user.name "gkerckhofs-a11y"
+          git config user.email "gkerckhofs@gmail.com"
+          git add functions/src/votes.mjs functions/test/votes.test.mjs
+          git commit -m "Limit second rounds to top two candidates [persisted]"
+          git push origin HEAD:hotfix/top-two-second-round
