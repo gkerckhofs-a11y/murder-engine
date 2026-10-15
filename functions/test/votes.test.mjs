@@ -86,7 +86,7 @@ test('tally detects absolute majority',()=>{
   assert.equal(out.majorityAbsolute,true); assert.equal(out.winnerOptionExternalId,'OPT_A'); assert.equal(out.suggestSecondRound,false);
 });
 
-test('a unique leader qualifies with only one runner-up',()=>{
+test('a unique plurality leader wins without a second round',()=>{
   const electorate=['A','B','C','D'];
   const out=tallyVote({definition:source().voteDefinitions[0],options:source().voteOptionDefinitions,electorate,ballots:[
     {electorCharacterExternalId:'A',selectedOptionExternalIds:'OPT_A',weight:1},
@@ -95,11 +95,13 @@ test('a unique leader qualifies with only one runner-up',()=>{
     {electorCharacterExternalId:'D',selectedOptionExternalIds:'OPT_C',weight:1},
   ]});
   assert.equal(out.majorityAbsolute,false);
-  assert.equal(out.suggestSecondRound,true);
-  assert.deepEqual(out.secondRoundOptionExternalIds,['OPT_A','OPT_B']);
+  assert.equal(out.tieForLead,false);
+  assert.equal(out.suggestSecondRound,false);
+  assert.equal(out.winnerOptionExternalId,'OPT_A');
+  assert.deepEqual(out.secondRoundOptionExternalIds,[]);
 });
 
-test('only a tie for first place keeps every tied leader',()=>{
+test('only candidates tied for first place go to a second round',()=>{
   const electorate=['A','B','C','D','E'];
   const options=[
     {externalId:'OPT_A',orderIndex:1,label:'A'},
@@ -109,6 +111,21 @@ test('only a tie for first place keeps every tied leader',()=>{
     {externalId:'OPT_E',orderIndex:5,label:'E'},
   ];
   const definition={tieRule:'SECOND_ROUND',votesPerElector:1};
+
+  const tiedForLead=tallyVote({
+    definition,options,electorate,
+    ballots:[
+      {electorCharacterExternalId:'A',selectedOptionExternalIds:'OPT_A',weight:1},
+      {electorCharacterExternalId:'B',selectedOptionExternalIds:'OPT_A',weight:1},
+      {electorCharacterExternalId:'C',selectedOptionExternalIds:'OPT_B',weight:1},
+      {electorCharacterExternalId:'D',selectedOptionExternalIds:'OPT_B',weight:1},
+      {electorCharacterExternalId:'E',selectedOptionExternalIds:'OPT_C',weight:1},
+    ]
+  });
+  assert.equal(tiedForLead.tieForLead,true);
+  assert.equal(tiedForLead.suggestSecondRound,true);
+  assert.equal(tiedForLead.winnerOptionExternalId,null);
+  assert.deepEqual(tiedForLead.secondRoundOptionExternalIds,['OPT_A','OPT_B']);
 
   const allTied=tallyVote({
     definition,options,electorate,
@@ -120,6 +137,7 @@ test('only a tie for first place keeps every tied leader',()=>{
       {electorCharacterExternalId:'E',selectedOptionExternalIds:'OPT_E',weight:1},
     ]
   });
+  assert.equal(allTied.tieForLead,true);
   assert.deepEqual(allTied.secondRoundOptionExternalIds,['OPT_A','OPT_B','OPT_C','OPT_D','OPT_E']);
 
   const tiedForSecond=tallyVote({
@@ -132,7 +150,10 @@ test('only a tie for first place keeps every tied leader',()=>{
       {electorCharacterExternalId:'E',selectedOptionExternalIds:'OPT_D',weight:1},
     ]
   });
-  assert.deepEqual(tiedForSecond.secondRoundOptionExternalIds,['OPT_A','OPT_B']);
+  assert.equal(tiedForSecond.tieForLead,false);
+  assert.equal(tiedForSecond.suggestSecondRound,false);
+  assert.equal(tiedForSecond.winnerOptionExternalId,'OPT_A');
+  assert.deepEqual(tiedForSecond.secondRoundOptionExternalIds,[]);
 });
 
 test('dashboard hides nothing from MJ but tracks who voted',()=>{
@@ -239,7 +260,7 @@ test('session ballot primary-key race does not overwrite a different non-modifia
 });
 
 
-test('opening a second round recomputes the qualification rule from the ranking',async()=>{
+test('a second round cannot be opened when one candidate is alone in first place',async()=>{
   const rt=runtime();
   rt.sessionVotes=[{
     voteExternalId:'VOTE_1',
@@ -247,23 +268,24 @@ test('opening a second round recomputes the qualification rule from the ranking'
     status:'CLOSED',
     eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C',
     resultJson:JSON.stringify({
+      validBallots:4,
+      tieForLead:false,
       ranked:[
         {optionExternalId:'OPT_A',votes:2,orderIndex:1},
         {optionExternalId:'OPT_B',votes:1,orderIndex:2},
         {optionExternalId:'OPT_C',votes:1,orderIndex:3},
       ],
-      secondRoundOptionExternalIds:['OPT_A','OPT_B','OPT_C']
+      secondRoundOptionExternalIds:[]
     })
   }];
-  const writes=[];
-  const out=await openSessionVote('S1',{voteExternalId:'VOTE_1',secondRound:true},{
-    reader:readerFor(session(),source(),rt),
-    executor:async(op,vars)=>{writes.push({op,vars});return{};},
-    now:()=>new Date('2026-10-15T20:30:00Z')
-  });
-  assert.equal(out.round,2);
-  assert.deepEqual(out.eligibleOptionExternalIds,['OPT_A','OPT_B']);
-  assert.equal(writes[0].vars.data.eligibleOptionExternalIds,'OPT_A;OPT_B');
+  await assert.rejects(
+    ()=>openSessionVote('S1',{voteExternalId:'VOTE_1',secondRound:true},{
+      reader:readerFor(session(),source(),rt),
+      executor:async()=>({}),
+      now:()=>new Date('2026-10-15T20:30:00Z')
+    }),
+    /SECOND_ROUND_NOT_AVAILABLE/
+  );
 });
 
 test('opening a second round preserves every candidate tied for first place',async()=>{
@@ -274,12 +296,14 @@ test('opening a second round preserves every candidate tied for first place',asy
     status:'CLOSED',
     eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C',
     resultJson:JSON.stringify({
+      validBallots:6,
+      tieForLead:true,
       ranked:[
         {optionExternalId:'OPT_A',votes:2,orderIndex:1},
         {optionExternalId:'OPT_B',votes:2,orderIndex:2},
         {optionExternalId:'OPT_C',votes:2,orderIndex:3},
       ],
-      secondRoundOptionExternalIds:['OPT_A','OPT_B']
+      secondRoundOptionExternalIds:['OPT_A','OPT_B','OPT_C']
     })
   }];
   const writes=[];

@@ -176,18 +176,18 @@ export function tallyVote({ definition, options, electorate, ballots }) {
     .sort((a,b)=>b.votes-a.votes || a.orderIndex-b.orderIndex);
   const winner = ranked[0] ?? null;
   const majorityAbsolute = winner ? winner.votes > totalWeight / 2 : false;
-  const tieForLead = ranked.length > 1 && ranked[0].votes === ranked[1].votes;
-  const suggestSecondRound = definition.tieRule === 'SECOND_ROUND' && !majorityAbsolute && ranked.length > 2;
-
-  // A second round normally keeps the two highest-ranked candidates.
-  // Only an equality for first place keeps every candidate tied for the lead.
-  let secondRoundOptionExternalIds=[];
-  if(suggestSecondRound&&ranked.length>=2){
-    const leadVotes=ranked[0].votes;
-    const leaders=ranked.filter(x=>x.votes===leadVotes);
-    secondRoundOptionExternalIds=(leaders.length>=2?leaders:ranked.slice(0,2))
-      .map(x=>x.optionExternalId);
-  }
+  const hasEffectiveVote = Boolean(validBallots > 0 && winner && Number(winner.votes) > 0);
+  const tieForLead = Boolean(
+    hasEffectiveVote &&
+    ranked.length > 1 &&
+    ranked[0].votes === ranked[1].votes
+  );
+  const suggestSecondRound = definition.tieRule === 'SECOND_ROUND' && tieForLead;
+  const secondRoundOptionExternalIds = suggestSecondRound
+    ? ranked
+        .filter(x=>x.votes===ranked[0].votes)
+        .map(x=>x.optionExternalId)
+    : [];
 
   return {
     electorateCount: electorSet.size,
@@ -197,7 +197,7 @@ export function tallyVote({ definition, options, electorate, ballots }) {
     abstentions,
     majorityAbsolute,
     tieForLead,
-    winnerOptionExternalId: majorityAbsolute && !tieForLead ? winner?.optionExternalId ?? null : null,
+    winnerOptionExternalId: hasEffectiveVote && !tieForLead ? winner?.optionExternalId ?? null : null,
     ranked,
     suggestSecondRound,
     secondRoundOptionExternalIds,
@@ -300,15 +300,23 @@ export async function openSessionVote(sessionId,input,{reader=defaultReader,exec
     if(!previous?.resultJson) throw new Error('SECOND_ROUND_REQUIRES_RESULT');
     const result=JSON.parse(previous.resultJson);
     const ranked=Array.isArray(result.ranked)?result.ranked:[];
-    if(ranked.length>=2){
+    const tiedAtTop =
+      ranked.length>=2 &&
+      Number(ranked[0].votes)>0 &&
+      ranked[0].votes===ranked[1].votes;
+
+    if(tiedAtTop){
       const leadVotes=ranked[0].votes;
-      const leaders=ranked.filter(x=>x.votes===leadVotes);
-      eligible=(leaders.length>=2?leaders:ranked.slice(0,2))
+      eligible=ranked
+        .filter(x=>x.votes===leadVotes)
         .map(x=>x.optionExternalId)
         .filter(Boolean);
-    }else{
+    }else if(result.tieForLead===true && Number(result.validBallots??0)>0){
       eligible=(result.secondRoundOptionExternalIds??[]).filter(Boolean);
+    }else{
+      eligible=[];
     }
+
     if(eligible.length<2) throw new Error('SECOND_ROUND_NOT_AVAILABLE');
   }
   const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[],runtime,source);
