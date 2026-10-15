@@ -1,0 +1,96 @@
+name: Deploy plurality-wins tie-only runoff
+
+on:
+  push:
+    branches:
+      - hotfix/plurality-wins-tie-only-runoff
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[persisted]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout exact live hotfix base
+        uses: actions/checkout@v4
+        with:
+          ref: hotfix/plurality-wins-tie-only-runoff
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            functions/package-lock.json
+            web/package-lock.json
+
+      - name: Apply the confirmed vote rule
+        run: python .github/scripts/apply_plurality_tie_only_runoff.py
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Run complete Functions test suite
+        working-directory: functions
+        run: |
+          node --check src/votes.mjs
+          npm test
+
+      - name: Install Web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build production Web app
+        working-directory: web
+        run: npm run build
+
+      - name: Verify rule, regressions and patch scope
+        run: |
+          git diff --check
+          grep -q "const suggestSecondRound = definition.tieRule === 'SECOND_ROUND' && tieForLead" functions/src/votes.mjs
+          grep -q "winnerOptionExternalId: hasEffectiveVote && !tieForLead" functions/src/votes.mjs
+          grep -q "a unique plurality leader wins without a second round" functions/test/votes.test.mjs
+          grep -q "a second round cannot be opened when one candidate is alone in first place" functions/test/votes.test.mjs
+          grep -q "Résultat définitif" web/src/App.tsx
+          grep -q '/scan/character/' web/src/PlayerPortal.tsx
+          grep -q 'characterFromQr' web/src/QrCharacterScanner.tsx
+          grep -q 'voteChoiceKey' web/src/PlayerPortal.tsx
+          test "$(git diff --name-only | sort | tr '\n' ' ')" = "functions/src/votes.mjs functions/test/votes.test.mjs web/src/App.tsx "
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Verify production project
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur" || (echo "Unexpected Firebase project: $FIREBASE_PROJECT_ID" && exit 1)
+
+      - name: Deploy vote logic and matching organizer UI only
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          firebase deploy \
+            --project "$FIREBASE_PROJECT_ID" \
+            --only functions:getVoteState,functions:openLiveVote,functions:closeLiveVote,hosting \
+            --non-interactive
+
+      - name: Persist tested source changes
+        run: |
+          git config user.name "gkerckhofs-a11y"
+          git config user.email "gkerckhofs@gmail.com"
+          git add functions/src/votes.mjs functions/test/votes.test.mjs web/src/App.tsx
+          git commit -m "Use plurality winner with runoff only for a lead tie [persisted]"
+          git push origin HEAD:hotfix/plurality-wins-tie-only-runoff
