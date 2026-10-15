@@ -1,4 +1,4 @@
-name: Deploy top-two second-round hotfix v3
+name: Deploy leader-tie second-round hotfix
 
 on:
   push:
@@ -28,8 +28,8 @@ jobs:
           cache: npm
           cache-dependency-path: functions/package-lock.json
 
-      - name: Apply top-two patch
-        run: python .github/scripts/apply_top_two_second_round.py
+      - name: Apply leader-tie qualification rule
+        run: python .github/scripts/apply_leader_tie_second_round.py
 
       - name: Install dependencies
         working-directory: functions
@@ -44,8 +44,8 @@ jobs:
       - name: Verify patch scope
         run: |
           git diff --check
-          grep -q "ranked.slice(0,2)" functions/src/votes.mjs
-          grep -q "filter(Boolean).slice(0,2)" functions/src/votes.mjs
+          grep -q "leaders.length>=2?leaders:ranked.slice(0,2)" functions/src/votes.mjs
+          grep -q "opening a second round preserves every candidate tied for first place" functions/test/votes.test.mjs
           test "$(git diff --name-only | sort | tr '\n' ' ')" = "functions/src/votes.mjs functions/test/votes.test.mjs "
 
       - name: Authenticate to Google Cloud
@@ -71,5 +71,5 @@ jobs:
           git config user.name "gkerckhofs-a11y"
           git config user.email "gkerckhofs@gmail.com"
           git add functions/src/votes.mjs functions/test/votes.test.mjs
-          git commit -m "Limit second rounds to top two candidates [persisted]"
+          git commit -m "Keep every candidate tied for first in second rounds [persisted]"
           git push origin HEAD:hotfix/top-two-second-round
