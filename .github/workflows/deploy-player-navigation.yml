@@ -1,0 +1,55 @@
+name: Deploy player navigation
+on:
+  push:
+    branches: [feature/player-navigation]
+permissions:
+  contents: read
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check source and navigation behavior
+        run: |
+          git diff --check HEAD^ HEAD
+          node --experimental-strip-types --test web/test/player-navigation.test.ts
+          npm ci --prefix functions
+          npm test --prefix functions
+          npm ci --prefix web
+          npm run build --prefix web
+      - name: Test mobile player journeys before publishing
+        run: |
+          npm install --prefix web --no-save --package-lock=false playwright@1.58.2
+          cd web
+          npx playwright install --with-deps chromium
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/player-navigation-vite.log 2>&1 &
+          for attempt in $(seq 1 30); do curl --silent --fail http://127.0.0.1:4173/ > /dev/null && break; sleep 1; done
+          node test/browser-navigation.cjs
+      - name: Keep mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-navigation-mobile
+          path: web/test-results/navigation
+          if-no-files-found: ignore
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - name: Publish player portal and interface
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          NAVIGATION_REVISION: ${{ github.sha }}
+        run: |
+          test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+          npm install --global firebase-tools@15.34.0
+          node -e "require('fs').writeFileSync('web/dist/navigation-version.json',JSON.stringify({revision:process.env.NAVIGATION_REVISION,feature:'four-tab-player-navigation'}))"
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only functions:getPublicPlayerPortal,hosting --non-interactive

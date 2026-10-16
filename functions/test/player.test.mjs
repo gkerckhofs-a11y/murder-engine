@@ -1445,3 +1445,16 @@ test('V1.11C exhausted location is flagged and exposes no search action',async()
  assert.equal(view.actions.length,0);
  await assert.rejects(()=>executePlayerLocationAction(participant().playerAccessToken,{interactionExternalId:'ACT1',locationExternalId:'LOC1'},{reader,executor:async()=>({})}),/LOCATION_EMPTY/);
 });
+
+test('clue recaps refer only to facts already learned by this player',()=>{
+ const src=source();
+ src.facts.push({externalId:'HIDDEN',title:'Hidden solution',text:'GM secret',active:true},{externalId:'INACTIVE',title:'Retired fact',active:false});
+ src.clueFacts=[{clueExternalId:'C1',factExternalId:'F1'},{clueExternalId:'C1',factExternalId:'F1'},{clueExternalId:'C1',factExternalId:'HIDDEN'},{clueExternalId:'C1',factExternalId:'INACTIVE'}];
+ const rt=runtime();
+ rt.sessionKnowledges.push({characterExternalId:'CHAR_B',factExternalId:'HIDDEN',sourceType:'CLUE',learnedAt:'2026-09-21T18:00:00Z'});
+ const out=shapePlayerPortal(participant(),session(),src,rt);
+ const expected=[{externalId:'F1',title:'Info',text:'Texte'}];
+ assert.deepEqual(out.discoveries.find(d=>d.clueExternalId==='C1').clue.knownFacts,expected);
+ assert.deepEqual(out.documentEntries.find(d=>d.clueExternalId==='C1').knownFacts,expected);
+ assert.equal(JSON.stringify(out).includes('Hidden solution'),false);
+});

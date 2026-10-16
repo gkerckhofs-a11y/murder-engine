@@ -14526,3 +14526,22 @@ button.skinGalleryCard:disabled{
 .personalNote{min-width:0;padding:16px;border:1px solid color-mix(in srgb,currentColor 25%,transparent);border-radius:12px}
 .personalNote time{font-size:.8rem;opacity:.8}
 .personalNote p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;margin:10px 0 16px}
+
+/* Player navigation: four destinations, with unseen counts at both levels. */
+.playerShell .playerBottomNav{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.playerShell .playerBottomNav button{min-height:60px;padding:9px 4px 8px;gap:5px}
+.playerShell .playerBottomNav button>span{font-size:1.35rem}
+.playerShell .playerBottomNav button>b{font-size:.78rem}
+.playerShell .sheetTabs button,.playerShell .notebookTabs button{min-height:46px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.playerShell .notebookTabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible;gap:5px}
+.playerShell .notebookTabs button{min-width:0;padding:10px 4px;font-size:.78rem;flex-wrap:wrap}
+.playerShell .bagTabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+.playerShell .sheetTabs .newBadge,.playerShell .notebookTabs .newBadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:99px;background:#a93b48;color:#fff;font-style:normal;font-size:.68rem;font-weight:800}
+.playerInfoEntry{padding:18px 0;border-bottom:1px solid #8885;scroll-margin-top:20px}
+.playerInfoEntry>small,.playerInfoEntry>strong{display:block;margin-bottom:8px}
+.playerInfoEntry .playerSecondary{margin-top:10px}
+.clueRecapLink{font-style:italic;opacity:.85}
+.clueKnownFacts{margin:12px 0}.clueKnownFacts summary{cursor:pointer}.clueKnownFacts>div{margin:12px 0}
+.interactionLanding ol{padding-left:24px;line-height:1.6}.interactionLanding li{margin:10px 0}
+.interactionLanding .playerPrimary{display:block;text-align:center;text-decoration:none}
+@media(max-width:360px){.playerShell .notebookTabs button{font-size:.72rem}.playerShell .playerBottomNav button>b{font-size:.72rem}}

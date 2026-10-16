@@ -1726,6 +1726,14 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
   const objectiveRuntime=new Map((runtime.sessionObjectives??[]).filter(o=>o.characterExternalId===characterExternalId).map(o=>[o.objectiveExternalId,o]));
   const objectives=(source.objectives??[]).filter(o=>o.active!==false&&o.ownerType==='CHARACTER'&&o.ownerExternalId===characterExternalId).map(o=>({...o,status:objectiveRuntime.get(o.externalId)?.status??o.initialStatus,progress:objectiveRuntime.get(o.externalId)?.progress??0,notes:objectiveRuntime.get(o.externalId)?.notes??null}));
   const knowledge=(runtime.sessionKnowledges??[]).filter(k=>k.characterExternalId===characterExternalId).map(k=>({factExternalId:k.factExternalId,sourceType:k.sourceType,learnedAt:k.learnedAt,fact:factMap.get(k.factExternalId)})).filter(k=>k.fact).sort((a,b)=>new Date(b.learnedAt).getTime()-new Date(a.learnedAt).getTime());
+  const knownFactIds=new Set(knowledge.map(k=>k.factExternalId));
+  // Recaps only refer to facts this specific player already knows. Never expose
+  // a linked hidden fact merely because the clue or its support is in their bag.
+  const knownFactsForClue=clueExternalId=>[...new Set((source.clueFacts??[])
+    .filter(link=>link.clueExternalId===clueExternalId&&knownFactIds.has(link.factExternalId))
+    .map(link=>link.factExternalId))]
+    .map(id=>factMap.get(id)).filter(Boolean)
+    .map(f=>({externalId:f.externalId,title:f.title,text:f.text}));
   const discoveries=(runtime.sessionClueDiscoveries??[])
     .filter(d=>d.characterExternalId===characterExternalId)
     .map(d=>{
@@ -1735,6 +1743,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
         clue:clue
           ? {
               ...clue,
+              knownFacts:knownFactsForClue(clue.externalId),
               inBag:!clue.objectExternalId,
               visualMedia:clueVisualMedia(session,source,mediaMap,objectMap,clue),
               immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap)
@@ -1771,6 +1780,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
       documentExternalId:c.documentExternalId??null,
       playerName:c.playerName,
       playerText:c.playerText,
+      knownFacts:knownFactsForClue(c.externalId),
       clueType:c.clueType,
       support:c.support,
       presentationMode:c.presentationMode,
