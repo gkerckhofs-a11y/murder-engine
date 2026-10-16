@@ -1092,7 +1092,13 @@ function PlayerBag({
                 <div className="bagPossessionType">{tr(portal,'Objet','Item')}</div>
                 <strong>{o.name}</strong>
                 <p>{o.identification}</p>
-                {o.charges!=null&&<small>{tr(portal,'Charges','Charges')} : {o.charges}</small>}
+                {/* Imported standalone documents keep their text in the owned object's description. */}
+                {String(o.objectExternalId??'').startsWith('DOC_OBJ_') && o.description &&
+                  <ImmersiveDocument
+                    entry={{immersiveDocument:{title:o.name,textContent:o.description,media:[]}}}
+                    language={portal.session?.language}
+                  />}
+                {o.charges!=null&&!String(o.objectExternalId??'').startsWith('DOC_OBJ_')&&<small>{tr(portal,'Charges','Charges')} : {o.charges}</small>}
               </div>
               {o.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow objectVisualAction">
                 <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(o)}>📷 {tr(portal,'Donner','Give')}</button>
