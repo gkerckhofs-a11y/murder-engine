@@ -143,7 +143,13 @@ export default function PlayerPortal({token}:{token:string}){
       return result;
 
     }catch(e){
-      setError(e instanceof Error?e.message:String(e));
+      const message=e instanceof Error?e.message:String(e);
+      const changed=message.includes('VOTE_ROUND_CHANGED')||message.includes('VOTE_ROUND_REQUIRED');
+      const closed=message.includes('VOTE_NOT_OPEN');
+      if(changed||closed)await load(false);
+      setError(changed
+        ? tr(portal,'Le tour a changé. Actualise la page et vérifie ton choix avant de voter.','The round has changed. Refresh the page and review your choice before voting.')
+        : closed?tr(portal,'Ce vote est maintenant fermé.','This vote is now closed.'):message);
       return null;
 
     }finally{
@@ -1597,6 +1603,7 @@ function NewsNotification({n,busy,onRead,portal}:{n:any;busy:boolean;onRead:(id:
     {!n.readAt&&<button className="playerSecondary" disabled={busy} onClick={()=>onRead(n.id)}>{tr(portal,'Marquer comme lu','Mark as read')}</button>}
   </article>;
 }
+
 
 
 

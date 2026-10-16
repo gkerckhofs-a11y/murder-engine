@@ -1,3 +1,4 @@
+import { readAllPages } from './pagination.mjs';
 import { randomBytes } from 'node:crypto';
 import { executeInteraction, transferSessionObject, revealClueToCharacter } from './interactions.mjs';
 import { castSessionBallot, resolveElectorate } from './votes.mjs';
@@ -43,98 +44,94 @@ query PlayerAccessByToken($token: String!) {
 `;
 
 const PLAYER_SOURCE_QUERY = `
-query PlayerSource($versionId: UUID!) {
-  characters(where: {scenarioVersionId: {eq: $versionId}}) {
+query PlayerSource($versionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
+  characters(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name publicRole dramaticFunction narrativeAge gender biography secretIntro interpretationNotes appearanceNotes apparentMotive personalTimeline motto portraitMediaId portraitArchetypeCode playable active
   }
-  objectives(where: {scenarioVersionId: {eq: $versionId}}) {
+  objectives(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId ownerType ownerExternalId title description objectiveType secret initialStatus importance active
   }
-  relationships(where: {scenarioVersionId: {eq: $versionId}}) {
+  relationships(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId characterAExternalId characterBExternalId relationType textA textB visibility plotExternalId active
   }
-  facts(where: {scenarioVersionId: {eq: $versionId}}) {
+  facts(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId title text nature importance notebookCategory isPublic active
   }
-  clues(
-    where: {scenarioVersionId: {eq: $versionId}}
-    orderBy: {externalId: ASC}
-    limit: 2000
-  ) {
+  clues(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId playerName clueType playerText discoveryHook support presentationMode shareable transferable consumable addToNotebook locationExternalId objectExternalId documentExternalId logisticsCode mediaExternalId major active
   }
-  clueFacts(where: {scenarioVersionId: {eq: $versionId}}) { clueExternalId factExternalId }
-  documentDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+  clueFacts(where: {scenarioVersionId: {eq: $versionId}}, orderBy: [{clueExternalId: ASC}, {factExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) { clueExternalId factExternalId }
+  documentDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId title textContent support mediaExternalIds reusable consumable ownerInitialType ownerInitialExternalId transferable stealable active
   }
-  mediaAssets(where: {scenarioVersionId: {eq: $versionId}}) { externalId mediaType source altText notes active }
-  skinVisualDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+  mediaAssets(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) { externalId mediaType source altText notes active }
+  skinVisualDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId skinId visualType archetypeCode mediaExternalId displayName description variant active
   }
-  resources(where: {scenarioVersionId: {eq: $versionId}}) { externalId name unit isPublic active }
-  gameObjects(where: {scenarioVersionId: {eq: $versionId}}) {
+  resources(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) { externalId name unit isPublic active }
+  gameObjects(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name description logisticsCode transferable stealable consumable critical identification0 identification1 identification2 identification3 mediaExternalId visualArchetypeCode active
   }
-  gameStateDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+  gameStateDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name description visibleToHolder visiblePublic active
   }
-  abilities(where: {scenarioVersionId: {eq: $versionId}}) {
+  abilities(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name description category defaultLevel defaultMaxUses defaultCooldownMinutes secret active
   }
-  abilityAssignments(where: {scenarioVersionId: {eq: $versionId}}) {
+  abilityAssignments(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId ownerType ownerExternalId abilityExternalId level flatBonus usesOverride cooldownOverrideMinutes active
   }
-  interactions(where: {scenarioVersionId: {eq: $versionId}}) {
+  interactions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name category targetType scanMode abilityExternalId actorScope costResourceExternalId costValue costTiming
     resolution diceCount diceSides abilityLevelMultiplier flatBonus difficulty opposedAbilityExternalId tieRule validation
     maxUses limitPerTarget cooldownMinutes targetSecret active
   }
-  gameLocations(where: {scenarioVersionId: {eq: $versionId}}) { externalId name description qrCode permanent lockExternalId active }
-  voteDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+  gameLocations(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) { externalId name description qrCode permanent lockExternalId active }
+  voteDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId title question scopeType scopeRef choicesMode secret votesPerElector weighted abstention modifiable resultVisibility active
   }
-  voteOptionDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+  voteOptionDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId voteExternalId orderIndex label description characterExternalId active
   }
 }
 `;
 
 const PLAYER_RUNTIME_QUERY = `
-query PlayerRuntime($sessionId: UUID!) {
-  sessionResources(where: {gameSessionId: {eq: $sessionId}}) {
+query PlayerRuntime($sessionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
+  sessionResources(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {resourceExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     characterExternalId resourceExternalId initialValue currentValue maxValue updatedAt
   }
-  sessionKnowledges(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionKnowledges(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {factExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     characterExternalId factExternalId sourceType learnedAt
   }
-  sessionObjectives(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionObjectives(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {objectiveExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     characterExternalId objectiveExternalId status progress notes updatedAt
   }
-  sessionObjects(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionObjects(where: {gameSessionId: {eq: $sessionId}}, orderBy: {objectExternalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     objectExternalId holderType holderExternalId charges identificationLevel inPlay updatedAt
   }
-  sessionCharacterStates(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionCharacterStates(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {stateExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     characterExternalId stateExternalId active appliedAt expiresAt sourceRef
   }
-  sessionClueDiscoveries(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionClueDiscoveries(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {clueExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     characterExternalId clueExternalId sourceInteractionExternalId sourceRef discoveredAt
   }
-  sessionInteractionUses(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionInteractionUses(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{createdAt: ASC}, {id: ASC}], limit: $pageLimit, offset: $pageOffset) {
     interactionExternalId actorCharacterExternalId targetType targetExternalId success createdAt
   }
-  sessionVotes(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionVotes(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{voteExternalId: ASC}, {round: ASC}], limit: $pageLimit, offset: $pageOffset) {
     voteExternalId round status eligibleOptionExternalIds openedAt closedAt resultJson
   }
-  sessionBallots(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionBallots(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{castAt: ASC}, {voteExternalId: ASC}, {round: ASC}, {electorCharacterExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     voteExternalId round electorCharacterExternalId selectedOptionExternalIds weight castAt updatedAt
   }
-  sessionPlayerNotifications(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionPlayerNotifications(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{createdAt: ASC}, {id: ASC}], limit: $pageLimit, offset: $pageOffset) {
     id characterExternalId kind title body priority refExternalId createdAt readAt
   }
   sessionActionLogs(where: {gameSessionId: {eq: $sessionId}}, orderBy: {createdAt: DESC}, limit: 100) {
     id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
   }
-  sessionStealGrants(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionStealGrants(where: {gameSessionId: {eq: $sessionId}}, orderBy: {grantToken: ASC}, limit: $pageLimit, offset: $pageOffset) {
     grantToken interactionExternalId actorCharacterExternalId targetCharacterExternalId kind status createdAt expiresAt usedAt chosenObjectExternalId
   }
   businessDealProposals: sessionActionLogs(
@@ -650,8 +647,8 @@ async function loadPlayerData(token, reader=defaultReader) {
   const session=participant.gameSession;
   const versionId=session?.scenarioVersion?.id;
   const [source,runtime]=await Promise.all([
-    reader(PLAYER_SOURCE_QUERY,{versionId}),
-    reader(PLAYER_RUNTIME_QUERY,{sessionId:session.id}),
+    readAllPages(reader,PLAYER_SOURCE_QUERY,{versionId},['characters', 'objectives', 'relationships', 'facts', 'clues', 'documentDefinitions', 'mediaAssets', 'skinVisualDefinitions', 'resources', 'gameObjects', 'gameStateDefinitions', 'abilities', 'abilityAssignments', 'interactions', 'gameLocations', 'voteDefinitions', 'voteOptionDefinitions', 'clueFacts']),
+    readAllPages(reader,PLAYER_RUNTIME_QUERY,{sessionId:session.id},['sessionVotes', 'sessionBallots', 'sessionResources', 'sessionKnowledges', 'sessionObjectives', 'sessionObjects', 'sessionCharacterStates', 'sessionClueDiscoveries', 'sessionInteractionUses', 'sessionPlayerNotifications', 'sessionStealGrants']),
   ]);
   const resolvedSource=
     applySessionIncarnations(
@@ -3118,7 +3115,8 @@ export async function claimPlayerStolenObject(token,input,{reader=defaultReader,
 }
 
 export async function castPlayerVote(token,input,{reader=defaultReader,voteCaster=castSessionBallot}={}) {
-  const loaded=await loadPlayerData(token,reader);return voteCaster(loaded.session.id,{voteExternalId:String(input?.voteExternalId??'').trim(),electorCharacterExternalId:loaded.participant.characterExternalId,selectedOptionExternalIds:Array.isArray(input?.selectedOptionExternalIds)?input.selectedOptionExternalIds:[],round:input?.round});
+  const participant=await loadPlayerAccess(token,reader);
+  return voteCaster(participant.gameSession.id,{voteExternalId:String(input?.voteExternalId??'').trim(),electorCharacterExternalId:participant.characterExternalId,selectedOptionExternalIds:Array.isArray(input?.selectedOptionExternalIds)?input.selectedOptionExternalIds:[],round:input?.round});
 }
 
 export const __playerOps={PLAYER_ACCESS_QUERY,PLAYER_SOURCE_QUERY,PLAYER_RUNTIME_QUERY,UPDATE_PLAYER_ACCESS_MUTATION,TRACK_PLAYER_OPEN_MUTATION,MARK_BRIEFING_READ_MUTATION,INSERT_NOTIFICATION_MUTATION,MARK_NOTIFICATION_READ_MUTATION,INSERT_PLAYER_ACTION_LOG_MUTATION,SYSTEM_LOCATION_SEARCH_MUTATION,INSERT_STEAL_GRANT_MUTATION,CLAIM_STEAL_MUTATION,TRANSFER_PLAYER_CASH_MUTATION};
@@ -3126,3 +3124,4 @@ export const __playerOps={PLAYER_ACCESS_QUERY,PLAYER_SOURCE_QUERY,PLAYER_RUNTIME
 
 // Shared authorization and Data Connect transport for participant-private features.
 export { loadPlayerAccess as authorizePlayerAccess, defaultReader as readPlayerData, defaultExecutor as writePlayerData };
+

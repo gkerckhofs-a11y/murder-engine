@@ -1,3 +1,5 @@
+import { readAllPages } from './pagination.mjs';
+import { SESSION_LOCK } from './vote-storage.mjs';
 import {
   resolveSessionCharacter
 } from './session-character-resolver.mjs';
@@ -19,35 +21,36 @@ query LiveSession($sessionId: UUID!) {
 `;
 
 const LIVE_SOURCE_QUERY = `
-query LiveSource($versionId: UUID!) {
-  gamePhaseDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+query LiveSource($versionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
+  gamePhaseDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name orderIndex gmDescription triggerType triggerRef manualConfirm active
   }
-  gameEventDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+  gameEventDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId title gmDescription triggerType triggerRef delayMinutes absoluteTime phaseExternalId
     validation notificationExternalId priority mandatory repeatable fallbackGm manualFallbackAllowed active
   }
-  resources(where: {scenarioVersionId: {eq: $versionId}}) {
+  resources(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name unit maxValue active
   }
-  gameStateDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+  gameStateDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name description defaultDurationSeconds visibleToHolder visiblePublic active
   }
-  characters(where: {scenarioVersionId: {eq: $versionId}}) {
+  characters(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name publicRole active
   }
 }
 `;
 
 const LIVE_RUNTIME_QUERY = `
-query LiveRuntime($sessionId: UUID!) {
-  sessionResources(where: {gameSessionId: {eq: $sessionId}}) {
+query LiveRuntime($sessionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
+  sessionVotes(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{voteExternalId: ASC}, {round: ASC}], limit: $pageLimit, offset: $pageOffset) { voteExternalId round status }
+  sessionResources(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {resourceExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     characterExternalId resourceExternalId initialValue currentValue maxValue updatedAt
   }
-  sessionCharacterStates(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionCharacterStates(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {stateExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     characterExternalId stateExternalId active appliedAt expiresAt sourceRef
   }
-  sessionEvents(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionEvents(where: {gameSessionId: {eq: $sessionId}}, orderBy: {eventExternalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     eventExternalId status firedAt acknowledgedAt skippedAt notes updatedAt
   }
   sessionActionLogs(where: {gameSessionId: {eq: $sessionId}}, orderBy: {createdAt: DESC}, limit: 30) {
@@ -99,8 +102,15 @@ query LiveRuntime($sessionId: UUID!) {
 const UPDATE_LIVE_SESSION_MUTATION = `
 mutation UpdateLiveSession(
   $sessionId: UUID!, $status: String!, $startedAt: Timestamp, $pausedAt: Timestamp, $finishedAt: Timestamp,
-  $liveClockStartedAt: Timestamp, $liveElapsedSeconds: Int!, $currentPhaseExternalId: String
-) {
+  $liveClockStartedAt: Timestamp, $liveElapsedSeconds: Int!, $currentPhaseExternalId: String, $expectedStatus: String!
+) @transaction {
+  ${SESSION_LOCK}
+  state: query @check(expr: "response.state.gameSession != null && response.state.gameSession.status == vars.expectedStatus", message: "SESSION_STATE_CHANGED") @redact {
+    gameSession(id: $sessionId) { status }
+  }
+  outstanding: query @check(expr: "vars.status != 'FINISHED' || response.outstanding.sessionVotes.size() == 0", message: "SESSION_HAS_OPEN_VOTES") @redact {
+    sessionVotes(where: {gameSessionId: {eq: $sessionId}, status: {in: ["OPEN", "CLOSING"]}}, limit: 1) { voteExternalId }
+  }
   gameSession_update(id: $sessionId, data: {
     status: $status, startedAt: $startedAt, pausedAt: $pausedAt, finishedAt: $finishedAt,
     liveClockStartedAt: $liveClockStartedAt, liveElapsedSeconds: $liveElapsedSeconds,
@@ -306,7 +316,7 @@ async function loadLive(sessionId, reader) {
   if (!session) throw new Error('SESSION_NOT_FOUND');
   const versionId = session.scenarioVersion?.id;
   const [source, runtime] = await Promise.all([
-    reader(LIVE_SOURCE_QUERY, {versionId}), reader(LIVE_RUNTIME_QUERY, {sessionId}),
+    readAllPages(reader,LIVE_SOURCE_QUERY,{versionId},['gamePhaseDefinitions', 'gameEventDefinitions', 'resources', 'gameStateDefinitions', 'characters']), readAllPages(reader,LIVE_RUNTIME_QUERY,{sessionId},['sessionVotes', 'sessionResources', 'sessionCharacterStates', 'sessionEvents']),
   ]);
   return {session, source:source??{}, runtime:runtime??{}};
 }
@@ -352,9 +362,15 @@ export async function controlLiveSession(sessionId, action, {reader=defaultReade
     next={status:'LIVE',startedAt:session.startedAt,pausedAt:null,finishedAt:null,liveClockStartedAt:iso,liveElapsedSeconds:Number(session.liveElapsedSeconds??0),currentPhaseExternalId:session.currentPhaseExternalId??null};
   } else if (normalized==='FINISH') {
     if (!['LIVE','PAUSED'].includes(session.status)) throw new Error('SESSION_NOT_RUNNING');
+    const outstanding=(runtime.sessionVotes??[]).filter(v=>['OPEN','CLOSING'].includes(v.status));
+    if(outstanding.length){
+      const error=new Error('SESSION_HAS_OPEN_VOTES');
+      error.details={votes:outstanding.map(v=>({voteExternalId:v.voteExternalId,round:v.round,status:v.status}))};
+      throw error;
+    }
     next={status:'FINISHED',startedAt:session.startedAt,pausedAt:null,finishedAt:iso,liveClockStartedAt:null,liveElapsedSeconds:computeLiveElapsedSeconds(session,now),currentPhaseExternalId:session.currentPhaseExternalId??null};
   } else throw new Error('INVALID_LIVE_ACTION');
-  await executor(UPDATE_LIVE_SESSION_MUTATION,{sessionId,...next});
+  await executor(UPDATE_LIVE_SESSION_MUTATION,{sessionId,expectedStatus:session.status,...next});
   await logAction(executor,{gameSessionId:sessionId,actionType:`LIVE_${normalized}`,beforeValue:session.status,afterValue:next.status,note:null});
   return {sessionId,...next};
 }
@@ -451,3 +467,4 @@ export async function setLiveEventStatus(sessionId,input,{reader=defaultReader,e
 }
 
 export const __liveOps={LIVE_SESSION_QUERY,LIVE_SOURCE_QUERY,LIVE_RUNTIME_QUERY,UPDATE_LIVE_SESSION_MUTATION,INSERT_SESSION_EVENT_MUTATION,UPDATE_SESSION_EVENT_MUTATION,UPDATE_SESSION_RESOURCE_MUTATION,INSERT_CHARACTER_STATE_MUTATION,UPDATE_CHARACTER_STATE_MUTATION,INSERT_ACTION_LOG_MUTATION};
+

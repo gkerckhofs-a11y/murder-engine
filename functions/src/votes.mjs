@@ -1,3 +1,5 @@
+import { readAllPages } from './pagination.mjs';
+import { BALLOT_BY_KEY_QUERY, readRoundBallots, SESSION_LOCK, RUNNING_SESSION_CHECK, OPEN_ROUND_CHECK } from './vote-storage.mjs';
 import {
   resolveSessionCharacter
 } from './session-character-resolver.mjs';
@@ -18,47 +20,88 @@ query VoteSession($sessionId: UUID!) {
 `;
 
 const VOTE_SOURCE_QUERY = `
-query VoteSource($versionId: UUID!) {
-  voteDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+query VoteSource($versionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
+  voteDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId title question scopeType scopeRef choicesMode secret votesPerElector weighted
     weightResourceExternalId abstention modifiable closeMode durationMinutes resultVisibility tieRule active
   }
-  voteOptionDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+  voteOptionDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId voteExternalId orderIndex label description characterExternalId enabledConditionExternalId active
   }
-  characters(where: {scenarioVersionId: {eq: $versionId}}) { externalId name publicRole active }
+  characters(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) { externalId name publicRole active }
 }
 `;
 
 const VOTE_RUNTIME_QUERY = `
-query VoteRuntime($sessionId: UUID!) {
-  sessionVotes(where: {gameSessionId: {eq: $sessionId}}) {
+query VoteRuntime($sessionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
+  sessionVotes(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{voteExternalId: ASC}, {round: ASC}], limit: $pageLimit, offset: $pageOffset) {
     voteExternalId round status eligibleOptionExternalIds openedAt closedAt resultJson note
   }
-  sessionBallots(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionBallots(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{castAt: ASC}, {voteExternalId: ASC}, {round: ASC}, {electorCharacterExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     voteExternalId round electorCharacterExternalId selectedOptionExternalIds weight castAt updatedAt
   }
-  sessionResources(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionResources(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {resourceExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     characterExternalId resourceExternalId currentValue
   }
 }
 `;
 
+const VOTE_CONTEXT_QUERY = `
+query VoteRuntimeContext($sessionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
+  sessionVotes(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{voteExternalId: ASC}, {round: ASC}], limit: $pageLimit, offset: $pageOffset) {
+    voteExternalId round status eligibleOptionExternalIds openedAt closedAt resultJson note
+  }
+  sessionResources(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {resourceExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
+    characterExternalId resourceExternalId currentValue
+  }
+}`;
+
 const INSERT_SESSION_VOTE = `
-mutation InsertSessionVote($data: SessionVote_Data!) { sessionVote_insert(data: $data) }
+mutation InsertSessionVote($sessionId: UUID!, $voteExternalId: String!, $data: SessionVote_Data!, $log: SessionActionLog_Data!) @transaction {
+  ${SESSION_LOCK}
+  ${RUNNING_SESSION_CHECK}
+  existing: query @check(expr: "response.existing.sessionVotes.size() == 0", message: "VOTE_ALREADY_OPEN") @redact {
+    sessionVotes(where: {gameSessionId: {eq: $sessionId}, voteExternalId: {eq: $voteExternalId}, status: {in: ["OPEN", "CLOSING"]}}, limit: 1) { round }
+  }
+  sessionVote_insert(data: $data)
+  sessionActionLog_insert(data: $log)
+}
 `;
+const BEGIN_VOTE_CLOSE = `
+mutation BeginVoteClose($sessionId: UUID!, $voteExternalId: String!, $round: Int!) @transaction {
+  ${SESSION_LOCK}
+  ${RUNNING_SESSION_CHECK}
+  ${OPEN_ROUND_CHECK}
+  sessionVote_update(key: {gameSessionId: $sessionId, voteExternalId: $voteExternalId, round: $round}, data: {status: "CLOSING"})
+}`;
 const UPDATE_SESSION_VOTE = `
-mutation UpdateSessionVote($sessionId: UUID!, $voteExternalId: String!, $round: Int!, $status: String!, $closedAt: Timestamp, $resultJson: String, $note: String) {
+mutation UpdateSessionVote($sessionId: UUID!, $voteExternalId: String!, $round: Int!, $status: String!, $closedAt: Timestamp, $resultJson: String, $note: String, $log: SessionActionLog_Data!) @transaction {
+  ${SESSION_LOCK}
+  ${RUNNING_SESSION_CHECK}
+  closing: query @check(expr: "response.closing.sessionVote != null && response.closing.sessionVote.status == 'CLOSING'", message: "VOTE_NOT_CLOSING") @redact {
+    sessionVote(key: {gameSessionId: $sessionId, voteExternalId: $voteExternalId, round: $round}) { status }
+  }
   sessionVote_update(key: {gameSessionId: $sessionId, voteExternalId: $voteExternalId, round: $round}, data: {status: $status, closedAt: $closedAt, resultJson: $resultJson, note: $note})
+  sessionActionLog_insert(data: $log)
 }
 `;
-const INSERT_BALLOT = `mutation InsertBallot($data: SessionBallot_Data!) { sessionBallot_insert(data: $data) }`;
+const INSERT_BALLOT = `
+mutation InsertBallot($sessionId: UUID!, $voteExternalId: String!, $round: Int!, $data: SessionBallot_Data!, $log: SessionActionLog_Data!) @transaction {
+  ${SESSION_LOCK}
+  ${RUNNING_SESSION_CHECK}
+  ${OPEN_ROUND_CHECK}
+  sessionBallot_insert(data: $data)
+  sessionActionLog_insert(data: $log)
+}`;
 const UPDATE_BALLOT = `
-mutation UpdateBallot($sessionId: UUID!, $voteExternalId: String!, $round: Int!, $electorCharacterExternalId: String!, $selectedOptionExternalIds: String, $weight: Int!, $updatedAt: Timestamp!) {
+mutation UpdateBallot($sessionId: UUID!, $voteExternalId: String!, $round: Int!, $electorCharacterExternalId: String!, $selectedOptionExternalIds: String, $weight: Int!, $updatedAt: Timestamp!, $log: SessionActionLog_Data!) @transaction {
+  ${SESSION_LOCK}
+  ${RUNNING_SESSION_CHECK}
+  ${OPEN_ROUND_CHECK}
   sessionBallot_update(key: {gameSessionId: $sessionId, voteExternalId: $voteExternalId, round: $round, electorCharacterExternalId: $electorCharacterExternalId}, data: {selectedOptionExternalIds: $selectedOptionExternalIds, weight: $weight, updatedAt: $updatedAt})
+  sessionActionLog_insert(data: $log)
 }
 `;
-const INSERT_ACTION_LOG = `mutation InsertVoteLog($data: SessionActionLog_Data!) { sessionActionLog_insert(data: $data) }`;
 
 async function getAdminDataConnect() {
   const [{ initializeApp, getApps }, { getDataConnect }] = await Promise.all([
@@ -271,16 +314,19 @@ export function shapeVoteDashboard(session, source, runtime) {
   return { sourceReady: session.scenarioVersion?.runtimeDataVersion === '0.9', session:{id:session.id,status:session.status}, votes };
 }
 
-async function loadVoteState(sessionId, reader=defaultReader) {
+async function loadVoteState(sessionId, reader=defaultReader, includeBallots=false) {
   const s = await reader(VOTE_SESSION_QUERY,{sessionId});
   const session=s?.gameSession; if(!session) throw new Error('SESSION_NOT_FOUND');
   const versionId=session.scenarioVersion?.id;
-  const [source,runtime]=await Promise.all([reader(VOTE_SOURCE_QUERY,{versionId}),reader(VOTE_RUNTIME_QUERY,{sessionId})]);
+  const [source,runtime]=await Promise.all([
+    readAllPages(reader,VOTE_SOURCE_QUERY,{versionId},['voteDefinitions','voteOptionDefinitions','characters']),
+    readAllPages(reader,includeBallots?VOTE_RUNTIME_QUERY:VOTE_CONTEXT_QUERY,{sessionId},includeBallots?['sessionVotes','sessionBallots','sessionResources']:['sessionVotes','sessionResources']),
+  ]);
   return {session,source,runtime};
 }
 
 export async function getVoteDashboard(sessionId,{reader=defaultReader}={}) {
-  const loaded=await loadVoteState(sessionId,reader); return shapeVoteDashboard(loaded.session,loaded.source,loaded.runtime);
+  const loaded=await loadVoteState(sessionId,reader,true); return shapeVoteDashboard(loaded.session,loaded.source,loaded.runtime);
 }
 
 function getDefinition(source,voteExternalId){const def=(source.voteDefinitions??[]).find(v=>v.externalId===voteExternalId&&v.active!==false);if(!def)throw new Error('VOTE_NOT_FOUND');return def;}
@@ -292,7 +338,7 @@ export async function openSessionVote(sessionId,input,{reader=defaultReader,exec
   if(session.scenarioVersion?.runtimeDataVersion!=='0.9') throw new Error('VOTE_SOURCE_NOT_READY');
   const def=getDefinition(source,String(input.voteExternalId));
   const existing=(runtime.sessionVotes??[]).filter(v=>v.voteExternalId===def.externalId).sort((a,b)=>a.round-b.round);
-  if(existing.some(v=>v.status==='OPEN')) throw new Error('VOTE_ALREADY_OPEN');
+  if(existing.some(v=>['OPEN','CLOSING'].includes(v.status))) throw new Error('VOTE_ALREADY_OPEN');
   const previous=existing.at(-1)??null;
   const round=previous?previous.round+1:1;
   let eligible=optionsFor(source,def.externalId).map(o=>o.externalId);
@@ -322,8 +368,7 @@ export async function openSessionVote(sessionId,input,{reader=defaultReader,exec
   const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[],runtime,source);
   if(!electorate.length) throw new Error('VOTE_ELECTORATE_EMPTY');
   const openedAt=now().toISOString();
-  await executor(INSERT_SESSION_VOTE,{data:{gameSessionId:sessionId,voteExternalId:def.externalId,round,status:'OPEN',eligibleOptionExternalIds:joinIds(eligible),openedAt,closedAt:null,resultJson:null,note:null}});
-  await executor(INSERT_ACTION_LOG,{data:{gameSessionId:sessionId,actionType:'VOTE_OPEN',refExternalId:def.externalId,afterValue:String(round),note:input.secondRound?'Second tour':'Ouverture du vote'}});
+  await executor(INSERT_SESSION_VOTE,{sessionId,voteExternalId:def.externalId,data:{gameSessionId:sessionId,voteExternalId:def.externalId,round,status:'OPEN',eligibleOptionExternalIds:joinIds(eligible),openedAt,closedAt:null,resultJson:null,note:null},log:{gameSessionId:sessionId,actionType:'VOTE_OPEN',refExternalId:def.externalId,afterValue:String(round),note:input.secondRound?'Second tour':'Ouverture du vote'}});
   return {voteExternalId:def.externalId,round,electorateCount:electorate.length,eligibleOptionExternalIds:eligible};
 }
 
@@ -333,11 +378,13 @@ export async function castSessionBallot(sessionId,input,{reader=defaultReader,ex
   const def=getDefinition(source,String(input.voteExternalId));
   const open=(runtime.sessionVotes??[]).filter(v=>v.voteExternalId===def.externalId&&v.status==='OPEN').sort((a,b)=>b.round-a.round)[0];
   if(!open) throw new Error('VOTE_NOT_OPEN');
+  if(!Number.isInteger(input.round)||input.round<1) throw new Error('VOTE_ROUND_REQUIRED');
+  if(input.round!==open.round) throw new Error('VOTE_ROUND_CHANGED');
   const voter=String(input.electorCharacterExternalId??'').trim();
   const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[],runtime,source);
   if(!electorate.includes(voter)) throw new Error('VOTER_NOT_ELIGIBLE');
   const eligible=new Set(splitIds(open.eligibleOptionExternalIds));
-  const selected=Array.isArray(input.selectedOptionExternalIds)?input.selectedOptionExternalIds.map(String).filter(Boolean):splitIds(input.selectedOptionExternalIds);
+  const selected=normalizedIdSet(Array.isArray(input.selectedOptionExternalIds)?input.selectedOptionExternalIds:splitIds(input.selectedOptionExternalIds));
   if(!selected.length && !def.abstention) throw new Error('ABSTENTION_NOT_ALLOWED');
   if(selected.length>Math.max(1,def.votesPerElector??1)) throw new Error('TOO_MANY_CHOICES');
   if(selected.some(id=>!eligible.has(id))) throw new Error('VOTE_OPTION_NOT_ELIGIBLE');
@@ -347,13 +394,11 @@ export async function castSessionBallot(sessionId,input,{reader=defaultReader,ex
     weight=Math.max(0,Number(resource?.currentValue??0));
   }
 
-  const ballotKeyMatches=ballot=>
-    ballot.voteExternalId===def.externalId &&
-    ballot.round===open.round &&
-    ballot.electorCharacterExternalId===voter;
-  const previous=(runtime.sessionBallots??[]).find(ballotKeyMatches);
+  const key={sessionId,voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter};
+  const previous=(await reader(BALLOT_BY_KEY_QUERY,key))?.sessionBallot;
   const stamp=now().toISOString();
   const selectedOptionExternalIds=joinIds(selected);
+  const log={gameSessionId:sessionId,actionType:'BALLOT_CAST',characterExternalId:voter,refExternalId:def.externalId,afterValue:def.secret?'SECRET':selectedOptionExternalIds,note:`Tour ${open.round}`};
   const response=(updated=false,alreadyRecorded=false)=>({
     voteExternalId:def.externalId,
     round:open.round,
@@ -366,21 +411,19 @@ export async function castSessionBallot(sessionId,input,{reader=defaultReader,ex
     if(sameIdSet(splitIds(previous.selectedOptionExternalIds),selected))
       return response(false,true);
     if(!def.modifiable) throw new Error('BALLOT_NOT_MODIFIABLE');
-    await executor(UPDATE_BALLOT,{sessionId,voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter,selectedOptionExternalIds,weight,updatedAt:stamp});
-    await executor(INSERT_ACTION_LOG,{data:{gameSessionId:sessionId,actionType:'BALLOT_CAST',characterExternalId:voter,refExternalId:def.externalId,afterValue:def.secret?'SECRET':selectedOptionExternalIds,note:`Tour ${open.round}`}});
+    await executor(UPDATE_BALLOT,{...key,selectedOptionExternalIds,weight,updatedAt:stamp,log});
     return response(true,false);
   }
 
   try{
-    await executor(INSERT_BALLOT,{data:{gameSessionId:sessionId,voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter,selectedOptionExternalIds,weight,castAt:stamp,updatedAt:stamp}});
+    await executor(INSERT_BALLOT,{sessionId,voteExternalId:def.externalId,round:open.round,data:{gameSessionId:sessionId,voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter,selectedOptionExternalIds,weight,castAt:stamp,updatedAt:stamp},log});
   }catch(error){
     if(!isSessionBallotUniqueConstraint(error)) throw error;
 
     // A double tap, retry, or concurrent request may insert the same
     // primary key between our read and write. Re-read once and make
     // that retry idempotent instead of exposing the SQL constraint.
-    const refreshed=await loadVoteState(sessionId,reader);
-    const current=(refreshed.runtime.sessionBallots??[]).find(ballotKeyMatches);
+    const current=(await reader(BALLOT_BY_KEY_QUERY,key))?.sessionBallot;
     if(!current) throw error;
 
     if(sameIdSet(splitIds(current.selectedOptionExternalIds),selected))
@@ -388,27 +431,35 @@ export async function castSessionBallot(sessionId,input,{reader=defaultReader,ex
 
     if(!def.modifiable) throw new Error('BALLOT_NOT_MODIFIABLE');
 
-    await executor(UPDATE_BALLOT,{sessionId,voteExternalId:def.externalId,round:open.round,electorCharacterExternalId:voter,selectedOptionExternalIds,weight,updatedAt:stamp});
-    await executor(INSERT_ACTION_LOG,{data:{gameSessionId:sessionId,actionType:'BALLOT_CAST',characterExternalId:voter,refExternalId:def.externalId,afterValue:def.secret?'SECRET':selectedOptionExternalIds,note:`Tour ${open.round}`}});
+    await executor(UPDATE_BALLOT,{...key,selectedOptionExternalIds,weight,updatedAt:stamp,log});
     return response(true,false);
   }
 
-  await executor(INSERT_ACTION_LOG,{data:{gameSessionId:sessionId,actionType:'BALLOT_CAST',characterExternalId:voter,refExternalId:def.externalId,afterValue:def.secret?'SECRET':selectedOptionExternalIds,note:`Tour ${open.round}`}});
   return response(false,false);
 }
 
 export async function closeSessionVote(sessionId,input,{reader=defaultReader,executor=defaultExecutor,now=()=>new Date()}={}) {
   const {session,source,runtime}=await loadVoteState(sessionId,reader);
+  if(!['LIVE','PAUSED'].includes(session.status)) throw new Error('VOTE_REQUIRES_LIVE_SESSION');
   const def=getDefinition(source,String(input.voteExternalId));
-  const open=(runtime.sessionVotes??[]).filter(v=>v.voteExternalId===def.externalId&&v.status==='OPEN').sort((a,b)=>b.round-a.round)[0];
+  const open=(runtime.sessionVotes??[]).filter(v=>v.voteExternalId===def.externalId&&['OPEN','CLOSING'].includes(v.status)).sort((a,b)=>b.round-a.round)[0];
   if(!open) throw new Error('VOTE_NOT_OPEN');
+  if(!Number.isInteger(input.round)||input.round<1) throw new Error('VOTE_ROUND_REQUIRED');
+  if(input.round!==open.round) throw new Error('VOTE_ROUND_CHANGED');
+  const key={sessionId,voteExternalId:def.externalId,round:open.round};
+  // Once frozen, inserts/updates are rejected in the same transaction as their
+  // status check. A failed tally can safely resume from CLOSING on the next call.
+  if(open.status==='OPEN') await executor(BEGIN_VOTE_CLOSE,key);
   const eligibleIds=splitIds(open.eligibleOptionExternalIds);
   const options=optionsFor(source,def.externalId).filter(o=>eligibleIds.includes(o.externalId));
   const electorate=resolveElectorate(def,session.sessionParticipants_on_gameSession??[],runtime,source);
-  const ballots=(runtime.sessionBallots??[]).filter(b=>b.voteExternalId===def.externalId&&b.round===open.round);
-  const result=tallyVote({definition:def,options,electorate,ballots});
+  const ballots=input.cancel===true?[]:await readRoundBallots(reader,key);
+  const result=input.cancel===true?null:tallyVote({definition:def,options,electorate,ballots});
+  const status=input.cancel===true?'CANCELLED':'CLOSED';
   const closedAt=now().toISOString();
-  await executor(UPDATE_SESSION_VOTE,{sessionId,voteExternalId:def.externalId,round:open.round,status:'CLOSED',closedAt,resultJson:JSON.stringify(result),note:input.note?String(input.note):null});
-  await executor(INSERT_ACTION_LOG,{data:{gameSessionId:sessionId,actionType:'VOTE_CLOSE',refExternalId:def.externalId,beforeValue:'OPEN',afterValue:'CLOSED',note:`Tour ${open.round} · ${result.ballotsCast}/${result.electorateCount} bulletins`}});
-  return {voteExternalId:def.externalId,round:open.round,result};
+  await executor(UPDATE_SESSION_VOTE,{...key,status,closedAt,resultJson:result?JSON.stringify(result):null,note:input.note?String(input.note):null,log:{gameSessionId:sessionId,actionType:input.cancel===true?'VOTE_CANCEL':'VOTE_CLOSE',refExternalId:def.externalId,beforeValue:'CLOSING',afterValue:status,note:result?`Tour ${open.round} · ${result.ballotsCast}/${result.electorateCount} bulletins`:`Tour ${open.round} · Annulé par le MJ`}});
+  return {voteExternalId:def.externalId,round:open.round,status,result};
 }
+
+export const __voteOps={VOTE_SESSION_QUERY,VOTE_SOURCE_QUERY,VOTE_RUNTIME_QUERY,INSERT_SESSION_VOTE,BEGIN_VOTE_CLOSE,UPDATE_SESSION_VOTE,INSERT_BALLOT,UPDATE_BALLOT};
+

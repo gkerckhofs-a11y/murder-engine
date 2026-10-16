@@ -1,0 +1,75 @@
+name: Deploy reliable session votes
+
+on:
+  push:
+    branches:
+      - feature/reliable-session-votes
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            functions/package-lock.json
+            web/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Run regression tests
+        working-directory: functions
+        run: npm test
+
+      - name: Install pinned Firebase CLI
+        run: npm install --global firebase-tools@15.34.0
+
+      - name: Simulate a full game using local SQL Connect
+        working-directory: functions
+        run: npm run test:integration
+
+      - name: Install and build Web
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Check patch whitespace
+        run: git diff --check HEAD^ HEAD
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+
+      - name: Verify production project
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+
+      - name: Deploy affected Functions and matching Web app
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          firebase deploy --project "$FIREBASE_PROJECT_ID" \
+            --only functions:getVoteState,functions:openLiveVote,functions:castLiveBallot,functions:closeLiveVote,functions:getPublicPlayerPortal,functions:castPublicPlayerVote,functions:readPlayerNotification,functions:executePublicPlayerInteraction,functions:getPublicPlayerLocation,functions:executePublicPlayerLocationAction,functions:attemptPublicPlayerClandestineAction,functions:claimPublicPlayerStolenObject,functions:sharePublicPlayerClue,functions:transferPublicPlayerObject,functions:transferPublicPlayerCash,functions:getLiveState,functions:controlLive,functions:updateLiveResource,functions:updateLiveState,functions:updateLiveEvent,functions:validateLiveBusinessDeal,hosting \
+            --non-interactive
+
+      - name: Record deployed revision
+        env:
+          DEPLOYED_SHA: ${{ github.sha }}
+        run: echo "Deployed revision $DEPLOYED_SHA. No schema migration or historical session mutation." >> "$GITHUB_STEP_SUMMARY"

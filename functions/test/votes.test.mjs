@@ -13,7 +13,17 @@ const source=()=>({voteDefinitions:[{externalId:'VOTE_1',title:'Succession',ques
   {externalId:'OPT_C',voteExternalId:'VOTE_1',orderIndex:3,label:'Clara',active:true},
 ],characters:[{externalId:'CHAR_A',name:'Alice'},{externalId:'CHAR_B',name:'Bob'},{externalId:'CHAR_C',name:'Clara'}]});
 const runtime=()=>({sessionVotes:[],sessionBallots:[],sessionResources:[]});
-function readerFor(s=session(),src=source(),rt=runtime()){let i=0;return async()=>{i++;return i%3===1?{gameSession:s}:i%3===2?src:rt;};}
+function readerFor(s=session(),src=source(),rt=runtime()){
+  return async(op,vars)=>{
+    const page=data=>Object.fromEntries(Object.entries(data).map(([key,value])=>[key,Array.isArray(value)?value.slice(vars.pageOffset,vars.pageOffset+vars.pageLimit):value]));
+    if(op.includes('VoteSession'))return {gameSession:s};
+    if(op.includes('VoteSource'))return page(src);
+    if(op.includes('VoteRuntime'))return page(rt);
+    if(op.includes('VoteBallotByKey'))return {sessionBallot:rt.sessionBallots.find(b=>b.voteExternalId===vars.voteExternalId&&b.round===vars.round&&b.electorCharacterExternalId===vars.electorCharacterExternalId)??null};
+    if(op.includes('VoteRoundBallots'))return page({sessionBallots:rt.sessionBallots.filter(b=>b.voteExternalId===vars.voteExternalId&&b.round===vars.round)});
+    throw new Error('UNEXPECTED_READ');
+  };
+}
 
 test('LIST electorate keeps only cast and allowed characters',()=>{
   assert.deepEqual(resolveElectorate(source().voteDefinitions[0],session().sessionParticipants_on_gameSession),['CHAR_A','CHAR_B','CHAR_C']);
@@ -163,18 +173,18 @@ test('dashboard hides nothing from MJ but tracks who voted',()=>{
 
 test('opening a vote creates round one',async()=>{
   const writes=[];const out=await openSessionVote('S1',{voteExternalId:'VOTE_1'},{reader:readerFor(),executor:async(op,vars)=>{writes.push({op,vars});return{};},now:()=>new Date('2026-09-21T18:00:00Z')});
-  assert.equal(out.round,1);assert.equal(out.electorateCount,3);assert.equal(writes.length,2);
+  assert.equal(out.round,1);assert.equal(out.electorateCount,3);assert.equal(writes.length,1);
 });
 
 test('casting a secret ballot records no choice in audit note',async()=>{
   const rt=runtime();rt.sessionVotes=[{voteExternalId:'VOTE_1',round:1,status:'OPEN',eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C'}];const writes=[];
-  const out=await castSessionBallot('S1',{voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{reader:readerFor(session(),source(),rt),executor:async(op,vars)=>{writes.push({op,vars});return{};},now:()=>new Date('2026-09-21T18:05:00Z')});
-  assert.equal(out.round,1);assert.equal(writes[1].vars.data.afterValue,'SECRET');
+  const out=await castSessionBallot('S1',{round:1,voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{reader:readerFor(session(),source(),rt),executor:async(op,vars)=>{writes.push({op,vars});return{};},now:()=>new Date('2026-09-21T18:05:00Z')});
+  assert.equal(out.round,1);assert.equal(writes[0].vars.log.afterValue,'SECRET');
 });
 
 test('non-modifiable ballot cannot be cast twice',async()=>{
   const rt=runtime();rt.sessionVotes=[{voteExternalId:'VOTE_1',round:1,status:'OPEN',eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C'}];rt.sessionBallots=[{voteExternalId:'VOTE_1',round:1,electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:'OPT_A',weight:1}];
-  await assert.rejects(()=>castSessionBallot('S1',{voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_B']},{reader:readerFor(session(),source(),rt),executor:async()=>({})}),/BALLOT_NOT_MODIFIABLE/);
+  await assert.rejects(()=>castSessionBallot('S1',{round:1,voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_B']},{reader:readerFor(session(),source(),rt),executor:async()=>({})}),/BALLOT_NOT_MODIFIABLE/);
 });
 
 test('closing a vote stores calculated result',async()=>{
@@ -183,8 +193,8 @@ test('closing a vote stores calculated result',async()=>{
     {voteExternalId:'VOTE_1',round:1,electorCharacterExternalId:'CHAR_B',selectedOptionExternalIds:'OPT_A',weight:1},
     {voteExternalId:'VOTE_1',round:1,electorCharacterExternalId:'CHAR_C',selectedOptionExternalIds:'OPT_B',weight:1},
   ];const writes=[];
-  const out=await closeSessionVote('S1',{voteExternalId:'VOTE_1'},{reader:readerFor(session(),source(),rt),executor:async(op,vars)=>{writes.push({op,vars});return{};},now:()=>new Date('2026-09-21T18:10:00Z')});
-  assert.equal(out.result.winnerOptionExternalId,'OPT_A');assert.equal(writes.length,2);assert.match(writes[0].vars.resultJson,/OPT_A/);
+  const out=await closeSessionVote('S1',{round:1,voteExternalId:'VOTE_1'},{reader:readerFor(session(),source(),rt),executor:async(op,vars)=>{writes.push({op,vars});return{};},now:()=>new Date('2026-09-21T18:10:00Z')});
+  assert.equal(out.result.winnerOptionExternalId,'OPT_A');assert.equal(writes.length,2);assert.match(writes[1].vars.resultJson,/OPT_A/);
 });
 
 
@@ -193,7 +203,7 @@ test('same non-modifiable ballot retry is idempotent',async()=>{
   rt.sessionVotes=[{voteExternalId:'VOTE_1',round:1,status:'OPEN',eligibleOptionExternalIds:'OPT_A;OPT_B;OPT_C'}];
   rt.sessionBallots=[{voteExternalId:'VOTE_1',round:1,electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:'OPT_A',weight:1}];
   const writes=[];
-  const out=await castSessionBallot('S1',{voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{
+  const out=await castSessionBallot('S1',{round:1,voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{
     reader:readerFor(session(),source(),rt),
     executor:async(op,vars)=>{writes.push({op,vars});return{};}
   });
@@ -212,7 +222,8 @@ test('session ballot primary-key race is an idempotent successful retry',async()
   const reader=async operation=>{
     if(operation.includes('VoteSession'))return {gameSession:session()};
     if(operation.includes('VoteSource'))return source();
-    if(operation.includes('VoteRuntime'))return ++runtimeReads===1?first:refreshed;
+    if(operation.includes('VoteRuntime'))return first;
+    if(operation.includes('VoteBallotByKey'))return {sessionBallot:++runtimeReads===1?null:refreshed.sessionBallots[0]};
     throw new Error('UNEXPECTED_READ');
   };
   const writes=[];
@@ -225,7 +236,7 @@ test('session ballot primary-key race is an idempotent successful retry',async()
     }
     return{};
   };
-  const out=await castSessionBallot('S1',{voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{reader,executor});
+  const out=await castSessionBallot('S1',{round:1,voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{reader,executor});
   assert.equal(out.alreadyRecorded,true);
   assert.equal(out.updated,false);
   assert.equal(writes.length,1);
@@ -242,7 +253,8 @@ test('session ballot primary-key race does not overwrite a different non-modifia
   const reader=async operation=>{
     if(operation.includes('VoteSession'))return {gameSession:session()};
     if(operation.includes('VoteSource'))return source();
-    if(operation.includes('VoteRuntime'))return ++runtimeReads===1?first:refreshed;
+    if(operation.includes('VoteRuntime'))return first;
+    if(operation.includes('VoteBallotByKey'))return {sessionBallot:++runtimeReads===1?null:refreshed.sessionBallots[0]};
     throw new Error('UNEXPECTED_READ');
   };
   const executor=async op=>{
@@ -254,7 +266,7 @@ test('session ballot primary-key race does not overwrite a different non-modifia
     return{};
   };
   await assert.rejects(
-    ()=>castSessionBallot('S1',{voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{reader,executor}),
+    ()=>castSessionBallot('S1',{round:1,voteExternalId:'VOTE_1',electorCharacterExternalId:'CHAR_A',selectedOptionExternalIds:['OPT_A']},{reader,executor}),
     /BALLOT_NOT_MODIFIABLE/
   );
 });
@@ -315,3 +327,4 @@ test('opening a second round preserves every candidate tied for first place',asy
   assert.deepEqual(out.eligibleOptionExternalIds,['OPT_A','OPT_B','OPT_C']);
   assert.equal(writes[0].vars.data.eligibleOptionExternalIds,'OPT_A;OPT_B;OPT_C');
 });
+
