@@ -131,8 +131,7 @@ export default function PlayerPortal({token}:{token:string}){
   }
 
   const reading=usePlayerReading(portal,introOpen||!!resultPopup,id=>postJson('/api/player/notification/read',{token,notificationId:id}));
-  const [bagTab,setBagTab]=useState<'resources'|'clues'>('resources');
-  function openClues(){setBagTab('clues');setTab('sac');window.scrollTo({top:0,behavior:'smooth'});}
+  function openClues(){setTab('sac');window.scrollTo({top:0,behavior:'smooth'});}
   async function act(fn:()=>Promise<any>,message=''){
     setBusy(true);
     setError('');
@@ -226,7 +225,6 @@ export default function PlayerPortal({token}:{token:string}){
       return response;
     }} onVote={(voteExternalId,round,selectedOptionExternalIds)=>act(()=>postJson('/api/player/vote',{token,voteExternalId,round,selectedOptionExternalIds}),tr(portal,'Vote enregistré ✓','Vote recorded ✓'))}/>}
     {tab==='sac'&&<PlayerBag
-      count={reading.count} tab={bagTab} setTab={setBagTab}
       portal={portal}
       busy={busy}
       onGive={(objectExternalId,targetCharacterExternalId)=>act(
@@ -523,10 +521,31 @@ function PlayerNotebook({portal,token,active,count,onOpenClues}:{portal:Portal;t
 
 function PlayerInfo({portal,onOpenClues}:{portal:Portal;onOpenClues:()=>void}){
   const rows=playerInfoFeed(portal);
+  const [category,setCategory]=useState<string|null>(null);
+  const kindLabels:Record<string,string>={
+    clue:tr(portal,'Indices','Clues'),
+    fact:tr(portal,'Informations','Information'),
+    notification:tr(portal,'Actualités','News'),
+    result:tr(portal,'Votes','Votes'),
+  };
+  const knownCategories=new Map<string,string>((portal.knowledge??[]).map((k:any)=>[k.factExternalId,String(k.fact?.notebookCategory??'').trim()]));
+  function rowCategories(row:any):string[]{
+    return [...new Set<string>([
+      kindLabels[row.kind],row.category,
+      ...(row.clue?.knownFacts??[]).map((fact:any)=>knownCategories.get(fact.externalId)),
+    ].filter(Boolean))];
+  }
+  const categories=[...new Set(rows.flatMap(rowCategories))];
+  const activeCategory=category&&categories.includes(category)?category:null;
+  const visibleRows=activeCategory?rows.filter(row=>rowCategories(row).includes(activeCategory)):rows;
   return <section className="playerCard infoFeedCard">
     <div className="playerSectionHead"><div><p className="playerSectionKicker">{tr(portal,'LE FIL DE MON ENQUÊTE','MY INVESTIGATION')}</p><h2>{tr(portal,'Infos','Info')}</h2></div></div>
+    {categories.length>1&&<div className="notebookCategoryFilters" role="group" aria-label={tr(portal,'Filtrer les informations','Filter information')}>
+      <button className={!activeCategory?'active':''} aria-pressed={!activeCategory} onClick={()=>setCategory(null)}>{tr(portal,'Tout','All')}</button>
+      {categories.map(label=><button key={label} className={activeCategory===label?'active':''} aria-pressed={activeCategory===label} onClick={()=>setCategory(label)}>{label}</button>)}
+    </div>}
     {!rows.length&&<p>{tr(portal,'Vos découvertes et les nouvelles de la soirée apparaîtront ici.','Your discoveries and news from the evening will appear here.')}</p>}
-    {rows.map(row=><article key={row.id} data-read-id={row.id} className={`playerKnowledge playerInfoEntry info-${row.kind}`}>
+    {visibleRows.map(row=><article key={row.id} data-read-id={row.id} className={`playerKnowledge playerInfoEntry info-${row.kind}`}>
       <small>{row.kind==='clue'?tr(portal,'Indice découvert · À retenir','Clue discovered · A reminder'):row.kind==='result'?tr(portal,'Résultat du vote','Vote result'):row.kind==='notification'?tr(portal,'Nouvelle reçue','Update'):row.category||tr(portal,'Information','Information')}{row.at?` · ${niceTime(row.at,portal.session?.language)}`:''}</small>
       <strong>{row.title}</strong>
       {row.body&&<NarrativeText text={row.body}/>}
@@ -916,14 +935,12 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
 }
 
 function PlayerBag({
-  count,tab,setTab,
   portal,
   busy,
   onGive,
   onShareClue,
   onCashTransfer,
 }:{
-  count:Counts;tab:'resources'|'clues';setTab:(tab:'resources'|'clues')=>void;
   portal:Portal;
   busy:boolean;
   onGive:(objectId:string,targetId:string)=>void;
@@ -978,10 +995,7 @@ function PlayerBag({
   }
 
   return <div className="playerStack bagShell">
-    <nav className="notebookTabs bagTabs" aria-label={tr(portal,'Rubriques du sac','Bag sections')}>
-      {(['resources','clues'] as const).map(id=><button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}><span>{id==='resources'?tr(portal,'Ressources','Resources'):tr(portal,'Indices','Clues')}</span><NewBadge portal={portal} count={count(`bag:${id}`)}/></button>)}
-    </nav>
-    {tab==='resources'&&<section className="playerCard bagResourcesCard">
+    <section className="playerCard bagResourcesCard">
       <div className="playerSectionHead">
         <div><p className="playerSectionKicker">{tr(portal,'MES RESSOURCES','MY RESOURCES')}</p><h2>{tr(portal,'Ressources','Resources')}</h2></div>
         <span>{resources.length}</span>
@@ -1007,9 +1021,9 @@ function PlayerBag({
         </div>}
 
       {cash&&<p className="playerHelp bagCashHelp">{tr(portal,'Les virements reçus mettent automatiquement votre solde à jour.','Incoming transfers automatically update your balance.')}</p>}
-    </section>}
+    </section>
 
-    {tab==='clues'&&<section className="playerCard bagPossessionsCard">
+    <section className="playerCard bagPossessionsCard">
       <div className="playerSectionHead">
         <div><p className="playerSectionKicker">{tr(portal,'MES PIÈCES D’ENQUÊTE','MY EVIDENCE')}</p><h2>{tr(portal,'Indices & objets','Clues & items')}</h2></div>
         <span>{possessionCount}</span>
@@ -1090,7 +1104,7 @@ function PlayerBag({
             </article>
           )}
         </div>}
-    </section>}
+    </section>
 
     {scanClue&&<QrCharacterScanner
       title={tr(portal,'Partager cet indice','Share this clue')}

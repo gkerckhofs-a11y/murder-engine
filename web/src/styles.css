@@ -14535,7 +14535,6 @@ button.skinGalleryCard:disabled{
 .playerShell .sheetTabs button,.playerShell .notebookTabs button{min-height:46px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .playerShell .notebookTabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible;gap:5px}
 .playerShell .notebookTabs button{min-width:0;padding:10px 4px;font-size:.78rem;flex-wrap:wrap}
-.playerShell .bagTabs{grid-template-columns:repeat(2,minmax(0,1fr))}
 .playerShell .sheetTabs .newBadge,.playerShell .notebookTabs .newBadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:99px;background:#a93b48;color:#fff;font-style:normal;font-size:.68rem;font-weight:800}
 .playerInfoEntry{padding:18px 0;border-bottom:1px solid #8885;scroll-margin-top:20px}
 .playerInfoEntry>small,.playerInfoEntry>strong{display:block;margin-bottom:8px}

@@ -44,7 +44,7 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
-      - name: Publish player portal and interface
+      - name: Publish player interface
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
           NAVIGATION_REVISION: ${{ github.sha }}
@@ -52,4 +52,4 @@ jobs:
           test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
           npm install --global firebase-tools@15.34.0
           node -e "require('fs').writeFileSync('web/dist/navigation-version.json',JSON.stringify({revision:process.env.NAVIGATION_REVISION,feature:'four-tab-player-navigation'}))"
-          firebase deploy --project "$FIREBASE_PROJECT_ID" --only functions:getPublicPlayerPortal,hosting --non-interactive
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting --non-interactive
