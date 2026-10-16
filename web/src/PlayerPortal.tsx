@@ -525,9 +525,9 @@ function PlayerInfo({portal,onOpenClues}:{portal:Portal;onOpenClues:()=>void}){
   const [category,setCategory]=useState<InfoFilter>('all');
   const filters:[InfoFilter,string][]=[
     ['all',tr(portal,'Tout','All')],
-    ['votes',tr(portal,'Votes','Votes')],
     ['clues',tr(portal,'Indices','Clues')],
     ['information',tr(portal,'Informations','Information')],
+    ['votes',tr(portal,'Vote','Vote')],
   ];
   const visibleRows=rows.filter(row=>category==='all'
     ||(category==='votes'&&row.kind==='result')
