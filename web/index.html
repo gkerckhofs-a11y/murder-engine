@@ -7,7 +7,7 @@
   </head>
   <body>
     <div id="root">
-      <main style="max-width:720px;margin:0 auto;padding:32px 18px;font-family:system-ui,sans-serif;color:#eee;background:#111318;min-height:100vh;box-sizing:border-box">
+      <main id="boot-placeholder" style="max-width:720px;margin:0 auto;padding:32px 18px;font-family:system-ui,sans-serif;color:#eee;background:#111318;min-height:100vh;box-sizing:border-box">
         <p style="opacity:.65;letter-spacing:.08em">MURDER ENGINE</p>
         <h1 style="font-size:1.6rem">Chargement…</h1>
         <p style="opacity:.8">Loading…</p>
@@ -16,9 +16,15 @@
 
     <script>
       (function(){
+        var root=document.getElementById('root');
+        var placeholder=document.getElementById('boot-placeholder');
+        function isBootPending(){
+          return root && placeholder && placeholder.parentNode === root;
+        }
         function showBootError(message){
-          var root=document.getElementById('root');
-          if(!root)return;
+          // React owns the root once it has replaced the initial placeholder.
+          // API loading states and later browser errors must never replace it.
+          if(!isBootPending())return;
           root.innerHTML=
             '<main style="max-width:720px;margin:0 auto;padding:32px 18px;font-family:system-ui,sans-serif;color:#eee;background:#111318;min-height:100vh;box-sizing:border-box">'+
             '<p style="opacity:.65;letter-spacing:.08em">MURDER ENGINE</p>'+
@@ -32,7 +38,7 @@
 
         window.addEventListener('error',function(event){
           var target=event.target;
-          if(target && target !== window && target.src){
+          if(target && target !== window && target.tagName === 'SCRIPT' && target.src){
             showBootError('Impossible de charger : '+target.src);
             return;
           }
@@ -45,8 +51,7 @@
         });
 
         window.setTimeout(function(){
-          var root=document.getElementById('root');
-          if(root && /Chargement/.test(root.textContent||'')){
+          if(isBootPending()){
             showBootError('L’application JavaScript ne s’est pas chargée. Rechargez cette page.');
           }
         },7000);
