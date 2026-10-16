@@ -521,30 +521,26 @@ function PlayerNotebook({portal,token,active,count,onOpenClues}:{portal:Portal;t
 
 function PlayerInfo({portal,onOpenClues}:{portal:Portal;onOpenClues:()=>void}){
   const rows=playerInfoFeed(portal);
-  const [category,setCategory]=useState<string|null>(null);
-  const kindLabels:Record<string,string>={
-    clue:tr(portal,'Indices','Clues'),
-    fact:tr(portal,'Informations','Information'),
-    notification:tr(portal,'Actualités','News'),
-    result:tr(portal,'Votes','Votes'),
-  };
-  const knownCategories=new Map<string,string>((portal.knowledge??[]).map((k:any)=>[k.factExternalId,String(k.fact?.notebookCategory??'').trim()]));
-  function rowCategories(row:any):string[]{
-    return [...new Set<string>([
-      kindLabels[row.kind],row.category,
-      ...(row.clue?.knownFacts??[]).map((fact:any)=>knownCategories.get(fact.externalId)),
-    ].filter(Boolean))];
-  }
-  const categories=[...new Set(rows.flatMap(rowCategories))];
-  const activeCategory=category&&categories.includes(category)?category:null;
-  const visibleRows=activeCategory?rows.filter(row=>rowCategories(row).includes(activeCategory)):rows;
+  type InfoFilter='all'|'votes'|'clues'|'information';
+  const [category,setCategory]=useState<InfoFilter>('all');
+  const filters:[InfoFilter,string][]=[
+    ['all',tr(portal,'Tout','All')],
+    ['votes',tr(portal,'Votes','Votes')],
+    ['clues',tr(portal,'Indices','Clues')],
+    ['information',tr(portal,'Informations','Information')],
+  ];
+  const visibleRows=rows.filter(row=>category==='all'
+    ||(category==='votes'&&row.kind==='result')
+    ||(category==='clues'&&row.kind==='clue')
+    ||(category==='information'&&['fact','notification'].includes(row.kind)));
   return <section className="playerCard infoFeedCard">
     <div className="playerSectionHead"><div><p className="playerSectionKicker">{tr(portal,'LE FIL DE MON ENQUÊTE','MY INVESTIGATION')}</p><h2>{tr(portal,'Infos','Info')}</h2></div></div>
-    {categories.length>1&&<div className="notebookCategoryFilters" role="group" aria-label={tr(portal,'Filtrer les informations','Filter information')}>
-      <button className={!activeCategory?'active':''} aria-pressed={!activeCategory} onClick={()=>setCategory(null)}>{tr(portal,'Tout','All')}</button>
-      {categories.map(label=><button key={label} className={activeCategory===label?'active':''} aria-pressed={activeCategory===label} onClick={()=>setCategory(label)}>{label}</button>)}
-    </div>}
-    {!rows.length&&<p>{tr(portal,'Vos découvertes et les nouvelles de la soirée apparaîtront ici.','Your discoveries and news from the evening will appear here.')}</p>}
+    <div className="notebookCategoryFilters" role="group" aria-label={tr(portal,'Filtrer les informations','Filter information')}>
+      {filters.map(([id,label])=><button key={id} className={category===id?'active':''} aria-pressed={category===id} onClick={()=>setCategory(id)}>{label}</button>)}
+    </div>
+    {!visibleRows.length&&<p>{category==='all'
+      ? tr(portal,'Vos découvertes et les nouvelles de la soirée apparaîtront ici.','Your discoveries and news from the evening will appear here.')
+      : tr(portal,'Rien à afficher dans cette rubrique pour le moment.','Nothing to display in this section yet.')}</p>}
     {visibleRows.map(row=><article key={row.id} data-read-id={row.id} className={`playerKnowledge playerInfoEntry info-${row.kind}`}>
       <small>{row.kind==='clue'?tr(portal,'Indice découvert · À retenir','Clue discovered · A reminder'):row.kind==='result'?tr(portal,'Résultat du vote','Vote result'):row.kind==='notification'?tr(portal,'Nouvelle reçue','Update'):row.category||tr(portal,'Information','Information')}{row.at?` · ${niceTime(row.at,portal.session?.language)}`:''}</small>
       <strong>{row.title}</strong>
