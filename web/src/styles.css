@@ -10725,3 +10725,915 @@ button.skinGalleryCard:disabled{
     grid-template-columns:1fr;
   }
 }
+
+
+/* ==========================================================
+   V1.12 — PLAYER "JOUER" UX
+   ========================================================== */
+
+.playTab{gap:14px}
+.playStatusStrip{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.playStatusStrip>div{
+  display:grid;
+  gap:2px;
+  padding:12px 14px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:14px;
+  background:rgba(255,255,255,.05);
+}
+.playStatusStrip small{
+  color:rgba(255,255,255,.72);
+  font-size:.68rem;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.playStatusStrip strong{
+  color:#fff;
+  font-size:1.1rem;
+}
+
+.playPriorityBlock{
+  display:grid;
+  gap:10px;
+  padding:10px;
+  border:1px solid color-mix(in srgb,var(--skin-accent,#c59a4a) 52%,transparent);
+  border-radius:18px;
+  background:color-mix(in srgb,var(--skin-accent,#c59a4a) 9%,rgba(20,24,28,.94));
+}
+.playPriorityBlock>.playerCard{
+  margin:0;
+}
+.playPriorityTitle{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:4px 4px 0;
+}
+.playPriorityTitle>span{font-size:1.8rem}
+.playPriorityTitle div{display:grid;gap:1px}
+.playPriorityTitle small{
+  color:var(--skin-accent,#d8b56d);
+  font-size:.65rem;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.playPriorityTitle strong{color:#fff}
+
+.playMainCard{display:grid;gap:14px}
+.playCardLead{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:13px;
+  align-items:start;
+}
+.playCardLead h2{margin:.05rem 0 .2rem}
+.playCardLead p:last-child,
+.playSectionIntro{
+  margin:.25rem 0 0;
+  color:inherit;
+  opacity:.78;
+}
+.playCardIcon{
+  display:grid;
+  place-items:center;
+  width:46px;
+  height:46px;
+  border-radius:13px;
+  background:color-mix(in srgb,var(--skin-accent,#c59a4a) 16%,transparent);
+  font-size:1.45rem;
+}
+
+.playActionList{display:grid;gap:10px}
+.playActionCard{
+  display:grid;
+  gap:11px;
+  padding:14px;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:14px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+  color:inherit;
+}
+.playActionCard.isUnavailable{opacity:.72}
+.playActionHeader{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:12px;
+  align-items:start;
+}
+.playActionHeader>div:first-child{
+  display:grid;
+  gap:5px;
+}
+.playActionHeader strong{
+  color:inherit;
+  font-size:1.05rem;
+}
+.playModeBadge{
+  width:max-content;
+  padding:3px 8px;
+  border-radius:999px;
+  font-size:.66rem;
+  font-weight:800;
+}
+.playModeBadge.direct{
+  border:1px solid color-mix(in srgb,#3f8b5d 52%,transparent);
+  background:color-mix(in srgb,#3f8b5d 13%,transparent);
+  color:inherit;
+}
+.playModeBadge.discret{
+  border:1px solid color-mix(in srgb,#76549c 52%,transparent);
+  background:color-mix(in srgb,#76549c 13%,transparent);
+  color:inherit;
+}
+.playActionBadges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.playActionBadges span{
+  display:inline-flex;
+  align-items:center;
+  min-height:25px;
+  padding:3px 8px;
+  border:1px solid color-mix(in srgb,currentColor 22%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 5%,transparent);
+  color:inherit;
+  font-size:.68rem;
+  font-weight:750;
+}
+.playActionHeader .playActionBadges{justify-content:flex-end}
+.playActionDescription{
+  margin:0;
+  color:inherit;
+  opacity:.86;
+  line-height:1.45;
+}
+.playActionUsage{
+  color:inherit;
+  opacity:.68;
+}
+.playActionHint{
+  margin:0;
+  color:inherit;
+  opacity:.78;
+  font-size:.86rem;
+}
+.playActionCta,
+.playMainCta{
+  width:100%;
+}
+.playTargetScan{
+  display:grid;
+  gap:8px;
+}
+.playTargetScan .scannedCharacterTarget{margin:0}
+.playSkillsDetails summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  cursor:pointer;
+  font-weight:800;
+}
+.playSkillsDetails summary small{
+  display:grid;
+  place-items:center;
+  min-width:28px;
+  height:28px;
+  padding:0 8px;
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 7%,transparent);
+  color:inherit;
+  opacity:.82;
+}
+.playSkillsDetails[open] summary{margin-bottom:14px}
+.playAbilityGrid{margin-top:4px}
+
+@media(max-width:520px){
+  .playStatusStrip{grid-template-columns:1fr 1fr}
+  .playStatusStrip>div{padding:10px 11px}
+  .playStatusStrip strong{font-size:.95rem}
+  .playActionHeader{grid-template-columns:1fr}
+  .playActionHeader .playActionBadges{justify-content:flex-start}
+  .playCardLead{grid-template-columns:40px 1fr}
+  .playCardIcon{width:40px;height:40px;font-size:1.2rem}
+}
+
+
+/* V1.12 contrast guard: new Jouer cards always follow each skin's card ink. */
+.playMainCard,
+.playSkillsDetails,
+.playMainCard .playActionCard,
+.playSkillsDetails .abilityCard{
+  color:inherit;
+}
+
+.skin-retro-1900-1930 .playMainCard,
+.skin-retro-1900-1930 .playSkillsDetails{color:var(--retro-ink)}
+.skin-western .playMainCard,
+.skin-western .playSkillsDetails{color:var(--western-ink)}
+.skin-contemporary-1980-2000 .playMainCard,
+.skin-contemporary-1980-2000 .playSkillsDetails{color:var(--contemporary-text)}
+.skin-futuristic .playMainCard,
+.skin-futuristic .playSkillsDetails{color:var(--future-text)}
+.skin-classic-mystery .playMainCard,
+.skin-classic-mystery .playSkillsDetails{color:var(--mystery-ink)}
+.skin-medieval-fantasy .playMainCard,
+.skin-medieval-fantasy .playSkillsDetails{color:var(--medieval-ink)}
+.skin-victorian-gothic .playMainCard,
+.skin-victorian-gothic .playSkillsDetails{color:var(--gothic-ink)}
+.skin-noir-1940-1950 .playMainCard,
+.skin-noir-1940-1950 .playSkillsDetails{color:var(--noir-ink)}
+.skin-vintage-1960-1970 .playMainCard,
+.skin-vintage-1960-1970 .playSkillsDetails{color:var(--vintage-ink)}
+
+
+/* ==========================================================
+   V1.12B — PLAYER NOTEBOOK TABS
+   ========================================================== */
+
+.notebookShell{gap:12px}
+
+.notebookTabs{
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  padding:2px 1px 5px;
+  scrollbar-width:none;
+}
+.notebookTabs::-webkit-scrollbar{display:none}
+
+.notebookTabs button{
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:40px;
+  padding:8px 11px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  background:rgba(255,255,255,.05);
+  color:inherit;
+  font-size:.78rem;
+  font-weight:800;
+  white-space:nowrap;
+}
+.notebookTabs button.active{
+  border-color:var(--skin-accent,#c59a4a);
+  background:color-mix(in srgb,var(--skin-accent,#c59a4a) 18%,transparent);
+}
+.notebookTabs button em{
+  display:grid;
+  place-items:center;
+  min-width:21px;
+  height:21px;
+  padding:0 5px;
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 10%,transparent);
+  color:inherit;
+  font-size:.65rem;
+  font-style:normal;
+}
+
+.notebookContextCard{
+  display:grid;
+  gap:8px;
+}
+.notebookIntroText{
+  white-space:pre-wrap;
+  line-height:1.65;
+  color:inherit;
+}
+
+.notebookCategoryFilters{
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  margin:0 0 13px;
+  padding-bottom:3px;
+  scrollbar-width:none;
+}
+.notebookCategoryFilters::-webkit-scrollbar{display:none}
+
+.notebookCategoryFilters button{
+  flex:0 0 auto;
+  padding:6px 10px;
+  border:1px solid color-mix(in srgb,currentColor 20%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+  color:inherit;
+  font-size:.7rem;
+  font-weight:800;
+  white-space:nowrap;
+}
+.notebookCategoryFilters button.active{
+  border-color:var(--skin-accent,#c59a4a);
+  background:color-mix(in srgb,var(--skin-accent,#c59a4a) 15%,transparent);
+}
+
+/* Light-paper skins: explicit ink inheritance for notebook controls. */
+.skin-retro-1900-1930 .notebookShell{color:var(--retro-ink)}
+.skin-western .notebookShell{color:var(--western-ink)}
+.skin-contemporary-1980-2000 .notebookShell{color:var(--contemporary-text)}
+.skin-futuristic .notebookShell{color:var(--future-text)}
+.skin-classic-mystery .notebookShell{color:var(--mystery-ink)}
+.skin-medieval-fantasy .notebookShell{color:var(--medieval-ink)}
+.skin-victorian-gothic .notebookShell{color:var(--gothic-ink)}
+.skin-noir-1940-1950 .notebookShell{color:var(--noir-ink)}
+.skin-vintage-1960-1970 .notebookShell{color:var(--vintage-ink)}
+
+@media(max-width:520px){
+  .notebookTabs{
+    margin-left:-2px;
+    margin-right:-2px;
+  }
+  .notebookTabs button{
+    min-height:38px;
+    padding:7px 10px;
+    font-size:.74rem;
+  }
+}
+
+
+/* ==========================================================
+   V1.12C — NEWS + NOTEBOOK CONTRAST
+   ========================================================== */
+
+.newsShell{gap:12px}
+.newsSectionIntro{
+  margin:-4px 0 10px;
+  color:inherit;
+  opacity:.76;
+}
+.newsMessage.pressArticle{
+  position:relative;
+  padding-top:16px;
+}
+.newsMessage.pressArticle::before{
+  content:"ÉDITION";
+  position:absolute;
+  top:8px;
+  right:10px;
+  padding:2px 6px;
+  border:1px solid color-mix(in srgb,currentColor 22%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 5%,transparent);
+  color:inherit;
+  font-size:.56rem;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.newsMessage>div>small,
+.newsLog>small{
+  color:inherit;
+  opacity:.68;
+}
+.newsMessage>div>strong,
+.newsLog>strong{
+  color:inherit;
+}
+.newsMessage>div>p,
+.newsLog>p{
+  color:inherit;
+  opacity:.86;
+}
+
+/* Notebook tabs get an explicit surface/text pair per skin. */
+.notebookShell{
+  --notebook-tab-bg:#1d252b;
+  --notebook-tab-text:#f1f5f7;
+  --notebook-tab-border:#44535c;
+  --notebook-tab-active-bg:#2d353a;
+  --notebook-tab-active-text:#fff;
+}
+.notebookTabs button,
+.notebookCategoryFilters button{
+  border-color:var(--notebook-tab-border);
+  background:var(--notebook-tab-bg);
+  color:var(--notebook-tab-text);
+}
+.notebookTabs button.active,
+.notebookCategoryFilters button.active{
+  border-color:var(--skin-accent,#c59a4a);
+  background:var(--notebook-tab-active-bg);
+  color:var(--notebook-tab-active-text);
+}
+.notebookTabs button em{
+  background:color-mix(in srgb,var(--notebook-tab-text) 12%,transparent);
+  color:var(--notebook-tab-text);
+}
+
+.skin-retro-1900-1930 .notebookShell{
+  --notebook-tab-bg:#ead8b3;
+  --notebook-tab-text:#382a1a;
+  --notebook-tab-border:#a98c58;
+  --notebook-tab-active-bg:#2a2118;
+  --notebook-tab-active-text:#f4dfb5;
+}
+.skin-western .notebookShell{
+  --notebook-tab-bg:#e7cf9d;
+  --notebook-tab-text:#412b1c;
+  --notebook-tab-border:#9b7448;
+  --notebook-tab-active-bg:#3a2417;
+  --notebook-tab-active-text:#f4ddb4;
+}
+.skin-contemporary-1980-2000 .notebookShell{
+  --notebook-tab-bg:#172027;
+  --notebook-tab-text:#e8f0f4;
+  --notebook-tab-border:#3d4d56;
+  --notebook-tab-active-bg:#0f161b;
+  --notebook-tab-active-text:#fff;
+}
+.skin-futuristic .notebookShell{
+  --notebook-tab-bg:#081317;
+  --notebook-tab-text:#dffaf6;
+  --notebook-tab-border:#24505a;
+  --notebook-tab-active-bg:#10262a;
+  --notebook-tab-active-text:#f0fffd;
+}
+.skin-classic-mystery .notebookShell{
+  --notebook-tab-bg:#e9e0cf;
+  --notebook-tab-text:#332d24;
+  --notebook-tab-border:#948568;
+  --notebook-tab-active-bg:#29382e;
+  --notebook-tab-active-text:#f4ead4;
+}
+.skin-medieval-fantasy .notebookShell{
+  --notebook-tab-bg:#e4cfa5;
+  --notebook-tab-text:#3f2f1f;
+  --notebook-tab-border:#9b7a4d;
+  --notebook-tab-active-bg:#3d2c1e;
+  --notebook-tab-active-text:#f5dfb8;
+}
+.skin-victorian-gothic .notebookShell{
+  --notebook-tab-bg:#e7d8ca;
+  --notebook-tab-text:#422f3b;
+  --notebook-tab-border:#a08678;
+  --notebook-tab-active-bg:#30242c;
+  --notebook-tab-active-text:#f2deca;
+}
+.skin-noir-1940-1950 .notebookShell{
+  --notebook-tab-bg:#e5e4de;
+  --notebook-tab-text:#252728;
+  --notebook-tab-border:#777;
+  --notebook-tab-active-bg:#252728;
+  --notebook-tab-active-text:#fff;
+}
+.skin-vintage-1960-1970 .notebookShell{
+  --notebook-tab-bg:#ead8b7;
+  --notebook-tab-text:#43352a;
+  --notebook-tab-border:#a48e67;
+  --notebook-tab-active-bg:#53573d;
+  --notebook-tab-active-text:#fff2d1;
+}
+
+
+/* ==========================================================
+   V1.12D — PLAYER BAG / CASH TRANSFERS
+   ========================================================== */
+
+.bagShell{gap:12px}
+
+.bagResourcesCard,
+.bagPossessionsCard{
+  color:inherit;
+}
+
+.bagResourceGridV12{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+
+.bagResourceCard{
+  display:grid;
+  gap:4px;
+  min-width:0;
+  padding:13px;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:13px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+  color:inherit;
+}
+
+.bagResourceCard>small{
+  color:inherit;
+  opacity:.72;
+  font-size:.68rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+
+.bagResourceCard>strong{
+  color:inherit;
+  font-size:1.45rem;
+  line-height:1.1;
+}
+
+.bagResourceCard>span{
+  color:inherit;
+  opacity:.7;
+  font-size:.72rem;
+}
+
+.bagCashTransferButton{
+  width:100%;
+  margin-top:8px;
+}
+
+.bagCashHelp{
+  margin:2px 0 0;
+}
+
+.bagPossessionList{
+  display:grid;
+  gap:10px;
+}
+
+.bagPossessionItem{
+  display:grid;
+  gap:8px;
+  margin:0;
+  color:inherit;
+}
+
+.bagPossessionType{
+  width:max-content;
+  padding:3px 8px;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 5%,transparent);
+  color:inherit;
+  font-size:.65rem;
+  font-weight:800;
+}
+
+.bagPossessionItem .bagDocumentMeta strong,
+.bagPossessionItem>strong{
+  color:inherit;
+}
+
+.bagPossessionItem .bagDocumentMeta p,
+.bagPossessionItem>p{
+  color:inherit;
+  opacity:.86;
+}
+
+.bagPossessionItem .bagDocumentMeta em,
+.bagPossessionItem>small{
+  color:inherit;
+  opacity:.68;
+}
+
+.cashTransferPanel{
+  display:grid;
+  gap:14px;
+}
+
+.cashBalancePreview{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:10px 12px;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:11px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+}
+
+.cashBalancePreview span{
+  opacity:.72;
+}
+
+.cashBalancePreview strong{
+  font-size:1.35rem;
+}
+
+.cashAmountField{
+  display:grid;
+  gap:6px;
+}
+
+.cashAmountField>span{
+  font-size:.72rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+
+.cashAmountField input{
+  width:100%;
+  min-height:48px;
+  padding:10px 12px;
+  border-radius:10px;
+  font-size:1.15rem;
+  font-weight:800;
+}
+
+/* Bag content follows each skin's own ink. */
+.skin-retro-1900-1930 .bagShell{color:var(--retro-ink)}
+.skin-western .bagShell{color:var(--western-ink)}
+.skin-contemporary-1980-2000 .bagShell{color:var(--contemporary-text)}
+.skin-futuristic .bagShell{color:var(--future-text)}
+.skin-classic-mystery .bagShell{color:var(--mystery-ink)}
+.skin-medieval-fantasy .bagShell{color:var(--medieval-ink)}
+.skin-victorian-gothic .bagShell{color:var(--gothic-ink)}
+.skin-noir-1940-1950 .bagShell{color:var(--noir-ink)}
+.skin-vintage-1960-1970 .bagShell{color:var(--vintage-ink)}
+
+@media(max-width:520px){
+  .bagResourceGridV12{
+    grid-template-columns:1fr 1fr;
+  }
+  .bagResourceCard{
+    padding:11px;
+  }
+  .bagResourceCard>strong{
+    font-size:1.25rem;
+  }
+}
+
+
+/* ==========================================================
+   V1.12E — PLAYER SHEET NAV + COMPACT TITLES
+   ========================================================== */
+
+.playerSheetShell{gap:12px}
+
+.sheetQuickNav{
+  position:sticky;
+  top:58px;
+  z-index:15;
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  padding:4px 1px 6px;
+  background:linear-gradient(180deg,rgba(10,12,15,.96),rgba(10,12,15,.82),transparent);
+  backdrop-filter:blur(8px);
+  scrollbar-width:none;
+}
+.sheetQuickNav::-webkit-scrollbar{display:none}
+
+.sheetQuickNav button{
+  flex:0 0 auto;
+  min-height:36px;
+  padding:6px 10px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  background:rgba(255,255,255,.05);
+  color:inherit;
+  font-size:.72rem;
+  font-weight:800;
+  white-space:nowrap;
+}
+
+.sheetQuickNav button:active{
+  transform:translateY(1px);
+}
+
+.sheetAnchor{
+  scroll-margin-top:108px;
+}
+
+/* Global player density: slightly smaller section titles. */
+.playerCard h2{
+  font-size:clamp(1.18rem,4.5vw,1.42rem);
+  line-height:1.16;
+}
+
+.playerCard h3{
+  font-size:1rem;
+  line-height:1.2;
+}
+
+/* Sheet nav contrast per skin. */
+.skin-retro-1900-1930 .sheetQuickNav button{
+  background:#ead8b3;
+  color:#382a1a;
+  border-color:#a98c58;
+}
+.skin-western .sheetQuickNav button{
+  background:#e7cf9d;
+  color:#412b1c;
+  border-color:#9b7448;
+}
+.skin-contemporary-1980-2000 .sheetQuickNav button{
+  background:#172027;
+  color:#e8f0f4;
+  border-color:#3d4d56;
+}
+.skin-futuristic .sheetQuickNav button{
+  background:#081317;
+  color:#dffaf6;
+  border-color:#24505a;
+}
+.skin-classic-mystery .sheetQuickNav button{
+  background:#e9e0cf;
+  color:#332d24;
+  border-color:#948568;
+}
+.skin-medieval-fantasy .sheetQuickNav button{
+  background:#e4cfa5;
+  color:#3f2f1f;
+  border-color:#9b7a4d;
+}
+.skin-victorian-gothic .sheetQuickNav button{
+  background:#e7d8ca;
+  color:#422f3b;
+  border-color:#a08678;
+}
+.skin-noir-1940-1950 .sheetQuickNav button{
+  background:#e5e4de;
+  color:#252728;
+  border-color:#777;
+}
+.skin-vintage-1960-1970 .sheetQuickNav button{
+  background:#ead8b7;
+  color:#43352a;
+  border-color:#a48e67;
+}
+
+@media(max-width:520px){
+  .sheetQuickNav{
+    top:54px;
+    margin-left:-2px;
+    margin-right:-2px;
+  }
+
+  .sheetQuickNav button{
+    min-height:34px;
+    padding:6px 9px;
+    font-size:.69rem;
+  }
+
+  .sheetAnchor{
+    scroll-margin-top:102px;
+  }
+
+  .playerCard h2{
+    font-size:1.18rem;
+  }
+}
+
+
+/* ==========================================================
+   V1.12F — TABBED SHEET + COMPACT RESOURCES
+   ========================================================== */
+
+.sheetTabs{
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  padding:2px 1px 5px;
+  scrollbar-width:none;
+}
+.sheetTabs::-webkit-scrollbar{display:none}
+
+.sheetTabs button{
+  flex:0 0 auto;
+  min-height:40px;
+  padding:8px 11px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  background:rgba(255,255,255,.05);
+  color:inherit;
+  font-size:.78rem;
+  font-weight:800;
+  white-space:nowrap;
+}
+.sheetTabs button.active{
+  border-color:var(--skin-accent,#c59a4a);
+  background:color-mix(in srgb,var(--skin-accent,#c59a4a) 18%,transparent);
+}
+
+.skin-retro-1900-1930 .sheetTabs button{
+  background:#ead8b3;color:#382a1a;border-color:#a98c58;
+}
+.skin-retro-1900-1930 .sheetTabs button.active{
+  background:#2a2118;color:#f4dfb5;
+}
+.skin-western .sheetTabs button{
+  background:#e7cf9d;color:#412b1c;border-color:#9b7448;
+}
+.skin-western .sheetTabs button.active{
+  background:#3a2417;color:#f4ddb4;
+}
+.skin-contemporary-1980-2000 .sheetTabs button{
+  background:#172027;color:#e8f0f4;border-color:#3d4d56;
+}
+.skin-contemporary-1980-2000 .sheetTabs button.active{
+  background:#0f161b;color:#fff;
+}
+.skin-futuristic .sheetTabs button{
+  background:#081317;color:#dffaf6;border-color:#24505a;
+}
+.skin-futuristic .sheetTabs button.active{
+  background:#10262a;color:#f0fffd;
+}
+.skin-classic-mystery .sheetTabs button{
+  background:#e9e0cf;color:#332d24;border-color:#948568;
+}
+.skin-classic-mystery .sheetTabs button.active{
+  background:#29382e;color:#f4ead4;
+}
+.skin-medieval-fantasy .sheetTabs button{
+  background:#e4cfa5;color:#3f2f1f;border-color:#9b7a4d;
+}
+.skin-medieval-fantasy .sheetTabs button.active{
+  background:#3d2c1e;color:#f5dfb8;
+}
+.skin-victorian-gothic .sheetTabs button{
+  background:#e7d8ca;color:#422f3b;border-color:#a08678;
+}
+.skin-victorian-gothic .sheetTabs button.active{
+  background:#30242c;color:#f2deca;
+}
+.skin-noir-1940-1950 .sheetTabs button{
+  background:#e5e4de;color:#252728;border-color:#777;
+}
+.skin-noir-1940-1950 .sheetTabs button.active{
+  background:#252728;color:#fff;
+}
+.skin-vintage-1960-1970 .sheetTabs button{
+  background:#ead8b7;color:#43352a;border-color:#a48e67;
+}
+.skin-vintage-1960-1970 .sheetTabs button.active{
+  background:#53573d;color:#fff2d1;
+}
+
+.bagResourceCompact{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  flex-wrap:wrap;
+}
+
+.bagResourceCompactItem{
+  display:flex;
+  align-items:baseline;
+  gap:5px;
+  min-width:0;
+  padding:8px 10px;
+  border:1px solid color-mix(in srgb,currentColor 18%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,currentColor 4%,transparent);
+  color:inherit;
+}
+
+.bagResourceCompactItem span{
+  font-size:.72rem;
+  font-weight:800;
+  opacity:.72;
+}
+
+.bagResourceCompactItem strong{
+  font-size:1rem;
+  color:inherit;
+}
+
+.bagResourceCompact .bagCashTransferButton{
+  width:auto;
+  margin:0;
+  padding:8px 11px;
+  white-space:nowrap;
+}
+
+@media(max-width:520px){
+  .sheetTabs button{
+    min-height:38px;
+    padding:7px 10px;
+    font-size:.74rem;
+  }
+
+  .bagResourceCompact{
+    gap:7px;
+  }
+
+  .bagResourceCompactItem{
+    padding:7px 9px;
+  }
+
+  .bagResourceCompact .bagCashTransferButton{
+    padding:7px 10px;
+  }
+}
+
+
+/* V1.12G — merged sheet subsections */
+.sheetSubsection{
+  margin-top:18px;
+  padding-top:15px;
+  border-top:1px solid color-mix(in srgb,currentColor 16%,transparent);
+}
+.sheetSubsection h3{
+  margin:.15rem 0 .45rem;
+}
+.sheetSubsection p:last-child{
+  margin-bottom:0;
+}

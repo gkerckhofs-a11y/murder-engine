@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shapePlayerPortal, configureSessionPlayerAccess, getPlayerPortal, executePlayerInteraction, transferPlayerObject, castPlayerVote, getPlayerLocation, executePlayerLocationAction, isAutonomousLocationInteraction, interactionScanMode, clandestineInteractionKind, attemptPlayerClandestineAction, claimPlayerStolenObject, __playerOps } from '../src/player.mjs';
+import { shapePlayerPortal, configureSessionPlayerAccess, getPlayerPortal, executePlayerInteraction, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, isAutonomousLocationInteraction, interactionScanMode, clandestineInteractionKind, attemptPlayerClandestineAction, claimPlayerStolenObject, __playerOps } from '../src/player.mjs';
 
 const participant=()=>({id:'P1',displayName:'Gael',active:true,characterExternalId:'CHAR_A',briefingStatus:'NOT_SENT',playerAccessToken:'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef1234567890_-',playerAccessEnabled:true,playerFirstOpenedAt:null,playerLastOpenedAt:null,playerOpenCount:0,briefingReadAt:null});
 const session=()=>({id:'S1',name:'Cosa',status:'LIVE',runtimeInitializedAt:'2026-09-21T18:00:00Z',scenarioVersion:{id:'V1',versionLabel:'2.3',playerSummary:'Pitch',scenario:{title:'Cosa Nostra'}},sessionParticipants_on_gameSession:[participant(),{id:'P2',displayName:'Bob',active:true,characterExternalId:'CHAR_B'}]});
@@ -12,7 +12,7 @@ const source=()=>({
  clues:[{externalId:'C1',playerName:'Lettre',clueType:'DOCUMENT',playerText:'Contenu',documentExternalId:'DOC1',mediaExternalId:'MEDIA1',objectExternalId:'DOC_OBJ_DOC1',active:true},{externalId:'C2',playerName:'Dossier caché',clueType:'DOCUMENT',playerText:'Un dossier compromettant.',locationExternalId:'LOC1',objectExternalId:'ITEM2',documentExternalId:'DOC2',major:true,active:true}],clueFacts:[],
  documentDefinitions:[{externalId:'DOC1',title:'Lettre',textContent:'Cher ami...',support:'DIGITAL',mediaExternalIds:'MEDIA1',active:true},{externalId:'DOC2',title:'Dossier caché',textContent:'Dossier',support:'PHYSICAL',mediaExternalIds:null,active:true}],
  mediaAssets:[{externalId:'MEDIA1',mediaType:'IMAGE',source:'/immersive/test/letter.png',altText:'Lettre',active:true}],
- resources:[{externalId:'RES_PA',name:'Points action',unit:'PA',active:true}],
+ resources:[{externalId:'RES_PA',name:'Points action',unit:'PA',active:true},{externalId:'RES_CASH',name:'Argent',unit:'$',active:true}],
  gameObjects:[{externalId:'DOC_OBJ_DOC1',name:'Lettre',description:'Lettre',transferable:true,stealable:true,consumable:false,critical:false,identification0:'Lettre',active:true},{externalId:'ITEM1',name:'Clé',description:'Une clé',transferable:true,stealable:true,consumable:false,critical:false,identification0:'Une clé inconnue',active:true},{externalId:'ITEM2',name:'Dossier',description:'Un dossier trouvé dans le bureau',transferable:true,stealable:true,consumable:false,critical:false,identification0:'Un dossier',active:true},{externalId:'ITEM_B',name:'Portefeuille',description:'Un portefeuille',transferable:true,stealable:true,consumable:false,critical:false,identification0:'Un portefeuille',active:true}],
  gameStateDefinitions:[{externalId:'ST1',name:'Blessé',description:'Vous êtes blessé',visibleToHolder:true,active:true}],
  abilities:[{externalId:'AB1',name:'Fouille',description:'Chercher',category:'INV',defaultLevel:1,secret:false,active:true}],
@@ -22,7 +22,11 @@ const source=()=>({
  voteDefinitions:[{externalId:'VOTE1',title:'Vote',question:'Qui ?',scopeType:'ALL',secret:true,modifiable:false,active:true}],voteOptionDefinitions:[{externalId:'OPT1',voteExternalId:'VOTE1',orderIndex:1,label:'A',active:true}],
 });
 const runtime=()=>({
- sessionResources:[{characterExternalId:'CHAR_A',resourceExternalId:'RES_PA',initialValue:5,currentValue:4,maxValue:5}],
+ sessionResources:[
+  {characterExternalId:'CHAR_A',resourceExternalId:'RES_PA',initialValue:5,currentValue:4,maxValue:5},
+  {characterExternalId:'CHAR_A',resourceExternalId:'RES_CASH',initialValue:100,currentValue:100,maxValue:null},
+  {characterExternalId:'CHAR_B',resourceExternalId:'RES_CASH',initialValue:20,currentValue:20,maxValue:null}
+ ],
  sessionKnowledges:[{characterExternalId:'CHAR_A',factExternalId:'F1',sourceType:'INITIAL',learnedAt:'2026-09-21T18:00:00Z'}],
  sessionObjectives:[{characterExternalId:'CHAR_A',objectiveExternalId:'OBJ1',status:'ACTIVE',progress:0}],
  sessionObjects:[{objectExternalId:'DOC_OBJ_DOC1',holderType:'CHARACTER',holderExternalId:'CHAR_A',identificationLevel:0,inPlay:true},{objectExternalId:'ITEM1',holderType:'CHARACTER',holderExternalId:'CHAR_A',identificationLevel:0,inPlay:true},{objectExternalId:'ITEM2',holderType:'LOCATION',holderExternalId:'LOC1',identificationLevel:0,inPlay:true},{objectExternalId:'ITEM_B',holderType:'CHARACTER',holderExternalId:'CHAR_B',identificationLevel:0,inPlay:true}],
@@ -73,6 +77,35 @@ test('player interaction actor identity is forced from token',async()=>{
 test('player may give only an object they own',async()=>{
  const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();};let moved;
  await transferPlayerObject(participant().playerAccessToken,{objectExternalId:'ITEM1',targetCharacterExternalId:'CHAR_B'},{reader,executor:async()=>({}),objectTransfer:async(sid,input)=>{moved=input;return input;}});assert.equal(moved.holderExternalId,'CHAR_B');
+});
+
+test('player cash transfer debits sender and credits recipient in one transaction',async()=>{
+ const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();throw new Error('bad op')};
+ let write=null;
+ const out=await transferPlayerCash(participant().playerAccessToken,{targetCharacterExternalId:'CHAR_B',amount:35},{reader,executor:async(op,vars)=>{write={op,vars};return{};},now:new Date('2026-09-21T18:07:00Z')});
+ assert.equal(out.transferred,true);
+ assert.equal(out.amount,35);
+ assert.equal(out.remaining,65);
+ assert.equal(write.op,__playerOps.TRANSFER_PLAYER_CASH_MUTATION);
+ assert.equal(write.vars.senderValue,65);
+ assert.equal(write.vars.targetValue,55);
+ assert.equal(write.vars.notification.characterExternalId,'CHAR_B');
+ assert.equal(write.vars.notification.kind,'CASH');
+ assert.equal(write.vars.senderLog.deltaValue,-35);
+ assert.equal(write.vars.targetLog.deltaValue,35);
+});
+
+test('player cash transfer rejects insufficient balance before writing',async()=>{
+ const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();throw new Error('bad op')};
+ let writes=0;
+ await assert.rejects(()=>transferPlayerCash(participant().playerAccessToken,{targetCharacterExternalId:'CHAR_B',amount:101},{reader,executor:async()=>{writes++;return{};}}),/INSUFFICIENT_CASH/);
+ assert.equal(writes,0);
+});
+
+test('player cash transfer rejects self target and invalid amount',async()=>{
+ const reader=async op=>{if(op===__playerOps.PLAYER_ACCESS_QUERY)return{sessionParticipants:[{...participant(),gameSession:session()}]};if(op===__playerOps.PLAYER_SOURCE_QUERY)return source();if(op===__playerOps.PLAYER_RUNTIME_QUERY)return runtime();throw new Error('bad op')};
+ await assert.rejects(()=>transferPlayerCash(participant().playerAccessToken,{targetCharacterExternalId:'CHAR_A',amount:10},{reader,executor:async()=>({})}),/INVALID_CASH_TARGET/);
+ await assert.rejects(()=>transferPlayerCash(participant().playerAccessToken,{targetCharacterExternalId:'CHAR_B',amount:1.5},{reader,executor:async()=>({})}),/INVALID_CASH_AMOUNT/);
 });
 
 test('player vote always uses character linked to token',async()=>{
@@ -254,4 +287,3 @@ test('V1.11C exhausted location is flagged and exposes no search action',async()
  assert.equal(view.actions.length,0);
  await assert.rejects(()=>executePlayerLocationAction(participant().playerAccessToken,{interactionExternalId:'ACT1',locationExternalId:'LOC1'},{reader,executor:async()=>({})}),/LOCATION_EMPTY/);
 });
-
