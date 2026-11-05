@@ -9,6 +9,8 @@ import ShowbizGameRules from './ShowbizGameRules';
 import PlayerPersonalNotes from './PlayerPersonalNotes';
 import { playerClues, playerInfoFeed } from './player-navigation';
 import usePlayerReading from './usePlayerReading';
+import PlayerTutorial from './PlayerTutorial';
+import usePlayerTutorial from './usePlayerTutorial';
 import { asSkinId, skinClassFor, defaultAccentForSkin } from './skin-registry';
 
 type Portal = any;
@@ -85,6 +87,7 @@ export default function PlayerPortal({token}:{token:string}){
   useEffect(()=>{if(token)localStorage.setItem('murderEnginePlayerToken',token);},[token]);
   const [portal,setPortal]=useState<Portal|null>(null); const [error,setError]=useState(''); const [loading,setLoading]=useState(true); const [tab,setTab]=useState<Tab>(()=>new URLSearchParams(window.location.search).get('tab')==='play'?'actions':'fiche'); const [busy,setBusy]=useState(false); const [flash,setFlash]=useState('');
   const [introOpen,setIntroOpen]=useState(false);
+  const tutorial=usePlayerTutorial(portal,introOpen);
   const [resultPopup,setResultPopup]=useState<{success:boolean;title:string;body:string}|null>(null);
   async function load(track=true){
     setError('');
@@ -130,7 +133,7 @@ export default function PlayerPortal({token}:{token:string}){
     setIntroOpen(false);
   }
 
-  const reading=usePlayerReading(portal,introOpen||!!resultPopup,id=>postJson('/api/player/notification/read',{token,notificationId:id}));
+  const reading=usePlayerReading(portal,introOpen||tutorial.open||!!resultPopup,id=>postJson('/api/player/notification/read',{token,notificationId:id}));
   function openClues(){setTab('sac');window.scrollTo({top:0,behavior:'smooth'});}
   async function act(fn:()=>Promise<any>,message=''){
     setBusy(true);
@@ -181,10 +184,11 @@ export default function PlayerPortal({token}:{token:string}){
   return <main ref={reading.root} className={`playerShell playerShellV161 ${skinClass}`} style={skinStyle}>
     {s.rehearsal&&<p className="rehearsalBanner" role="status">{tr(portal,'MODE RÉPÉTITION — Ce lien sert uniquement aux essais.','REHEARSAL — This link is for testing only.')}</p>}<header className="playerHero">{presentation.logo?.source&&<img className="playerScenarioLogo" src={presentation.logo.source} alt={presentation.logo.altText||s.scenarioTitle}/>}<p className="eyebrow">{s.scenarioTitle}</p><h1>{c.name}</h1><p className="playerRole">{c.publicRole||tr(portal,'Personnage','Character')}{c.narrativeAge?` · ${c.narrativeAge}`:''}</p><div className="playerSessionMeta"><span>{s.name}</span><span>{niceDate(s.scheduledAt,s.language)}</span>{s.venue&&<span>{s.venue}</span>}</div></header>
     <div className="playerStatusBar"><div><small>{tr(portal,'Vous jouez','You are playing')}</small><strong>{c.name}</strong></div><div className="paPill"><small>{isEnglish(portal)?'AP':'PA'}</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div></div>
+    <button type="button" className="playerTutorialEntry" onClick={tutorial.show}><span><strong>{tr(portal,'Comment jouer ?','How to play?')}</strong><small>{tr(portal,'Les grands principes de l’app en 7 écrans','The app essentials in 7 screens')}</small></span><span aria-hidden="true">↗</span></button>
     {portal.states?.length>0&&<section className="playerStates">{portal.states.map((st:any)=><span key={st.stateExternalId}><b>{st.name}</b>{st.description?` · ${st.description}`:''}</span>)}</section>}
     {flash&&<p className="playerFlash">{flash}</p>}{error&&<p className="playerError">{error}</p>}
     {tab==='fiche'&&<PlayerSheet count={reading.count} portal={portal} busy={busy} onRead={()=>void act(()=>postJson('/api/player/briefing/read',{token}))}/>}
-    <div hidden={tab!=='carnet'}><PlayerNotebook key={`${token}:${s.id}`} portal={portal} token={token} active={tab==='carnet'} count={reading.count} onOpenClues={openClues}/></div>
+    <div hidden={tab!=='carnet'}><PlayerNotebook key={`${token}:${s.id}`} portal={portal} token={token} active={tab==='carnet'} count={reading.count} onOpenClues={openClues} onOpenTutorial={tutorial.show}/></div>
     {tab==='actions'&&<PlayerActions token={token} portal={portal} busy={busy} onRefresh={()=>load(false)} onExecute={async(interactionExternalId,targetExternalId,requestOnly,options)=>{
       const response=await act(
         ()=>postJson('/api/player/interaction',{
@@ -244,6 +248,7 @@ export default function PlayerPortal({token}:{token:string}){
 
     {resultPopup&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Résultat de l’action','Action result')}><div className={`qrScannerPanel actionResultPopup ${resultPopup.success?'success':'failure'}`}><p className="eyebrow">{tr(portal,'RÉSULTAT','RESULT')}</p><h2>{resultPopup.success?tr(portal,'✓ Réussite','✓ Success'):tr(portal,'✕ Échec','✕ Failure')}</h2><p>{resultPopup.body}</p><button className="playerPrimary" onClick={()=>setResultPopup(null)}>{tr(portal,'Continuer','Continue')}</button></div></div>}
 
+    {tutorial.open&&<PlayerTutorial language={s.language} onClose={tutorial.close}/>}
     <footer className="playerFooter">Murder Engine · Ludificateur</footer>
     <nav className="playerBottomNav" aria-label={tr(portal,'Navigation joueur','Player navigation')}>
       {([['fiche','🪪',tr(portal,'Fiches','Sheets'),'sheet'],['carnet','📓',tr(portal,'Carnet','Notebook'),'notebook'],['actions','⚡',tr(portal,'Jouer','Play'),'play'],['sac','🎒',tr(portal,'Sac','Bag'),'bag']] as const).map(([id,icon,label,section])=>
@@ -464,7 +469,7 @@ function PlayerSheet({portal,busy,onRead,count}:{portal:Portal;busy:boolean;onRe
   </div>;
 }
 
-function PlayerNotebook({portal,token,active,count,onOpenClues}:{portal:Portal;token:string;active:boolean;count:Counts;onOpenClues:()=>void}){
+function PlayerNotebook({portal,token,active,count,onOpenClues,onOpenTutorial}:{portal:Portal;token:string;active:boolean;count:Counts;onOpenClues:()=>void;onOpenTutorial:()=>void}){
   type NotebookTab='context'|'relations'|'info'|'notes';
   const [tab,setTab]=useState<NotebookTab>('notes');
   const playersByCharacter=useMemo(()=>new Map<string,string>(
@@ -515,7 +520,7 @@ function PlayerNotebook({portal,token,active,count,onOpenClues}:{portal:Portal;t
     </section>}
 
     {tab==='info'&&<PlayerInfo portal={portal} onOpenClues={onOpenClues}/>}
-    {tab==='context'&&<PlayerRules portal={portal}/>}
+    {tab==='context'&&<><button type="button" className="playerTutorialEntry" onClick={onOpenTutorial}><span><strong>{tr(portal,'Revoir le tutoriel','Replay the tutorial')}</strong><small>{tr(portal,'Les grands principes de l’app','The app essentials')}</small></span><span aria-hidden="true">↗</span></button><PlayerRules portal={portal}/></>}
   </div>;
 }
 
