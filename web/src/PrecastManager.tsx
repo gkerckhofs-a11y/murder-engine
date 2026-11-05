@@ -1,3 +1,4 @@
+import { organizerFetch } from './organizer-api';
 import { useEffect, useMemo, useState } from 'react';
 
 type ScenarioVersion = {
@@ -67,7 +68,7 @@ type Scenario = {
 };
 
 async function readJson<T>(url:string,init?:RequestInit):Promise<T>{
-  const r=await fetch(url,init);
+  const r=await organizerFetch(url,init);
   const raw=await r.text();
   let data:any=null;
   try{data=raw?JSON.parse(raw):null}catch{}

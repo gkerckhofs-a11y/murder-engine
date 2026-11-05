@@ -1,0 +1,39 @@
+name: Session organizer targeted checks
+on:
+  push:
+    branches: [work/session-organizer-rehearsal]
+  pull_request:
+    branches: [feature/player-navigation]
+permissions:
+  contents: read
+jobs:
+  organizer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix functions
+      - name: Test affected authorization, sessions and player flows
+        run: node --test functions/test/session-access.test.mjs functions/test/session-rehearsal.test.mjs functions/test/cleanup.test.mjs functions/test/sessions.test.mjs functions/test/runtime.test.mjs functions/test/live.test.mjs functions/test/player.test.mjs functions/test/player-notes.test.mjs
+      - run: npm install --global firebase-tools@15.34.0
+      - name: Test rehearsal/reset/real launch against local SQL Connect
+        run: npm run test:integration:self-service --prefix functions
+      - run: npm ci --prefix web
+      - run: npm run build --prefix web
+      - name: Test mobile organizer journey
+        run: |
+          npm install --prefix web --no-save --package-lock=false playwright@1.58.2
+          cd web
+          npx playwright install --with-deps chromium
+          npm run dev -- --host 127.0.0.1 --port 4174 > /tmp/organizer-vite.log 2>&1 &
+          for attempt in $(seq 1 30); do curl --silent --fail http://127.0.0.1:4174/ > /dev/null && break; sleep 1; done
+          node test/browser-organizer.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: organizer-mobile
+          path: web/test-results/organizer
+          if-no-files-found: ignore

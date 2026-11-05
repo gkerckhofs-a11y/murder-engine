@@ -12,6 +12,41 @@
     ],
     "rewrites": [
       {
+        "source": "/api/organizer/real/start",
+        "function": {
+          "functionId": "startRealSessionView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/organizer/rehearsal/reset",
+        "function": {
+          "functionId": "resetSessionRehearsalView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/organizer/access/configure",
+        "function": {
+          "functionId": "configureSessionAccessView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/organizer/access",
+        "function": {
+          "functionId": "getSessionAccessView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/organizer/identity",
+        "function": {
+          "functionId": "getOrganizerIdentity",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/player/notes",
         "function": {
           "functionId": "managePublicPlayerNotes",

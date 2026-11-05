@@ -42,9 +42,7 @@ export async function signInOrganizer(){
   const auth=await firebaseAuth();
   const provider=new window.firebase.auth.GoogleAuthProvider();
 
-  provider.setCustomParameters({
-    login_hint:ORGANIZER_EMAIL,
-  });
+  provider.setCustomParameters({prompt:'select_account'});
 
   const result=await auth.signInWithPopup(provider);
   const user=result?.user??auth.currentUser;
@@ -52,8 +50,7 @@ export async function signInOrganizer(){
   if(!user)
     throw new Error('ORGANIZER_SIGN_IN_FAILED');
 
-  if(String(user.email??'').toLowerCase()!==ORGANIZER_EMAIL)
-    throw new Error('ORGANIZER_ACCOUNT_NOT_ALLOWED');
+  if(!user.emailVerified)throw new Error('ORGANIZER_EMAIL_NOT_VERIFIED');
 
   return user;
 }
@@ -66,8 +63,7 @@ export async function organizerToken(interactive=false){
 
   if(!user)return null;
 
-  if(String(user.email??'').toLowerCase()!==ORGANIZER_EMAIL)
-    return null;
+  if(!user.emailVerified)return null;
 
   return await user.getIdToken();
 }

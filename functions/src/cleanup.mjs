@@ -1,3 +1,5 @@
+import { canonicalSessionId } from './session-access.mjs';
+import { readAllPages } from './pagination.mjs';
 const SESSION_PURGE_MUTATION = `
 mutation PurgeSession($sessionId: UUID!, $sessionIdText: String!) @transaction {
   precastRegistration_updateMany(
@@ -68,11 +70,15 @@ mutation DeleteScenario($scenarioId: UUID!) {
 const SESSION_LOOKUP_QUERY = `
 query SessionForPurge($sessionId: UUID!) {
   gameSession(id:$sessionId) {
-    id name status
+    id name status selfServiceEnabled
     scenarioVersion { id scenario { id title } }
   }
 }
 `;
+
+const REHEARSALS_QUERY = `query RehearsalsForPurge($sessionIdText: String!, $pageLimit: Int!, $pageOffset: Int!) {
+  gameSessions(where: {rehearsalOfId: {eq: $sessionIdText}}, orderBy: {id: ASC}, limit: $pageLimit, offset: $pageOffset) { id }
+}`;
 
 const SCENARIO_PURGE_QUERY = `
 query ScenarioForPurge($scenarioId: UUID!) {
@@ -122,11 +128,16 @@ async function defaultExecutor(operation,variables){
 }
 
 export async function purgeGameSession(sessionId,{reader=defaultReader,executor=defaultExecutor}={}){
-  const id=String(sessionId??'').trim();
+  let id=String(sessionId??'').trim();
+  if(/^[0-9a-f-]{32,36}$/i.test(id))id=canonicalSessionId(id);
   if(!id)throw new Error('SESSION_ID_REQUIRED');
   const data=await reader(SESSION_LOOKUP_QUERY,{sessionId:id});
   const session=data?.gameSession;
   if(!session)throw new Error('SESSION_NOT_FOUND');
+  if(session.selfServiceEnabled){
+    const runs=await readAllPages(reader,REHEARSALS_QUERY,{sessionIdText:id},['gameSessions']);
+    for(const run of runs.gameSessions)await executor(SESSION_PURGE_MUTATION,{sessionId:run.id,sessionIdText:canonicalSessionId(run.id)});
+  }
   await executor(SESSION_PURGE_MUTATION,{sessionId:id,sessionIdText:id});
   return {
     deleted:true,
@@ -178,6 +189,7 @@ export const __cleanupOps={
   VERSION_PURGE_MUTATION,
   SCENARIO_DELETE_MUTATION,
   SESSION_LOOKUP_QUERY,
+  REHEARSALS_QUERY,
   SCENARIO_PURGE_QUERY,
   SESSIONS_FOR_VERSION_QUERY,
 };

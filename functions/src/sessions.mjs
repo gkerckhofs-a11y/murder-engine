@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 const LIST_SESSIONS_QUERY = `
 query SessionLibrary {
-  gameSessions(orderBy: {createdAt: DESC}) {
+  gameSessions(where: {rehearsalOfId: {isNull: true}}, orderBy: {createdAt: DESC}) {
     id
     name
     scheduledAt

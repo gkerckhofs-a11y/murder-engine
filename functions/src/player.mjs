@@ -11,7 +11,7 @@ query PlayerAccessByToken($token: String!) {
     characterDisplayName characterGenderVariant characterSnapshotJson characterSnapshotAt
     playerAccessToken playerAccessEnabled playerFirstOpenedAt playerLastOpenedAt playerOpenCount briefingReadAt
     gameSession {
-      id name scheduledAt venue language status runtimeInitializedAt startedAt pausedAt finishedAt
+      id name scheduledAt venue language status runtimeInitializedAt startedAt pausedAt finishedAt rehearsalOfId
       scenarioVersion {
         id
         versionLabel
@@ -1877,7 +1877,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
   return {
     presentation:scenarioPresentation(session,source),
     participant:{id:participant.id,displayName:participant.displayName,briefingStatus:participant.briefingStatus,briefingReadAt:participant.briefingReadAt??null,playerOpenCount:Number(participant.playerOpenCount??0)},
-    session:{id:session.id,name:session.name,scheduledAt:session.scheduledAt,venue:session.venue,language:session.language??'FR',status:session.status,startedAt:session.startedAt,pausedAt:session.pausedAt,finishedAt:session.finishedAt,scenarioTitle:session.scenarioVersion?.scenario?.title??'Murder Party',playerSummary:session.scenarioVersion?.playerSummary??''},
+    session:{id:session.id,rehearsal:Boolean(session.rehearsalOfId),name:session.name,scheduledAt:session.scheduledAt,venue:session.venue,language:session.language??'FR',status:session.status,startedAt:session.startedAt,pausedAt:session.pausedAt,finishedAt:session.finishedAt,scenarioTitle:session.scenarioVersion?.scenario?.title??'Murder Party',playerSummary:session.scenarioVersion?.playerSummary??''},
     character:{externalId:character.externalId,name:character.name,publicRole:character.publicRole,biography:character.biography,secretIntro:character.secretIntro,interpretationNotes:character.interpretationNotes,appearanceNotes:character.appearanceNotes,apparentMotive:character.apparentMotive,personalTimeline:character.personalTimeline,motto:character.motto,narrativeAge:character.narrativeAge,portrait:mediaOverrideVisual(session,'CHARACTER',character.externalId)??visualMedia(mediaMap,character.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',character.portraitArchetypeCode)},
     otherCharacters:(session.sessionParticipants_on_gameSession??[]).filter(p=>p.active!==false&&p.characterExternalId&&p.characterExternalId!==characterExternalId).map(p=>{const c=charMap.get(p.characterExternalId);return{characterExternalId:p.characterExternalId,name:c?.name??p.characterExternalId,publicRole:c?.publicRole??null,participantName:p.displayName,portrait:mediaOverrideVisual(session,'CHARACTER',p.characterExternalId)??visualMedia(mediaMap,c?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',c?.portraitArchetypeCode)};}),
     objectives,relationships,resources,knowledge,discoveries,documentEntries,inventory,discoverableAboutMe,pendingAbilityRequests,states,abilities:effectiveAbilities(source,characterExternalId,session).filter(a=>!a.secret),interactions,votes,voteResults,notifications,actionLogs,unreadNotificationCount:notifications.filter(n=>!n.readAt).length,searchCooldownRemainingSeconds:globalLocationSearchCooldownRemaining(source,runtime,characterExternalId,now),

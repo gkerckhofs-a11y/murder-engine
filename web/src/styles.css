@@ -14544,3 +14544,18 @@ button.skinGalleryCard:disabled{
 .interactionLanding ol{padding-left:24px;line-height:1.6}.interactionLanding li{margin:10px 0}
 .interactionLanding .playerPrimary{display:block;text-align:center;text-decoration:none}
 @media(max-width:360px){.playerShell .notebookTabs button{font-size:.72rem}.playerShell .playerBottomNav button>b{font-size:.72rem}}
+
+/* Organizer delegation and rehearsal */
+.organizerIdentity {display:flex;justify-content:flex-end;align-items:center;gap:1rem;padding:.75rem 1.5rem;flex-wrap:wrap;background:#142129;color:#fff}
+.organizerIdentity button {padding:.4rem .8rem}
+.organizerLogin {max-width:38rem;margin:5vh auto;padding:2rem}
+.sessionLicense {margin:1rem 0;border-left:5px solid #8a6d3b}
+.sessionLicense.mode-REHEARSAL,.rehearsalBanner {border-left:5px solid #c78319;background:#fff4d8;color:#3b2910}
+.sessionLicense.mode-REAL {border-left-color:#2e7757}
+.sessionLicense label {display:flex;flex-direction:column;gap:.5rem;min-width:0}
+.sessionLicense input {width:100%;min-width:0}
+.rehearsalBanner {padding:.85rem 1rem;border-radius:.5rem;font-weight:700}
+@media(max-width:640px){.organizerIdentity {justify-content:space-between;font-size:.85rem}.sessionLicense .formActions{display:flex;flex-direction:column;align-items:stretch}.sessionLicense button{width:100%}}
+
+.sessionLicense.mode-REHEARSAL h3 {color:#3b2910}
+.sessionLicense.mode-REHEARSAL .eyebrow {color:#7b4c11}
