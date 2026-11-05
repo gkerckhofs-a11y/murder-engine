@@ -858,7 +858,7 @@ export const executeLiveInteraction = securedOnRequest('executeLiveInteraction',
   catch(error){ logger.error('Interaction execution failed',error); const message=error instanceof Error?error.message:String(error); return res.status(400).json({error:'INTERACTION_EXECUTE_FAILED',message,remainingSeconds:error?.remainingSeconds,details:error?.details??undefined}); }
 });
 
-export const revealLiveClue = securedOnRequest('revealLiveClue', { region:'europe-west1', cors:true, maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
+export const revealLiveClue = securedOnRequest('revealLiveClue', { region:'europe-west1', cors:true, invoker:'public', maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   const sessionId=String(body.sessionId??'').trim();
   try {
