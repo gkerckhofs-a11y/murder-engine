@@ -1,0 +1,61 @@
+name: Deploy session organizer access
+on:
+  push:
+    branches: [deploy/session-organizer-rehearsal]
+permissions:
+  contents: read
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify deployment destination
+        run: test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+      - run: npm ci --prefix functions
+      - name: Check affected server behavior
+        run: node --test functions/test/session-access.test.mjs functions/test/session-rehearsal.test.mjs functions/test/cleanup.test.mjs functions/test/sessions.test.mjs functions/test/runtime.test.mjs functions/test/live.test.mjs functions/test/player.test.mjs functions/test/player-notes.test.mjs
+      - run: npm ci --prefix web
+      - run: npm run build --prefix web
+      - name: Record deployed revision
+        env:
+          DEPLOYED_REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'JS'
+          import {writeFileSync} from 'node:fs';
+          const revision=process.env.DEPLOYED_REVISION;
+          writeFileSync('web/dist/deployment-version.json',JSON.stringify({revision,sourceRevision:'a7782ae29bc4c3803f64f1493d73c6dd86798010',feature:'session-organizer-rehearsal'}));
+          writeFileSync('web/dist/navigation-version.json',JSON.stringify({revision,feature:'four-tab-player-navigation',organizerAccess:true}));
+          JS
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - run: npm install --global firebase-tools@15.34.0
+      - name: Apply additive SQL Connect schema
+        run: |
+          firebase dataconnect:sql:migrate --service murder-engine --project "$FIREBASE_PROJECT_ID" --non-interactive
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only dataconnect:murder-engine:schema --non-interactive
+      - name: Deploy every HTTP function and Hosting
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          const source=readFileSync('functions/src/index.mjs','utf8');
+          const names=[...source.matchAll(/export const (\w+) = securedOnRequest\(/g)].map(match=>'functions:'+match[1]);
+          if(names.length<60)throw new Error('INCOMPLETE_FUNCTION_DEPLOYMENT_SCOPE');
+          writeFileSync('/tmp/organizer-deploy-scope',names.join(','));
+          console.log(`Updating ${names.length} HTTP functions`);
+          JS
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only "$(cat /tmp/organizer-deploy-scope)" --non-interactive
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting --non-interactive
+      - name: Verify deployed revision and all private routes
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: node functions/scripts/verify-organizer-deployment.mjs
