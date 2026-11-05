@@ -483,6 +483,15 @@ type PrecastRegistration @table {
 # ------------------------------------------------------------
 
 type GameSession @table {
+  # Client delegation is explicit; existing sessions remain administrator-only.
+  organizerEmail: String
+  organizerAccessEnabled: Boolean! @default(value: false)
+  selfServiceEnabled: Boolean! @default(value: false)
+  realSessionStartedAt: Timestamp
+  # Test runs use separate session IDs, player tokens and progress.
+  rehearsalOfId: String
+  activeRehearsalId: String
+
   organization: Organization!
   scenarioVersion: ScenarioVersion!
   name: String

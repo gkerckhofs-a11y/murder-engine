@@ -5,7 +5,31 @@ import {
   updateSessionIncarnation as saveSessionIncarnation,
   freezeSessionIncarnations as freezeIncarnations
 } from './session-incarnations.mjs';
-import { onRequest } from 'firebase-functions/v2/https';
+import { onRequest as firebaseOnRequest } from 'firebase-functions/v2/https';
+import { PUBLIC_ENDPOINTS, authorizeEndpoint, verifyRequestIdentity, isAdministrator, configureSessionAccess } from './session-access.mjs';
+import { getSelfServiceState, replaceSessionRehearsal } from './session-rehearsal.mjs';
+
+function securedOnRequest(name, options, handler) {
+  return firebaseOnRequest(options, async (req, res) => {
+    if (!PUBLIC_ENDPOINTS.has(name)) {
+      res.set('Cache-Control', 'no-store');
+      try {
+        const identity = await verifyRequestIdentity(req);
+        req.organizerIdentity = identity;
+        if (name !== 'getOrganizerIdentity') {
+          const input = req.method === 'GET' ? req.query : req.body ?? {};
+          req.sessionAuthorization = await authorizeEndpoint(name, identity, input);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const status = /AUTH_REQUIRED|AUTH_INVALID/.test(message) ? 401 : /DATABASE_FAILED/.test(message) ? 503 : 403;
+        return res.status(status).json({ error: message });
+      }
+    }
+    return handler(req, res);
+  });
+}
+
 import { logger } from 'firebase-functions';
 import { parseWorkbookBuffer } from './parse-xlsx.mjs';
 import { validateWorkbook, summarizeWorkbook } from './diagnostics.mjs';
@@ -77,7 +101,7 @@ function readXlsx(req, res) {
   return { filename, raw };
 }
 
-export const validateImport = onRequest({ region: 'europe-west1', cors: true, maxInstances: 10, timeoutSeconds: 60 }, async (req, res) => {
+export const validateImport = securedOnRequest('validateImport', { region: 'europe-west1', cors: true, maxInstances: 10, timeoutSeconds: 60 }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
   const input = readXlsx(req, res); if (!input) return;
   try {
@@ -91,7 +115,7 @@ export const validateImport = onRequest({ region: 'europe-west1', cors: true, ma
   }
 });
 
-export const commitImport = onRequest({ region: 'europe-west1', cors: true, maxInstances: 3, timeoutSeconds: 300 }, async (req, res) => {
+export const commitImport = securedOnRequest('commitImport', { region: 'europe-west1', cors: true, maxInstances: 3, timeoutSeconds: 300 }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
   const input = readXlsx(req, res); if (!input) return;
 
@@ -149,45 +173,9 @@ export const commitImport = onRequest({ region: 'europe-west1', cors: true, maxI
 
 
 async function requireOrganizerAuth(req,res){
-  const authorization=String(req.header('authorization')??'').trim();
-  const match=authorization.match(/^Bearer\s+(.+)$/i);
-
-  if(!match){
-    res.status(401).json({error:'ORGANIZER_AUTH_REQUIRED'});
-    return null;
-  }
-
-  try{
-    const [{initializeApp,getApps},{getAuth}]=await Promise.all([
-      import('firebase-admin/app'),
-      import('firebase-admin/auth'),
-    ]);
-
-    if(!getApps().length)initializeApp();
-
-    const decoded=await getAuth().verifyIdToken(match[1],true);
-    const email=String(decoded?.email??'').trim().toLowerCase();
-
-    const allowedEmails=new Set(
-      String(process.env.ORGANIZER_EMAILS??'gkerckhofs@gmail.com')
-        .split(',')
-        .map(v=>v.trim().toLowerCase())
-        .filter(Boolean)
-    );
-
-    if(!decoded?.email_verified || !allowedEmails.has(email)){
-      res.status(403).json({error:'ORGANIZER_NOT_ALLOWED'});
-      return null;
-    }
-
-    return decoded;
-  }catch(error){
-    logger.warn('Organizer auth rejected',{
-      message:error instanceof Error?error.message:String(error),
-    });
-    res.status(401).json({error:'ORGANIZER_AUTH_INVALID'});
-    return null;
-  }
+  if(req.organizerIdentity)return req.organizerIdentity;
+  res.status(401).json({error:'ORGANIZER_AUTH_REQUIRED'});
+  return null;
 }
 
 function requireGet(req, res) {
@@ -198,7 +186,7 @@ function requireGet(req, res) {
   return true;
 }
 
-export const getMediaLibraryView = onRequest(
+export const getMediaLibraryView = securedOnRequest('getMediaLibraryView',
   { region:'europe-west1', cors:true, invoker:'public', maxInstances:5, timeoutSeconds:60 },
   async (req,res)=>{
     if (!requireGet(req,res)) return;
@@ -222,7 +210,7 @@ export const getMediaLibraryView = onRequest(
   }
 );
 
-export const uploadMediaLibraryAssetView = onRequest(
+export const uploadMediaLibraryAssetView = securedOnRequest('uploadMediaLibraryAssetView',
   {
     region:'europe-west1',
     cors:true,
@@ -271,7 +259,7 @@ export const uploadMediaLibraryAssetView = onRequest(
   }
 );
 
-export const deleteMediaLibraryAssetView = onRequest(
+export const deleteMediaLibraryAssetView = securedOnRequest('deleteMediaLibraryAssetView',
   { region:'europe-west1', cors:true, invoker:'public', maxInstances:5, timeoutSeconds:60 },
   async (req,res)=>{
     if(req.method!=='POST')
@@ -312,7 +300,7 @@ export const deleteMediaLibraryAssetView = onRequest(
 );
 
 
-export const setScenarioMediaOverrideView = onRequest(
+export const setScenarioMediaOverrideView = securedOnRequest('setScenarioMediaOverrideView',
   { region:'europe-west1', cors:true, invoker:'public', maxInstances:5, timeoutSeconds:60 },
   async (req,res)=>{
     if(req.method!=='POST')
@@ -350,7 +338,7 @@ export const setScenarioMediaOverrideView = onRequest(
 );
 
 
-export const listScenarios = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const listScenarios = securedOnRequest('listScenarios', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   if (!requireGet(req, res)) return;
   try {
     const scenarios = await listScenarioLibrary();
@@ -365,7 +353,7 @@ export const listScenarios = onRequest({ region: 'europe-west1', cors: true, max
   }
 });
 
-export const getGmPackView = onRequest(
+export const getGmPackView = securedOnRequest('getGmPackView',
   { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 },
   async (req, res) => {
     if (!requireGet(req, res)) return;
@@ -392,7 +380,7 @@ export const getGmPackView = onRequest(
 );
 
 
-export const setScenarioVersionArchivedView = onRequest(
+export const setScenarioVersionArchivedView = securedOnRequest('setScenarioVersionArchivedView',
   { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 },
   async (req, res) => {
     if (req.method !== 'POST') {
@@ -428,7 +416,7 @@ export const setScenarioVersionArchivedView = onRequest(
   }
 );
 
-export const getScenarioVersion = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const getScenarioVersion = securedOnRequest('getScenarioVersion', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   if (!requireGet(req, res)) return;
   const versionId = String(req.query.versionId ?? '').trim();
   if (!versionId) return res.status(400).json({ error: 'VERSION_ID_REQUIRED' });
@@ -446,7 +434,7 @@ export const getScenarioVersion = onRequest({ region: 'europe-west1', cors: true
   }
 });
 
-export const getCharacter = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const getCharacter = securedOnRequest('getCharacter', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   if (!requireGet(req, res)) return;
   const versionId = String(req.query.versionId ?? '').trim();
   const externalId = String(req.query.externalId ?? '').trim();
@@ -474,14 +462,14 @@ function requirePostJson(req, res) {
   return req.body ?? {};
 }
 
-export const purgeSessionView = onRequest({ region:'europe-west1', cors:true, invoker:'public', maxInstances:3, timeoutSeconds:180 }, async (req,res)=>{
+export const purgeSessionView = securedOnRequest('purgeSessionView', { region:'europe-west1', cors:true, invoker:'public', maxInstances:3, timeoutSeconds:180 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   if(!await requireOrganizerAuth(req,res)) return;
   try { return res.status(200).json({ok:true,result:await purgeGameSession(String(body.sessionId??'').trim())}); }
   catch(error){ logger.error('Session purge failed',error); return res.status(400).json({error:'SESSION_PURGE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const purgeScenarioView = onRequest({ region:'europe-west1', cors:true, invoker:'public', maxInstances:2, timeoutSeconds:300 }, async (req,res)=>{
+export const purgeScenarioView = securedOnRequest('purgeScenarioView', { region:'europe-west1', cors:true, invoker:'public', maxInstances:2, timeoutSeconds:300 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   if(!await requireOrganizerAuth(req,res)) return;
   try { return res.status(200).json({ok:true,result:await purgeScenarioFamily(String(body.scenarioId??'').trim())}); }
@@ -489,13 +477,13 @@ export const purgeScenarioView = onRequest({ region:'europe-west1', cors:true, i
 });
 
 
-export const listPrecastCampaignsView = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
+export const listPrecastCampaignsView = securedOnRequest('listPrecastCampaignsView', { region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
   if(!requireGet(req,res)) return;
   try { return res.status(200).json({ok:true,campaigns:await listPrecastCampaigns()}); }
   catch(error){ logger.error('Precast campaigns read failed',error); return res.status(500).json({error:'PRECAST_CAMPAIGNS_READ_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const getPrecastCampaignView = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
+export const getPrecastCampaignView = securedOnRequest('getPrecastCampaignView', { region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
   if(!requireGet(req,res)) return;
   const campaignId=String(req.query.campaignId??'').trim();
   if(!campaignId) return res.status(400).json({error:'PRECAST_CAMPAIGN_ID_REQUIRED'});
@@ -503,39 +491,39 @@ export const getPrecastCampaignView = onRequest({ region:'europe-west1', cors:tr
   catch(error){ logger.error('Precast campaign read failed',error); return res.status(404).json({error:'PRECAST_CAMPAIGN_READ_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const createPrecastCampaignView = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
+export const createPrecastCampaignView = securedOnRequest('createPrecastCampaignView', { region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(201).json({ok:true,campaign:await createPrecastCampaign(body)}); }
   catch(error){ logger.error('Precast campaign creation failed',error); return res.status(400).json({error:'PRECAST_CAMPAIGN_CREATE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const updatePrecastCampaignStatusView = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
+export const updatePrecastCampaignStatusView = securedOnRequest('updatePrecastCampaignStatusView', { region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await setPrecastCampaignStatus(String(body.campaignId??'').trim(),body.status)}); }
   catch(error){ logger.error('Precast campaign status failed',error); return res.status(400).json({error:'PRECAST_CAMPAIGN_STATUS_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const getPublicPrecastCampaignView = onRequest({ region:'europe-west1', cors:true, maxInstances:12, timeoutSeconds:60 }, async (req,res)=>{
+export const getPublicPrecastCampaignView = securedOnRequest('getPublicPrecastCampaignView', { region:'europe-west1', cors:true, maxInstances:12, timeoutSeconds:60 }, async (req,res)=>{
   if(!requireGet(req,res)) return;
   const token=String(req.query.token??'').trim();
   try { return res.status(200).json({ok:true,campaign:await getPublicPrecastCampaign(token)}); }
   catch(error){ const message=error instanceof Error?error.message:String(error); return res.status(/NOT_FOUND|CLOSED|INVALID/.test(message)?404:400).json({error:'PUBLIC_PRECAST_CAMPAIGN_FAILED',message}); }
 });
 
-export const submitPublicPrecastRegistrationView = onRequest({ region:'europe-west1', cors:true, maxInstances:12, timeoutSeconds:60 }, async (req,res)=>{
+export const submitPublicPrecastRegistrationView = securedOnRequest('submitPublicPrecastRegistrationView', { region:'europe-west1', cors:true, maxInstances:12, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(201).json({ok:true,registration:await submitPublicPrecastRegistration(String(body.token??'').trim(),body)}); }
   catch(error){ const message=error instanceof Error?error.message:String(error); return res.status(/NOT_FOUND|CLOSED/.test(message)?404:400).json({error:'PUBLIC_PRECAST_SUBMIT_FAILED',message,details:error?.details??undefined}); }
 });
 
-export const createSessionFromPrecastView = onRequest({ region:'europe-west1', cors:true, maxInstances:3, timeoutSeconds:180 }, async (req,res)=>{
+export const createSessionFromPrecastView = securedOnRequest('createSessionFromPrecastView', { region:'europe-west1', cors:true, maxInstances:3, timeoutSeconds:180 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(201).json({ok:true,result:await createSessionFromPrecast(String(body.campaignId??'').trim(),body)}); }
   catch(error){ logger.error('Create session from precast failed',error); return res.status(400).json({error:'PRECAST_CREATE_SESSION_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
 
-export const listSessions = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const listSessions = securedOnRequest('listSessions', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   if (!requireGet(req, res)) return;
   try {
     const sessions = await listGameSessions();
@@ -546,7 +534,7 @@ export const listSessions = onRequest({ region: 'europe-west1', cors: true, maxI
   }
 });
 
-export const getSession = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const getSession = securedOnRequest('getSession', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   if (!requireGet(req, res)) return;
   const sessionId = String(req.query.sessionId ?? '').trim();
   if (!sessionId) return res.status(400).json({ error: 'SESSION_ID_REQUIRED' });
@@ -560,7 +548,7 @@ export const getSession = onRequest({ region: 'europe-west1', cors: true, maxIns
   }
 });
 
-export const createSession = onRequest({ region: 'europe-west1', cors: true, maxInstances: 3, timeoutSeconds: 60 }, async (req, res) => {
+export const createSession = securedOnRequest('createSession', { region: 'europe-west1', cors: true, maxInstances: 3, timeoutSeconds: 60 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   try {
     const session = await createGameSession(body);
@@ -573,7 +561,7 @@ export const createSession = onRequest({ region: 'europe-west1', cors: true, max
   }
 });
 
-export const addSessionParticipant = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const addSessionParticipant = securedOnRequest('addSessionParticipant', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   const sessionId = String(body.sessionId ?? '').trim();
   try {
@@ -586,7 +574,7 @@ export const addSessionParticipant = onRequest({ region: 'europe-west1', cors: t
   }
 });
 
-export const castSessionParticipant = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const castSessionParticipant = securedOnRequest('castSessionParticipant', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   const sessionId = String(body.sessionId ?? '').trim();
   const participantId = String(body.participantId ?? '').trim();
@@ -600,7 +588,7 @@ export const castSessionParticipant = onRequest({ region: 'europe-west1', cors: 
   }
 });
 
-export const getSessionSetup = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const getSessionSetup = securedOnRequest('getSessionSetup', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   if (!requireGet(req, res)) return;
   const sessionId = String(req.query.sessionId ?? '').trim();
   if (!sessionId) return res.status(400).json({ error: 'SESSION_ID_REQUIRED' });
@@ -614,7 +602,7 @@ export const getSessionSetup = onRequest({ region: 'europe-west1', cors: true, m
   }
 });
 
-export const applySessionCasting = onRequest({ region: 'europe-west1', cors: true, maxInstances: 3, timeoutSeconds: 60 }, async (req, res) => {
+export const applySessionCasting = securedOnRequest('applySessionCasting', { region: 'europe-west1', cors: true, maxInstances: 3, timeoutSeconds: 60 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   const sessionId = String(body.sessionId ?? '').trim();
   try {
@@ -628,7 +616,7 @@ export const applySessionCasting = onRequest({ region: 'europe-west1', cors: tru
 });
 
 
-export const updateSessionDetails = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const updateSessionDetails = securedOnRequest('updateSessionDetails', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   const sessionId = String(body.sessionId ?? '').trim();
   try {
@@ -641,7 +629,7 @@ export const updateSessionDetails = onRequest({ region: 'europe-west1', cors: tr
   }
 });
 
-export const updateSessionStatus = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const updateSessionStatus = securedOnRequest('updateSessionStatus', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   const sessionId = String(body.sessionId ?? '').trim();
   try {
@@ -654,7 +642,7 @@ export const updateSessionStatus = onRequest({ region: 'europe-west1', cors: tru
   }
 });
 
-export const archiveSession = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const archiveSession = securedOnRequest('archiveSession', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   const sessionId = String(body.sessionId ?? '').trim();
   try {
@@ -667,7 +655,7 @@ export const archiveSession = onRequest({ region: 'europe-west1', cors: true, ma
   }
 });
 
-export const deleteSession = onRequest({ region: 'europe-west1', cors: true, maxInstances: 3, timeoutSeconds: 60 }, async (req, res) => {
+export const deleteSession = securedOnRequest('deleteSession', { region: 'europe-west1', cors: true, maxInstances: 3, timeoutSeconds: 60 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   const sessionId = String(body.sessionId ?? '').trim();
   try {
@@ -681,7 +669,7 @@ export const deleteSession = onRequest({ region: 'europe-west1', cors: true, max
 });
 
 
-export const configureSessionPrecast = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const configureSessionPrecast = securedOnRequest('configureSessionPrecast', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   const sessionId = String(body.sessionId ?? '').trim();
   try {
@@ -694,7 +682,7 @@ export const configureSessionPrecast = onRequest({ region: 'europe-west1', cors:
   }
 });
 
-export const getPublicPrecast = onRequest({ region: 'europe-west1', cors: true, maxInstances: 10, timeoutSeconds: 30 }, async (req, res) => {
+export const getPublicPrecast = securedOnRequest('getPublicPrecast', { region: 'europe-west1', cors: true, maxInstances: 10, timeoutSeconds: 30 }, async (req, res) => {
   if (!requireGet(req, res)) return;
   res.set('Cache-Control', 'no-store');
   const token = String(req.query.token ?? '').trim();
@@ -708,7 +696,7 @@ export const getPublicPrecast = onRequest({ region: 'europe-west1', cors: true, 
   }
 });
 
-export const submitPublicPrecastForm = onRequest({ region: 'europe-west1', cors: true, maxInstances: 10, timeoutSeconds: 30 }, async (req, res) => {
+export const submitPublicPrecastForm = securedOnRequest('submitPublicPrecastForm', { region: 'europe-west1', cors: true, maxInstances: 10, timeoutSeconds: 30 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   res.set('Cache-Control', 'no-store');
   const token = String(body.token ?? '').trim();
@@ -723,7 +711,7 @@ export const submitPublicPrecastForm = onRequest({ region: 'europe-west1', cors:
 });
 
 
-export const getRuntimeState = onRequest({ region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
+export const getRuntimeState = securedOnRequest('getRuntimeState', { region: 'europe-west1', cors: true, maxInstances: 5, timeoutSeconds: 60 }, async (req, res) => {
   if (!requireGet(req, res)) return;
   const sessionId = String(req.query.sessionId ?? '').trim();
   if (!sessionId) return res.status(400).json({ error: 'SESSION_ID_REQUIRED' });
@@ -737,7 +725,7 @@ export const getRuntimeState = onRequest({ region: 'europe-west1', cors: true, m
   }
 });
 
-export const initializeRuntime = onRequest({ region: 'europe-west1', cors: true, maxInstances: 3, timeoutSeconds: 180 }, async (req, res) => {
+export const initializeRuntime = securedOnRequest('initializeRuntime', { region: 'europe-west1', cors: true, maxInstances: 3, timeoutSeconds: 180 }, async (req, res) => {
   const body = requirePostJson(req, res); if (!body) return;
   const sessionId = String(body.sessionId ?? '').trim();
   try {
@@ -751,7 +739,7 @@ export const initializeRuntime = onRequest({ region: 'europe-west1', cors: true,
   }
 });
 
-export const getLiveState = onRequest({ region: 'europe-west1', cors: true, maxInstances: 8, timeoutSeconds: 60 }, async (req, res) => {
+export const getLiveState = securedOnRequest('getLiveState', { region: 'europe-west1', cors: true, maxInstances: 8, timeoutSeconds: 60 }, async (req, res) => {
   if (!requireGet(req, res)) return;
   const sessionId = String(req.query.sessionId ?? '').trim();
   if (!sessionId) return res.status(400).json({ error: 'SESSION_ID_REQUIRED' });
@@ -759,31 +747,31 @@ export const getLiveState = onRequest({ region: 'europe-west1', cors: true, maxI
   catch (error) { logger.error('Live dashboard read failed', error); return res.status(400).json({ error:'LIVE_READ_FAILED', message:error instanceof Error?error.message:String(error), details:error?.details??undefined }); }
 });
 
-export const controlLive = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
+export const controlLive = securedOnRequest('controlLive', { region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true, result:await controlLiveSession(String(body.sessionId??'').trim(), body.action)}); }
   catch(error){ logger.error('Live control failed',error); return res.status(400).json({error:'LIVE_CONTROL_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const updateLiveResource = onRequest({ region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
+export const updateLiveResource = securedOnRequest('updateLiveResource', { region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true, result:await changeLiveResource(String(body.sessionId??'').trim(),body)}); }
   catch(error){ logger.error('Live resource update failed',error); return res.status(400).json({error:'LIVE_RESOURCE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const updateLiveState = onRequest({ region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
+export const updateLiveState = securedOnRequest('updateLiveState', { region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true, result:await setLiveCharacterState(String(body.sessionId??'').trim(),body)}); }
   catch(error){ logger.error('Live state update failed',error); return res.status(400).json({error:'LIVE_STATE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const updateLiveEvent = onRequest({ region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
+export const updateLiveEvent = securedOnRequest('updateLiveEvent', { region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true, result:await setLiveEventStatus(String(body.sessionId??'').trim(),body)}); }
   catch(error){ logger.error('Live event update failed',error); return res.status(400).json({error:'LIVE_EVENT_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const validateLiveBusinessDeal = onRequest(
+export const validateLiveBusinessDeal = securedOnRequest('validateLiveBusinessDeal',
   { region:'europe-west1', cors:true, invoker:'public', maxInstances:8, timeoutSeconds:60 },
   async (req,res)=>{
     const body=requirePostJson(req,res); if(!body)return;
@@ -838,7 +826,7 @@ export const validateLiveBusinessDeal = onRequest(
 
 
 
-export const getInteractionState = onRequest({ region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
+export const getInteractionState = securedOnRequest('getInteractionState', { region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
   if (!requireGet(req,res)) return;
   const sessionId=String(req.query.sessionId??'').trim();
   if(!sessionId) return res.status(400).json({error:'SESSION_ID_REQUIRED'});
@@ -846,7 +834,7 @@ export const getInteractionState = onRequest({ region:'europe-west1', cors:true,
   catch(error){ logger.error('Interaction dashboard read failed',error); return res.status(400).json({error:'INTERACTION_READ_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const executeLiveInteraction = onRequest({ region:'europe-west1', cors:true, maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
+export const executeLiveInteraction = securedOnRequest('executeLiveInteraction', { region:'europe-west1', cors:true, maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   const sessionId=String(body.sessionId??'').trim();
   try {
@@ -870,7 +858,7 @@ export const executeLiveInteraction = onRequest({ region:'europe-west1', cors:tr
   catch(error){ logger.error('Interaction execution failed',error); const message=error instanceof Error?error.message:String(error); return res.status(400).json({error:'INTERACTION_EXECUTE_FAILED',message,remainingSeconds:error?.remainingSeconds,details:error?.details??undefined}); }
 });
 
-export const revealLiveClue = onRequest({ region:'europe-west1', cors:true, maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
+export const revealLiveClue = securedOnRequest('revealLiveClue', { region:'europe-west1', cors:true, maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   const sessionId=String(body.sessionId??'').trim();
   try {
@@ -892,7 +880,7 @@ export const revealLiveClue = onRequest({ region:'europe-west1', cors:true, maxI
   catch(error){ logger.error('Clue reveal failed',error); return res.status(400).json({error:'CLUE_REVEAL_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const transferLiveObject = onRequest({ region:'europe-west1', cors:true, invoker:'public', maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
+export const transferLiveObject = securedOnRequest('transferLiveObject', { region:'europe-west1', cors:true, invoker:'public', maxInstances:10, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   if(!await requireOrganizerAuth(req,res)) return;
   const sessionId=String(body.sessionId??'').trim();
@@ -918,7 +906,7 @@ export const transferLiveObject = onRequest({ region:'europe-west1', cors:true, 
 });
 
 
-export const getVoteState = onRequest({ region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
+export const getVoteState = securedOnRequest('getVoteState', { region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
   if (!requireGet(req,res)) return;
   const sessionId=String(req.query.sessionId??'').trim();
   if(!sessionId) return res.status(400).json({error:'SESSION_ID_REQUIRED'});
@@ -926,85 +914,85 @@ export const getVoteState = onRequest({ region:'europe-west1', cors:true, maxIns
   catch(error){ logger.error('Vote dashboard read failed',error); return res.status(400).json({error:'VOTE_READ_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const openLiveVote = onRequest({ region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
+export const openLiveVote = securedOnRequest('openLiveVote', { region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await openSessionVote(String(body.sessionId??'').trim(),body)}); }
   catch(error){ logger.error('Vote open failed',error); return res.status(400).json({error:'VOTE_OPEN_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const castLiveBallot = onRequest({ region:'europe-west1', cors:true, maxInstances:12, timeoutSeconds:60 }, async (req,res)=>{
+export const castLiveBallot = securedOnRequest('castLiveBallot', { region:'europe-west1', cors:true, maxInstances:12, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await castSessionBallot(String(body.sessionId??'').trim(),body)}); }
   catch(error){ logger.error('Ballot cast failed',error); return res.status(400).json({error:'BALLOT_CAST_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const closeLiveVote = onRequest({ region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
+export const closeLiveVote = securedOnRequest('closeLiveVote', { region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await closeSessionVote(String(body.sessionId??'').trim(),body)}); }
   catch(error){ logger.error('Vote close failed',error); return res.status(400).json({error:'VOTE_CLOSE_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const configurePlayerAccess = onRequest({ region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
+export const configurePlayerAccess = securedOnRequest('configurePlayerAccess', { region:'europe-west1', cors:true, maxInstances:5, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await configureSessionPlayerAccess(String(body.sessionId??'').trim(),Boolean(body.enabled))}); }
   catch(error){ logger.error('Player access configuration failed',error); return res.status(400).json({error:'PLAYER_ACCESS_CONFIG_FAILED',message:error instanceof Error?error.message:String(error),details:error?.details??undefined}); }
 });
 
-export const getPublicPlayerPortal = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const getPublicPlayerPortal = securedOnRequest('getPublicPlayerPortal', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   if(!requireGet(req,res))return; const token=String(req.query.token??'').trim(); const trackOpen=String(req.query.refresh??'')!=='1';
   try { return res.status(200).json({ok:true,portal:await getPlayerPortal(token,{trackOpen})}); }
   catch(error){ logger.error('Player portal read failed',error); return res.status(404).json({error:'PLAYER_PORTAL_READ_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
 
-export const markPlayerBriefing = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const markPlayerBriefing = securedOnRequest('markPlayerBriefing', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await markPlayerBriefingRead(String(body.token??'').trim())}); }
   catch(error){ logger.error('Player briefing read failed',error); return res.status(400).json({error:'PLAYER_BRIEFING_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
 
-export const readPlayerNotification = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const readPlayerNotification = securedOnRequest('readPlayerNotification', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await markPlayerNotificationRead(String(body.token??'').trim(),String(body.notificationId??'').trim())}); }
   catch(error){ logger.error('Player notification read failed',error); return res.status(400).json({error:'PLAYER_NOTIFICATION_READ_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
 
-export const sendLivePlayerNotification = onRequest({ region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
+export const sendLivePlayerNotification = securedOnRequest('sendLivePlayerNotification', { region:'europe-west1', cors:true, maxInstances:8, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await sendPlayerNotification(String(body.sessionId??'').trim(),body)}); }
   catch(error){ logger.error('Player notification send failed',error); return res.status(400).json({error:'PLAYER_NOTIFICATION_SEND_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
 
-export const executePublicPlayerInteraction = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const executePublicPlayerInteraction = securedOnRequest('executePublicPlayerInteraction', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await executePlayerInteraction(String(body.token??'').trim(),body)}); }
   catch(error){ logger.error('Player interaction failed',error); const message=error instanceof Error?error.message:String(error); return res.status(400).json({error:'PLAYER_INTERACTION_FAILED',message,remainingSeconds:error?.remainingSeconds}); }
 });
 
-export const getPublicPlayerLocation = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const getPublicPlayerLocation = securedOnRequest('getPublicPlayerLocation', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   if(!requireGet(req,res))return;
   try { return res.status(200).json({ok:true,location:await getPlayerLocation(String(req.query.token??'').trim(),String(req.query.locationExternalId??'').trim())}); }
   catch(error){ logger.error('Player location read failed',error); return res.status(400).json({error:'PLAYER_LOCATION_READ_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
 
-export const executePublicPlayerLocationAction = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const executePublicPlayerLocationAction = securedOnRequest('executePublicPlayerLocationAction', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await executePlayerLocationAction(String(body.token??'').trim(),body)}); }
   catch(error){ logger.error('Player location action failed',error); const message=error instanceof Error?error.message:String(error); return res.status(400).json({error:'PLAYER_LOCATION_ACTION_FAILED',message,remainingSeconds:error?.remainingSeconds}); }
 });
 
-export const attemptPublicPlayerClandestineAction = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const attemptPublicPlayerClandestineAction = securedOnRequest('attemptPublicPlayerClandestineAction', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await attemptPlayerClandestineAction(String(body.token??'').trim(),body)}); }
   catch(error){ logger.error('Player clandestine action failed',error); const message=error instanceof Error?error.message:String(error); return res.status(400).json({error:'PLAYER_CLANDESTINE_ACTION_FAILED',message,remainingSeconds:error?.remainingSeconds}); }
 });
 
-export const claimPublicPlayerStolenObject = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const claimPublicPlayerStolenObject = securedOnRequest('claimPublicPlayerStolenObject', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await claimPlayerStolenObject(String(body.token??'').trim(),body)}); }
   catch(error){ logger.error('Player steal claim failed',error); return res.status(400).json({error:'PLAYER_STEAL_CLAIM_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
 
-export const sharePublicPlayerClue = onRequest(
+export const sharePublicPlayerClue = securedOnRequest('sharePublicPlayerClue',
   { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 },
   async (req,res)=>{
     const body=requirePostJson(req,res);
@@ -1025,19 +1013,19 @@ export const sharePublicPlayerClue = onRequest(
   }
 );
 
-export const transferPublicPlayerObject = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const transferPublicPlayerObject = securedOnRequest('transferPublicPlayerObject', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await transferPlayerObject(String(body.token??'').trim(),body)}); }
   catch(error){ logger.error('Player object transfer failed',error); return res.status(400).json({error:'PLAYER_OBJECT_TRANSFER_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
 
-export const transferPublicPlayerCash = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const transferPublicPlayerCash = securedOnRequest('transferPublicPlayerCash', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await transferPlayerCash(String(body.token??'').trim(),body)}); }
   catch(error){ logger.error('Player cash transfer failed',error); return res.status(400).json({error:'PLAYER_CASH_TRANSFER_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
 
-export const castPublicPlayerVote = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const castPublicPlayerVote = securedOnRequest('castPublicPlayerVote', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
   try { return res.status(200).json({ok:true,result:await castPlayerVote(String(body.token??'').trim(),body)}); }
   catch(error){ logger.error('Player vote failed',error); return res.status(400).json({error:'PLAYER_VOTE_FAILED',message:error instanceof Error?error.message:String(error)}); }
@@ -1045,7 +1033,7 @@ export const castPublicPlayerVote = onRequest({ region:'europe-west1', cors:true
 
 
 
-export const getSessionIncarnationsView = onRequest(
+export const getSessionIncarnationsView = securedOnRequest('getSessionIncarnationsView',
   {
     region:'europe-west1',
     cors:true,
@@ -1091,7 +1079,7 @@ export const getSessionIncarnationsView = onRequest(
 );
 
 
-export const updateSessionIncarnationView = onRequest(
+export const updateSessionIncarnationView = securedOnRequest('updateSessionIncarnationView',
   {
     region:'europe-west1',
     cors:true,
@@ -1146,7 +1134,7 @@ export const updateSessionIncarnationView = onRequest(
 );
 
 
-export const freezeSessionIncarnationsView = onRequest(
+export const freezeSessionIncarnationsView = securedOnRequest('freezeSessionIncarnationsView',
   {
     region:'europe-west1',
     cors:true,
@@ -1199,7 +1187,7 @@ export const freezeSessionIncarnationsView = onRequest(
 
 
 
-export const getSessionGmPackView = onRequest(
+export const getSessionGmPackView = securedOnRequest('getSessionGmPackView',
   {
     region:'europe-west1',
     cors:true,
@@ -1251,7 +1239,7 @@ export const getSessionGmPackView = onRequest(
 // V1.10B2 — APPARENCE COMMUNE DU SCÉNARIO
 // =========================================================
 
-export const updateScenarioAppearanceView = onRequest(
+export const updateScenarioAppearanceView = securedOnRequest('updateScenarioAppearanceView',
   {
     region: 'europe-west1',
     cors: true,
@@ -1292,7 +1280,7 @@ export const updateScenarioAppearanceView = onRequest(
 );
 
 
-export const managePublicPlayerNotes = onRequest({ region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
+export const managePublicPlayerNotes = securedOnRequest('managePublicPlayerNotes', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   res.set('Cache-Control','private, no-store');
   if (!['GET','POST'].includes(req.method)) return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   const body = typeof req.body === 'object' && req.body ? req.body : {};
@@ -1310,4 +1298,31 @@ export const managePublicPlayerNotes = onRequest({ region:'europe-west1', cors:t
     if (!known) logger.error('Player notes operation failed');
     return res.status(code === 'PLAYER_NOTE_CONFLICT' ? 409 : known ? 400 : 500).json({error:message,message});
   }
+});
+
+export const getOrganizerIdentity = securedOnRequest('getOrganizerIdentity', {region:'europe-west1',cors:true,maxInstances:5}, async(req,res)=>{
+  if(!requireGet(req,res))return;
+  return res.json({ok:true,email:req.organizerIdentity.email,admin:isAdministrator(req.organizerIdentity)});
+});
+export const getSessionAccessView = securedOnRequest('getSessionAccessView', {region:'europe-west1',cors:true,maxInstances:5}, async(req,res)=>{
+  if(!requireGet(req,res))return;
+  try{return res.json({ok:true,access:await getSelfServiceState(req.organizerIdentity,String(req.query.sessionId??''))});}
+  catch(error){return res.status(400).json({error:error.message});}
+});
+export const configureSessionAccessView = securedOnRequest('configureSessionAccessView', {region:'europe-west1',cors:true,maxInstances:3}, async(req,res)=>{
+  const body=requirePostJson(req,res);if(!body)return;
+  try{return res.json({ok:true,result:await configureSessionAccess(String(body.sessionId??''),body)});}
+  catch(error){return res.status(400).json({error:error.message});}
+});
+export const resetSessionRehearsalView = securedOnRequest('resetSessionRehearsalView', {region:'europe-west1',cors:true,maxInstances:3,timeoutSeconds:180}, async(req,res)=>{
+  const body=requirePostJson(req,res);if(!body)return;
+  if(body.confirm!=='RESET_REHEARSAL')return res.status(400).json({error:'CONFIRMATION_REQUIRED'});
+  try{return res.json({ok:true,result:await replaceSessionRehearsal(req.organizerIdentity,String(body.sessionId??''))});}
+  catch(error){logger.error('Rehearsal replacement failed',error);return res.status(400).json({error:error.message});}
+});
+export const startRealSessionView = securedOnRequest('startRealSessionView', {region:'europe-west1',cors:true,maxInstances:3,timeoutSeconds:180}, async(req,res)=>{
+  const body=requirePostJson(req,res);if(!body)return;
+  if(body.confirm!=='START_REAL_SESSION')return res.status(400).json({error:'CONFIRMATION_REQUIRED'});
+  try{return res.json({ok:true,result:await replaceSessionRehearsal(req.organizerIdentity,String(body.sessionId??''),{real:true})});}
+  catch(error){logger.error('Real session launch failed',error);return res.status(400).json({error:error.message});}
 });

@@ -1,3 +1,4 @@
+import { organizerFetch } from './organizer-api';
 import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import JSZip from 'jszip';
@@ -9,7 +10,7 @@ import { organizerToken } from './admin-auth';
 type Props={versionId?:string;sessionId?:string};
 
 async function fetchJson<T=any>(url:string,init?:RequestInit):Promise<T>{
-  const r=await fetch(url,init);
+  const r=await organizerFetch(url,init);
 
   const contentType=
     r.headers.get('content-type')??'';

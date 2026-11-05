@@ -1,3 +1,6 @@
+import OrganizerGate from './OrganizerGate';
+import SessionLicensePanel, { type SessionAccess } from './SessionLicensePanel';
+import { organizerFetch } from './organizer-api';
 import { useEffect, useMemo, useState } from 'react';
 import PlayerPortal from './PlayerPortal';
 import LocationScan from './LocationScan';
@@ -128,7 +131,7 @@ type PublicPrecastSession = {
 };
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await organizerFetch(url, init);
   const contentType = response.headers.get('content-type') ?? '';
   const raw = await response.text();
   let json: any = null;
@@ -237,12 +240,22 @@ function versionGenderCompatible(v:VersionSummary,count:number,women:number|null
 
 export default function App() {
   const params = new URLSearchParams(window.location.search);
+  const publicView = params.has('player') || params.has('precast') || params.has('register') || window.location.pathname.startsWith('/scan/');
+  if (publicView) return <EngineApp isAdmin={false}/>;
+  return <OrganizerGate>{identity => <EngineApp isAdmin={identity.admin}/>}</OrganizerGate>;
+}
+
+function EngineApp({isAdmin}: {isAdmin: boolean}) {
+  const params = new URLSearchParams(window.location.search);
+  const organizerSessionId = params.get('organizer');
+  const scoped = Boolean(organizerSessionId) || !isAdmin;
+  const [license, setLicense] = useState<SessionAccess | null>(null);
   const publicPrecastToken = params.get('precast');
   const publicRegistrationToken = params.get('register');
   const publicPlayerToken = params.get('player');
   const scanMatch = window.location.pathname.match(/^\/scan\/([^/]+)\/?$/);
   const scanLocationExternalId = scanMatch ? safeDecodePathSegment(scanMatch[1]) : null;
-  const [view, setView] = useState<'library' | 'registrations' | 'sessions' | 'import'>('library');
+  const [view, setView] = useState<'library' | 'registrations' | 'sessions' | 'import'>(scoped?'sessions':'library');
   const [registrationScenarioId,setRegistrationScenarioId]=useState<string|null>(null);
   const [scenarios, setScenarios] = useState<ScenarioLibraryItem[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
@@ -273,7 +286,16 @@ export default function App() {
   const [selectedAccentColor,setSelectedAccentColor]=useState('#49677A');
   const filtered = useMemo(() => data?.diagnostics.filter(d => filter === 'ALL' || d.severity === filter) ?? [], [data, filter]);
 
-  useEffect(() => { if (!publicPrecastToken && !publicRegistrationToken && !publicPlayerToken && !scanLocationExternalId) { void loadLibrary(); void loadSessions(); } }, [publicPrecastToken, publicRegistrationToken, publicPlayerToken, scanLocationExternalId]);
+  useEffect(() => {
+    if (publicPrecastToken || publicRegistrationToken || publicPlayerToken || scanLocationExternalId || GM_PACK_SESSION_ID || GM_PACK_VERSION_ID) return;
+    if (!scoped) { void loadLibrary(); void loadSessions(); }
+    // The client panel resolves the currently active rehearsal before loading it.
+  }, [publicPrecastToken, publicRegistrationToken, publicPlayerToken, scanLocationExternalId, scoped]);
+
+  function openWorkingSession(access: SessionAccess) {
+    setLicense(access); setView('sessions'); void openSession(access.workingSessionId);
+  }
+
 
   async function loadLibrary() {
     setLibraryLoading(true); setLibraryError('');
@@ -317,6 +339,7 @@ export default function App() {
   }
 
   async function loadSessions() {
+    if (scoped) return;
     setSessionError('');
     try { const result = await fetchJson<{ok:boolean;sessions:SessionSummary[]}>('/api/sessions/list'); setSessions(result.sessions ?? []); }
     catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); }
@@ -528,15 +551,18 @@ export default function App() {
 
   return <main className="shell">
     <header className="topbar">
-      <div><p className="eyebrow">LUDIFICATEUR</p><h1>Murder Engine</h1><p className="subtitle">Scénarios, sessions & casting assisté — V1.6.1</p></div>
-      <nav className="mainnav" aria-label="Navigation principale">
+      <div><p className="eyebrow">LUDIFICATEUR</p><h1>Murder Engine</h1><p className="subtitle">{scoped?'Votre espace organisateur':'Scénarios, sessions & casting assisté'}</p></div>
+      {!scoped && <nav className="mainnav" aria-label="Navigation principale">
         <button className={view==='library'?'active':''} onClick={()=>setView('library')}>Scénarios</button>
         <button className={view==='registrations'?'active':''} onClick={()=>{setRegistrationScenarioId(null);setView('registrations');}}>Inscriptions</button>
         <button className={view==='sessions'?'active':''} onClick={()=>{setView('sessions');void loadSessions();}}>Sessions</button>
         <button className={view==='import'?'active':''} onClick={()=>{setImportTargetScenario(null);choose(null);setView('import');}}>Importer</button>
-      </nav>
+      </nav>}
     </header>
 
+    {organizerSessionId && <SessionLicensePanel sessionId={organizerSessionId} admin={false} onState={next => {if(!license || license.workingSessionId!==next.workingSessionId)openWorkingSession(next);}} onChanged={openWorkingSession}/>}
+    {scoped && !organizerSessionId && <section className="card"><h2>Votre accès organisateur</h2><p>Ouvrez le lien de session qui vous a été transmis pour préparer et animer votre murder.</p></section>}
+    {!scoped && view === 'sessions' && session && <SessionLicensePanel key={session.id} sessionId={session.id} admin={isAdmin} onState={setLicense} onChanged={setLicense}/>}
     {view === 'library' && version && <div className="gmPackShortcut"><button onClick={()=>window.open(`/?gmPack=${encodeURIComponent(version.id)}`,'_blank')}>📦 Ouvrir le Pack MJ</button></div>}
 
     {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{
@@ -550,7 +576,7 @@ export default function App() {
 
     {view === 'registrations' && <PrecastManager scenarios={scenarios} initialScenarioId={registrationScenarioId} onOpenSession={sessionId=>{setRegistrationScenarioId(null);setView('sessions');void loadSessions();void openSession(sessionId);}} />}
 
-    {view === 'sessions' && <SessionsView sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onPurge={(id,name)=>void purgeSession(id,name)} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onBusinessDeal={dealId=>void liveBusinessDeal(dealId)} onInteractionMutation={()=>void interactionMutation()} />}
+    {view === 'sessions' && (!scoped || session) && <SessionsView delegated={scoped} mode={license?.selfServiceEnabled?license.mode:undefined} sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onPurge={(id,name)=>void purgeSession(id,name)} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onBusinessDeal={dealId=>void liveBusinessDeal(dealId)} onInteractionMutation={()=>void interactionMutation()} />}
 
     {view === 'import' && <ImportView targetScenario={importTargetScenario} skinId={asSkinId(selectedSkinId)} accentColor={selectedAccentColor||defaultAccentForSkin(asSkinId(selectedSkinId))} skinLocked={false} onSkinChange={(id,accent)=>{setSelectedSkinId(id);setSelectedAccentColor(accent);}} onAccentChange={setSelectedAccentColor} file={file} data={data} commit={commit} loading={loading} committing={committing} error={error} filter={filter} filtered={filtered} onChoose={choose} onValidate={()=>void validate()} onCommit={()=>void commitImport()} onFilter={setFilter} onOpenImported={()=>commit && void openVersion(commit.scenarioVersionId).then(()=>setView('library'))} />}
   </main>;
@@ -727,7 +753,7 @@ function OrganizerFold({
   </section>;
 }
 
-function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onPurge:(sessionId:string,name:string)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onBusinessDeal:(dealId:string)=>void;onInteractionMutation:()=>void}) {
+function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onPurge:(sessionId:string,name:string)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onBusinessDeal:(dealId:string)=>void;onInteractionMutation:()=>void}) {
   const [showArchived,setShowArchived]=useState(false);
   const listedSessions=showArchived?props.sessions:props.sessions.filter(s=>s.status!=='ARCHIVED');
 
@@ -752,11 +778,11 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
   const archived=s.status==='ARCHIVED';
   const liveMode=['LIVE','PAUSED'].includes(s.status);
   const assigned=new Map(s.participants.filter(p=>p.characterExternalId).map(p=>[p.characterExternalId!,p.id]));
-  return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}<button className="backlink" onClick={props.onBack}>← Sessions</button>{props.loading?<section className="card emptyState">Chargement…</section>:<>
+  return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}{!props.delegated&&<button className="backlink" onClick={props.onBack}>← Sessions</button>}{props.loading?<section className="card emptyState">Chargement…</section>:<>
     <section className={`sessionHero ${archived?'archived':''}`}><div className="sessionHeroDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="sessionHeroMain"><p className="eyebrow">{s.scenarioVersion.scenario?.title} · V{s.scenarioVersion.versionLabel}</p><h2>{s.name||'Session'}</h2><p>{s.venue||'Lieu à définir'} · {s.language}</p></div><span className={`sessionStatus large ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></section>
-    {!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
+    {(!props.delegated||props.mode==='PREPARATION')&&!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
     <section className="metaStrip"><div><span>Participants</span><strong>{s.counts.participants}</strong></div><div><span>Castés</span><strong>{s.counts.assigned}</strong></div><div><span>Rôles disponibles</span><strong>{s.counts.playableCharacters}</strong></div><div><span>Sans rôle</span><strong>{s.counts.unassignedParticipants}</strong></div><div><span>Rôles libres</span><strong>{s.counts.unassignedCharacters}</strong></div></section>
-    {!archived&&<OrganizerFold
+    {(!props.delegated||props.mode==='PREPARATION')&&!archived&&<OrganizerFold
       sessionId={s.id}
       id="preparation"
       title="Préparation de la session"
@@ -766,6 +792,7 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
       <SessionPreparationPanel session={s} onApplied={()=>props.onOpen(s.id)} onMarkReady={()=>props.onStatus('READY')}/>
     </OrganizerFold>}
 
+    {!props.delegated&&<>
     <OrganizerFold
       sessionId={s.id}
       id="scenario-variant"
@@ -794,7 +821,9 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
       </div>
     </section>
     </OrganizerFold>
+    </>}
 
+    {props.delegated&&props.mode==='PREPARATION'&&<section className="card"><h3>Fiches personnages</h3><p>Figez les fiches après avoir terminé le casting, puis commencez les essais.</p><button onClick={async()=>{try{await postJson('/api/sessions/incarnations/freeze',{sessionId:s.id});props.onOpen(s.id);}catch(e){window.alert(e instanceof Error?e.message:String(e));}}}>Figer les fiches</button></section>}
     {!archived&&s.runtimeInitializedAt&&
       <OrganizerFold
         sessionId={s.id}
@@ -811,6 +840,7 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
       </OrganizerFold>
     }
 
+    {!props.delegated&&<>
     <OrganizerFold
       sessionId={s.id}
       id="session-lifecycle"
@@ -820,8 +850,9 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
     >
     <section className="card sessionLifecycle"><div><p className="eyebrow">GESTION DE LA SESSION</p><h3>{archived?'Session archivée':'Conserver ou supprimer'}</h3><p>{archived?'Elle est masquée de la liste active. Tu peux la réactiver en brouillon.':'Archive-la pour la conserver. En période de test, la suppression définitive efface aussi le runtime, les votes et les journaux.'}</p></div><div className="lifecycleButtons">{archived?<button className="secondary" onClick={()=>props.onArchive(false)}>Réactiver en brouillon</button>:<button className="secondary" onClick={()=>props.onArchive(true)}>Archiver la session</button>}<button className="danger" onClick={()=>props.onPurge(s.id,s.name||'Session')}>Supprimer définitivement (tests)</button></div></section>
     </OrganizerFold>
+    </>}
 
-    {!archived&&['DRAFT','CASTING','READY'].includes(s.status)&&<OrganizerFold
+    {(!props.delegated||props.mode==='PREPARATION')&&!archived&&['DRAFT','CASTING','READY'].includes(s.status)&&<OrganizerFold
       sessionId={s.id}
       id="session-state"
       title="État pré-live"
@@ -863,6 +894,7 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
     </section>
     </OrganizerFold>
 
+    {!props.delegated&&<>
     <OrganizerFold
       sessionId={s.id}
       id="incarnations"
@@ -872,7 +904,9 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
     >
       <SessionIncarnationsPanel session={s}/>
     </OrganizerFold>
+    </>}
 
+    {!props.delegated&&<>
     <OrganizerFold
       sessionId={s.id}
       id="runtime"
@@ -882,14 +916,15 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
     >
       <RuntimePanel session={s} runtime={props.runtime} loading={props.runtimeLoading} onInitialize={props.onInitializeRuntime}/>
     </OrganizerFold>
+    </>}
 
-    {!archived&&s.runtimeInitializedAt&&<LivePanel session={s} live={props.live} loading={props.liveLoading} onControl={props.onLiveControl} onResource={props.onLiveResource} onState={props.onLiveState} onEvent={props.onLiveEvent} onBusinessDeal={props.onBusinessDeal} onInteractionMutation={props.onInteractionMutation}/>}
+    {!archived&&s.runtimeInitializedAt&&<LivePanel session={s} live={props.live} loading={props.liveLoading} onControl={props.onLiveControl} hideStart={props.mode==='PREPARATION'} rehearsal={props.mode==='REHEARSAL'} onResource={props.onLiveResource} onState={props.onLiveState} onEvent={props.onLiveEvent} onBusinessDeal={props.onBusinessDeal} onInteractionMutation={props.onInteractionMutation}/>}
 
-    {!archived&&!s.runtimeInitializedAt?
+    {(!props.delegated||props.mode==='PREPARATION')&&!archived&&!s.runtimeInitializedAt?
       <OrganizerFold sessionId={s.id} id="add-participant" title="Ajouter un participant" defaultOpen={!liveMode}>
         <AddParticipantForm onAdd={props.onAddParticipant}/>
       </OrganizerFold>
-      :!archived?<section className="card lockNotice"><strong>Préparation verrouillée</strong><p>Le runtime est initialisé : participants et casting ne peuvent plus être modifiés dans cette version.</p></section>:null}
+      :!archived?<section className="card lockNotice"><strong>Préparation verrouillée</strong><p>{props.delegated?'La distribution des personnages est conservée. Pour recommencer les essais, utilisez le bouton en haut de page.':'Le runtime est initialisé : participants et casting ne peuvent plus être modifiés dans cette version.'}</p></section>:null}
 
     <OrganizerFold
       sessionId={s.id}
@@ -899,7 +934,7 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
       defaultOpen={!liveMode}
     >
     <section className="card castingBoard"><div className="paneHead"><div><p className="eyebrow">CASTING</p><h3>Participants & rôles</h3></div><span>{s.counts.assigned}/{s.counts.participants}</span></div>{s.participants.length===0?<p className="empty">Ajoute d’abord les participants.</p>:<div className="castingTable">{s.participants.map(p=><div className="castingRow" key={p.id}><div className="participantIdentity"><strong>{p.displayName}</strong><small>{p.email||'E-mail non renseigné'}{p.precastSubmittedAt?' · pré-casting ✓':''}</small><div className="participantBadges"><span className="ageBadge">{ageBracketLabel(p.ageBracket)}</span><span className="involvementBadge">{involvementLabel(p.desiredInvolvement)}</span></div></div><select
-    disabled={Boolean(s.runtimeInitializedAt)||archived}
+    disabled={Boolean(s.runtimeInitializedAt)||archived||(props.delegated&&props.mode!=='PREPARATION')}
     value={p.characterExternalId??''}
     onChange={e=>{
       const next=e.target.value||null;
@@ -1664,7 +1699,7 @@ function formatElapsed(totalSeconds:number) {
   return h>0?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
 }
 
-function LivePanel({session,live,loading,onControl,onResource,onState,onEvent,onBusinessDeal,onInteractionMutation}:{session:SessionDetail;live:LiveDashboard|null;loading:boolean;onControl:(action:string)=>void;onResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onBusinessDeal:(dealId:string)=>void;onInteractionMutation:()=>void}) {
+function LivePanel({session,live,loading,hideStart,rehearsal,onControl,onResource,onState,onEvent,onBusinessDeal,onInteractionMutation}:{session:SessionDetail;live:LiveDashboard|null;loading:boolean;hideStart?:boolean;rehearsal?:boolean;onControl:(action:string)=>void;onResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onBusinessDeal:(dealId:string)=>void;onInteractionMutation:()=>void}) {
   const [tick,setTick]=useState(Date.now());
   useEffect(()=>{ if(live?.session.status!=='LIVE')return; const id=window.setInterval(()=>setTick(Date.now()),1000); return()=>window.clearInterval(id); },[live?.session.status,live?.snapshotAt]);
   if(loading&&!live)return <section className="card livePanel">Chargement du poste MJ…</section>;
@@ -1672,9 +1707,9 @@ function LivePanel({session,live,loading,onControl,onResource,onState,onEvent,on
   const snapshotMs=new Date(live.snapshotAt).getTime();
   const elapsed=live.session.elapsedSeconds+(live.session.status==='LIVE'&&Number.isFinite(snapshotMs)?Math.max(0,Math.floor((tick-snapshotMs)/1000)):0);
   const running=['LIVE','PAUSED'].includes(live.session.status);
-  const controls=live.session.status==='READY'?<button disabled={!live.sourceReady||loading} onClick={()=>onControl('START')}>▶ Démarrer la partie</button>:live.session.status==='LIVE'?<><button className="secondary" onClick={()=>onControl('PAUSE')}>Ⅱ Pause</button><button className="danger secondary" onClick={()=>window.confirm('Terminer définitivement le live ?')&&onControl('FINISH')}>Terminer</button></>:live.session.status==='PAUSED'?<><button onClick={()=>onControl('RESUME')}>▶ Reprendre</button><button className="danger secondary" onClick={()=>window.confirm('Terminer définitivement le live ?')&&onControl('FINISH')}>Terminer</button></>:null;
+  const controls=live.session.status==='READY'?(hideStart?null:<button disabled={!live.sourceReady||loading} onClick={()=>onControl('START')}>{rehearsal?'▶ Lancer la répétition':'▶ Démarrer la partie'}</button>):live.session.status==='LIVE'?<><button className="secondary" onClick={()=>onControl('PAUSE')}>Ⅱ Pause</button><button className="danger secondary" onClick={()=>window.confirm(rehearsal?'Terminer cette répétition ?':'Terminer définitivement la partie ?')&&onControl('FINISH')}>Terminer</button></>:live.session.status==='PAUSED'?<><button onClick={()=>onControl('RESUME')}>▶ Reprendre</button><button className="danger secondary" onClick={()=>window.confirm(rehearsal?'Terminer cette répétition ?':'Terminer définitivement la partie ?')&&onControl('FINISH')}>Terminer</button></>:null;
   return <section className="liveDashboard">
-    <section className="card liveConsole"><div><p className="eyebrow">POSTE MJ · LIVE</p><h3>{statusLabel(live.session.status)}</h3><p className="liveClock">{formatElapsed(elapsed)}</p><p className="microNote">Temps de jeu effectif — les pauses ne comptent pas.</p></div><div className="liveControls">{controls}</div></section>
+    <section className="card liveConsole"><div><p className="eyebrow">{rehearsal?'POSTE MJ · RÉPÉTITION':'POSTE MJ · LIVE'}</p><h3>{statusLabel(live.session.status)}</h3><p className="liveClock">{formatElapsed(elapsed)}</p><p className="microNote">Temps de jeu effectif — les pauses ne comptent pas.</p></div><div className="liveControls">{controls}</div></section>
     {!live.sourceReady&&<section className="card runtimeWarning"><strong>Timeline V0.7 à enrichir</strong><p>Réimporte une fois le MASTER du scénario après cette mise à jour pour charger phases et événements avant de démarrer le live.</p></section>}
     <section className="liveAlertStrip">
       <div className={live.alerts.overdueEvents?'alert hot':'alert'}>

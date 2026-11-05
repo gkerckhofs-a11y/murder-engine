@@ -1,0 +1,84 @@
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const ROOT='11111111-1111-4111-8111-111111111111';
+const TEST1='22222222-2222-4222-8222-222222222222';
+const TEST2='33333333-3333-4333-8333-333333333333';
+const origin=process.env.ORGANIZER_TEST_ORIGIN||'http://127.0.0.1:4174';
+(async()=>{
+  const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage'],...(process.env.MURDER_BROWSER_EXECUTABLE?{executablePath:process.env.MURDER_BROWSER_EXECUTABLE}:{})});
+  const context=await browser.newContext({viewport:{width:390,height:844},locale:'fr-BE'});
+  const page=await context.newPage();const errors=[],calls=[];let admin=false,denied=false,resets=0;
+  let access={sessionId:ROOT,enabled:true,selfServiceEnabled:true,organizerEmail:'client@example.com',realSessionStartedAt:null,activeRehearsalId:null,workingSessionId:ROOT,mode:'PREPARATION'};
+  const statuses={[ROOT]:'READY',[TEST1]:'READY',[TEST2]:'READY'};
+  const summary=id=>({id,name:'Murder à animer',language:'FR',status:statuses[id],runtimeInitializedAt:'2026-11-05T12:00:00Z',counts:{participants:1,assigned:1,playableCharacters:1,unassignedParticipants:0,unassignedCharacters:0},scenarioVersion:{id:'VERSION',versionLabel:'1',scenario:{id:'SCENARIO',title:'Murder de test'}}});
+  const detail=id=>({...summary(id),participants:[{id:'PARTICIPANT',displayName:'Alex',active:true,characterExternalId:'A',castingLocked:true,briefingStatus:'NOT_SENT',playerAccessEnabled:true,playerAccessToken:'TEST_TOKEN'}],characters:[{externalId:'A',name:'Alex',active:true,playable:true}]});
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.addInitScript(()=>{
+    const user={email:'client@example.com',emailVerified:true,getIdToken:async()=> 'LOCAL_TEST_TOKEN'};
+    const auth={currentUser:user,onAuthStateChanged:fn=>{setTimeout(()=>fn(user),0);return()=>{}},signOut:async()=>{auth.currentUser=null},signInWithPopup:async()=>{auth.currentUser=user;return{user}}};
+    window.firebase={apps:[{}],auth:()=>auth};window.firebase.auth.GoogleAuthProvider=class{setCustomParameters(){}};
+  });
+  await page.route('**/__/firebase/**',route=>route.fulfill({contentType:'text/javascript',body:''}));
+  await page.route('**/api/**',route=>{
+    const req=route.request(),url=new URL(req.url()),path=url.pathname;const body=req.method()==='POST'?req.postDataJSON():{};
+    calls.push({path,body,authorization:req.headers().authorization});let result={ok:true};
+    if(path==='/api/organizer/identity')result={ok:true,email:'client@example.com',admin};
+    if(path==='/api/organizer/access'&&denied)return route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({error:'SESSION_ACCESS_DENIED'})});
+    if(path==='/api/organizer/access')result={ok:true,access};
+    if(path==='/api/organizer/rehearsal/reset'){
+      assert.equal(body.confirm,'RESET_REHEARSAL');resets++;
+      access={...access,mode:'REHEARSAL',activeRehearsalId:resets===1?TEST1:TEST2,workingSessionId:resets===1?TEST1:TEST2};
+    }
+    if(path==='/api/organizer/real/start'){
+      assert.equal(body.confirm,'START_REAL_SESSION');access={...access,mode:'REAL',activeRehearsalId:null,workingSessionId:ROOT,realSessionStartedAt:'2026-11-05T12:00:00Z'};statuses[ROOT]='LIVE';
+    }
+    if(path==='/api/library/scenarios')result={ok:true,scenarios:[]};
+    if(path==='/api/sessions/list')result={ok:true,sessions:[summary(ROOT)]};
+    const id=url.searchParams.get('sessionId')||body.sessionId||ROOT;
+    if(path==='/api/sessions/detail')result={ok:true,session:detail(id)};
+    if(path==='/api/sessions/runtime')result={ok:true,runtime:{initialized:true,sourceReady:true,characters:[],counts:{}}};
+    if(path==='/api/sessions/live/control')statuses[id]=body.action==='START'?'LIVE':body.action==='PAUSE'?'PAUSED':'LIVE';
+    if(path==='/api/sessions/live')result={ok:true,live:{snapshotAt:new Date().toISOString(),sourceReady:true,session:{id,status:statuses[id],elapsedSeconds:0},phases:[],events:[],characters:[],stateDefinitions:[],businessDeals:[],logs:[],alerts:{}}};
+    if(path==='/api/sessions/incarnations')result={ok:true,incarnations:{rows:[],ready:true}};
+    if(path==='/api/sessions/setup')result={ok:true,setup:{preparation:{steps:[],canMarkReady:true,progress:100},proposal:{assignments:[],warnings:[],unassignedParticipants:[]}}};
+    if(path==='/api/sessions/interactions')result={ok:true,interactions:{actors:[],locations:[],objects:[],clues:[],uses:[],discoveries:[]}};
+    if(path==='/api/sessions/votes')result={ok:true,votes:{session:{id,status:statuses[id]},votes:[]}};
+    return route.fulfill({contentType:'application/json',body:JSON.stringify(result)});
+  });
+  page.on('dialog',dialog=>dialog.accept());
+  await page.goto(`${origin}/?organizer=${ROOT}`);
+  await page.getByRole('button',{name:'Commencer les essais',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'Murder à animer',exact:true}).waitFor();
+  assert.equal(await page.locator('.mainnav').count(),0);
+  assert.equal(await page.getByRole('button',{name:'▶ Démarrer la partie',exact:true}).count(),0);
+  assert.equal(calls.filter(x=>x.path==='/api/sessions/list'||x.path==='/api/library/scenarios').length,0);
+  await page.getByRole('button',{name:'Commencer les essais',exact:true}).click();
+  await page.getByText('MODE RÉPÉTITION',{exact:true}).waitFor();
+  const start=page.getByRole('button',{name:'▶ Lancer la répétition',exact:true});await start.waitFor();await start.click();
+  await page.getByRole('button',{name:'Ⅱ Pause',exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Supprimer définitivement (tests)',exact:true}).count(),0);
+  await page.getByRole('button',{name:'Remettre les essais à zéro',exact:true}).click();
+  await start.waitFor();
+  assert.ok(calls.some(x=>x.path==='/api/sessions/detail'&&x.authorization==='Bearer LOCAL_TEST_TOKEN'));
+  fs.mkdirSync('test-results/organizer',{recursive:true});
+  await page.screenshot({path:'test-results/organizer/rehearsal-mobile.png',fullPage:true});
+  await page.getByRole('button',{name:'Démarrer la partie réelle',exact:true}).click();
+  await page.getByText('PARTIE RÉELLE',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Ⅱ Pause',exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Remettre les essais à zéro',exact:true}).count(),0);
+  await page.screenshot({path:'test-results/organizer/real-mobile.png',fullPage:true});
+  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1);
+  assert.equal(overflow,false,'mobile page must fit the viewport');
+  denied=true;await page.reload();
+  await page.getByText('Ce compte ne dispose pas d’un accès à cette session.',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('heading',{name:'Murder à animer',exact:true}).count(),0);
+  denied=false;admin=true;await page.goto(origin);
+  await page.getByRole('button',{name:'Sessions',exact:true}).click();
+  await page.getByRole('button',{name:'Ouvrir',exact:true}).click();
+  await page.getByRole('heading',{name:'Accès organisateur client',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Révoquer l’accès',exact:true}).waitFor();
+  assert.deepEqual(errors,[]);
+  await browser.close();
+  console.log(JSON.stringify({result:'PASS',checks:['private login','assigned session only','no global library calls','authorized API requests','trial START','reset to new trial','real launch','reset locked after launch','mobile layout','access denied screen','administrator delegation panel']}));
+})().catch(e=>{console.error(e);process.exit(1)});

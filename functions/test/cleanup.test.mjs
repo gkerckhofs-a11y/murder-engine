@@ -59,3 +59,17 @@ test('scenario cleanup removes sessions campaigns versions then the scenario fam
   assert.match(__cleanupOps.VERSION_PURGE_MUTATION,/clue_deleteMany/);
   assert.match(__cleanupOps.VERSION_PURGE_MUTATION,/scenarioVersion_delete/);
 });
+
+test('purging a licensed original resolves compact UUIDs and removes its rehearsals first',async()=>{
+  const compact='11111111111141118111111111111111',canonical='11111111-1111-4111-8111-111111111111';
+  const rehearsal='22222222222242228222222222222222',writes=[];
+  await purgeGameSession(compact,{
+    reader:async(op,vars)=>{
+      if(op===__cleanupOps.SESSION_LOOKUP_QUERY){assert.equal(vars.sessionId,canonical);return{gameSession:{id:compact,selfServiceEnabled:true}};}
+      assert.equal(op,__cleanupOps.REHEARSALS_QUERY);assert.equal(vars.sessionIdText,canonical);
+      return{gameSessions:[{id:rehearsal}]};
+    },
+    executor:async(op,vars)=>writes.push(vars),
+  });
+  assert.deepEqual(writes.map(x=>x.sessionId),[rehearsal,canonical]);
+});

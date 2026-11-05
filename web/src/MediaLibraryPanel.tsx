@@ -1,3 +1,4 @@
+import { organizerFetch } from './organizer-api';
 import { useEffect, useMemo, useState } from 'react';
 import { organizerToken, ORGANIZER_EMAIL } from './admin-auth';
 
@@ -30,7 +31,7 @@ type Target={
 };
 
 async function fetchJson<T>(url:string,init?:RequestInit):Promise<T>{
-  const response=await fetch(url,init);
+  const response=await organizerFetch(url,init);
   const raw=await response.text();
   let json:any=null;
 
