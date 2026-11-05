@@ -1,0 +1,33 @@
+name: Repair organizer clue invocation
+on:
+  push:
+    branches: [deploy/organizer-invoker-fix]
+permissions:
+  contents: read
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+      - run: npm ci --prefix functions
+      - run: node --test functions/test/session-access.test.mjs
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - run: npm install --global firebase-tools@15.34.0
+      - name: Publish explicit public transport with Firebase authentication guard
+        run: firebase deploy --project "$FIREBASE_PROJECT_ID" --only functions:revealLiveClue --non-interactive
+      - name: Verify original Hosting release and all protected routes
+        env:
+          EXPECTED_REVISION: 5d17277d896e2df85d892e8e9400136054c95baa
+        run: node functions/scripts/verify-organizer-deployment.mjs
