@@ -225,6 +225,18 @@ type DocumentDefinition @table(key: ["scenarioVersion", "externalId"]) {
   active: Boolean! @default(value: true)
 }
 
+# A document can yield different private facts depending on the holder's skills.
+type DocumentAnalysisDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  targetType: String!
+  targetExternalId: String!
+  abilityExternalId: String
+  minLevel: Int! @default(value: 0)
+  factExternalId: String!
+  active: Boolean! @default(value: true)
+}
+
 type GameObject @table(key: ["scenarioVersion", "externalId"]) {
   scenarioVersion: ScenarioVersion!
   externalId: String!

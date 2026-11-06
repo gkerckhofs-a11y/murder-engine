@@ -198,6 +198,17 @@ export function buildImportPlan(workbook, {
     active: truthy(r.actif, true),
   }));
 
+  const documentAnalyses = (workbook.sheets.ANALYSES ?? []).map(r => ({
+    scenarioVersionId,
+    externalId: String(r.analysis_id),
+    targetType: String(r.target_type).trim().toUpperCase(),
+    targetExternalId: String(r.target_id).trim(),
+    abilityExternalId: textOrNull(r.ability_id),
+    minLevel: intOrNull(r.min_level) ?? 0,
+    factExternalId: String(r.fact_id).trim(),
+    active: truthy(r.actif,true),
+  }));
+
   const documentObjectId = documentExternalId => `DOC_OBJ_${documentExternalId}`;
   const documentById = new Map(documents.map(d=>[d.externalId,d]));
   const documentCreatesObject = document => (
@@ -537,6 +548,7 @@ export function buildImportPlan(workbook, {
     clues,
     clueFacts,
     documents,
+    documentAnalyses,
     mediaAssets,
     skinVisualDefinitions,
     gameObjects,
@@ -565,6 +577,7 @@ export function importPlanCounts(plan) {
     clues: plan.clues.length,
     clueFacts: plan.clueFacts.length,
     documents: plan.documents.length,
+    documentAnalyses: plan.documentAnalyses.length,
     mediaAssets: plan.mediaAssets.length,
     skinVisualDefinitions: plan.skinVisualDefinitions.length,
     gameObjects: plan.gameObjects.length,

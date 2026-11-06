@@ -77,7 +77,7 @@ export async function configureSessionAccess(sessionId,input,{reader=accessReade
 // Explicit allow-list: new server endpoints are administrator-only until classified.
 export const PUBLIC_ENDPOINTS=new Set([
   'getPublicPrecastCampaignView','submitPublicPrecastRegistrationView','getPublicPrecast','submitPublicPrecastForm',
-  'getPublicPlayerPortal','markPlayerBriefing','readPlayerNotification','executePublicPlayerInteraction',
+  'getPublicPlayerPortal','examinePublicPlayerDocument','markPlayerBriefing','readPlayerNotification','executePublicPlayerInteraction',
   'getPublicPlayerLocation','executePublicPlayerLocationAction','attemptPublicPlayerClandestineAction',
   'claimPublicPlayerStolenObject','sharePublicPlayerClue','transferPublicPlayerObject','transferPublicPlayerCash',
   'castPublicPlayerVote','managePublicPlayerNotes','getPublicPlayerCasinoTable','executePublicPlayerCasinoAction',
