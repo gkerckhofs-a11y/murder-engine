@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { executeInteraction, transferSessionObject, revealClueToCharacter } from './interactions.mjs';
 import { castSessionBallot, resolveElectorate } from './votes.mjs';
 import { getGameSession } from './sessions.mjs';
+import { isDocumentExaminable, planDocumentExamination } from './document-analysis.mjs';
 
 const PLAYER_ACCESS_QUERY = `
 query PlayerAccessByToken($token: String!) {
@@ -64,6 +65,9 @@ query PlayerSource($versionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
   clueFacts(where: {scenarioVersionId: {eq: $versionId}}, orderBy: [{clueExternalId: ASC}, {factExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) { clueExternalId factExternalId }
   documentDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId title textContent support mediaExternalIds reusable consumable ownerInitialType ownerInitialExternalId transferable stealable active
+  }
+  documentAnalysisDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
+    externalId targetType targetExternalId abilityExternalId minLevel factExternalId active
   }
   mediaAssets(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) { externalId mediaType source altText notes active }
   skinVisualDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
@@ -195,6 +199,9 @@ mutation MarkBriefingRead($participantId: UUID!, $readAt: Timestamp!) {
 `;
 const INSERT_PLAYER_ACTION_LOG_MUTATION = `
 mutation InsertPlayerActionRequest($data: SessionActionLog_Data!) { sessionActionLog_insert(data: $data) }
+`;
+const INSERT_DOCUMENT_ANALYSIS_KNOWLEDGE_MUTATION = `
+mutation InsertDocumentAnalysisKnowledge($data: SessionKnowledge_Data!) { sessionKnowledge_insert(data: $data) }
 `;
 const INSERT_NOTIFICATION_MUTATION = `mutation InsertPlayerNotification($data: SessionPlayerNotification_Data!) { sessionPlayerNotification_insert(data: $data) }`;
 const MARK_NOTIFICATION_READ_MUTATION = `mutation MarkPlayerNotificationRead($notificationId: UUID!, $readAt: Timestamp!) { sessionPlayerNotification_update(id: $notificationId, data: {readAt: $readAt}) }`;
@@ -655,7 +662,7 @@ async function loadPlayerData(token, reader=defaultReader) {
   const session=participant.gameSession;
   const versionId=session?.scenarioVersion?.id;
   const [source,runtime]=await Promise.all([
-    readAllPages(reader,PLAYER_SOURCE_QUERY,{versionId},['characters', 'objectives', 'relationships', 'facts', 'clues', 'documentDefinitions', 'mediaAssets', 'skinVisualDefinitions', 'resources', 'gameObjects', 'gameStateDefinitions', 'abilities', 'abilityAssignments', 'interactions', 'gameLocations', 'voteDefinitions', 'voteOptionDefinitions', 'clueFacts']),
+    readAllPages(reader,PLAYER_SOURCE_QUERY,{versionId},['characters', 'objectives', 'relationships', 'facts', 'clues', 'documentDefinitions', 'documentAnalysisDefinitions', 'mediaAssets', 'skinVisualDefinitions', 'resources', 'gameObjects', 'gameStateDefinitions', 'abilities', 'abilityAssignments', 'interactions', 'gameLocations', 'voteDefinitions', 'voteOptionDefinitions', 'clueFacts']),
     readAllPages(reader,PLAYER_RUNTIME_QUERY,{sessionId:session.id},['sessionVotes', 'sessionBallots', 'sessionResources', 'sessionKnowledges', 'sessionObjectives', 'sessionObjects', 'sessionCharacterStates', 'sessionClueDiscoveries', 'sessionInteractionUses', 'sessionPlayerNotifications', 'sessionStealGrants']),
   ]);
   const resolvedSource=
@@ -1754,7 +1761,8 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
               knownFacts:knownFactsForClue(clue.externalId),
               inBag:!clue.objectExternalId,
               visualMedia:clueVisualMedia(session,source,mediaMap,objectMap,clue),
-              immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap)
+              immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap),
+              canExamine:isDocumentExaminable(source,'CLUE',clue.externalId)
             }
           : null
       };
@@ -1768,7 +1776,8 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
       o.holderExternalId===characterExternalId
     )
     .map(o=>playerObjectView(session,source,mediaMap,objectMap,o))
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(o=>({...o,canExamine:isDocumentExaminable(source,'OBJECT',o.objectExternalId)}));
   const states=(runtime.sessionCharacterStates??[]).filter(s=>s.characterExternalId===characterExternalId&&s.active!==false).map(s=>({...s,definition:stateMap.get(s.stateExternalId)})).filter(s=>s.definition?.visibleToHolder!==false).map(s=>({...s,name:s.definition?.name??s.stateExternalId,description:s.definition?.description??''}));
   const inventoryById=new Map(
     inventory.map(o=>[o.objectExternalId,o])
@@ -1795,6 +1804,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
       logisticsCode:c.logisticsCode??null,
       visualMedia:clueVisualMedia(session,source,mediaMap,objectMap,c),
       immersiveDocument:immersiveDocumentForClue(c,documentMap,mediaMap),
+      canExamine:isDocumentExaminable(source,'CLUE',c.externalId),
       object:inventoryById.get(c.objectExternalId)??null,
       owned:true,
     }));
@@ -1919,6 +1929,50 @@ export async function getPlayerPortal(token,{reader=defaultReader,executor=defau
     loaded.participant={...loaded.participant,playerFirstOpenedAt:firstOpenedAt,playerLastOpenedAt:openedAt,playerOpenCount:Number(loaded.participant.playerOpenCount??0)+1,briefingStatus};
   }
   return shapePlayerPortal(loaded.participant,loaded.session,loaded.source,loaded.runtime,now instanceof Date?now:new Date(now));
+}
+
+/**
+ * Examination is a private, free action. Each unlocked fact is persisted as
+ * player knowledge; no analysis definitions or locked text enter the portal.
+ * A previous holder keeps knowledge, but cannot re-examine a transferred object.
+ */
+export async function examinePlayerDocument(token,input,{reader=defaultReader,executor=defaultExecutor,now=new Date()}={}) {
+  const loaded=await loadPlayerData(token,reader);
+  if(loaded.session.status!=='LIVE')throw new Error('PLAYER_ACTIONS_NOT_LIVE');
+  const actor=loaded.participant.characterExternalId;
+  const type=String(input?.targetType??'').trim().toUpperCase();
+  const id=String(input?.targetExternalId??'').trim();
+  const examination=planDocumentExamination(loaded.source,loaded.runtime,actor,type,id);
+  const known=new Set((loaded.runtime.sessionKnowledges??[])
+    .filter(row=>row.characterExternalId===actor)
+    .map(row=>row.factExternalId));
+  const newlyLearned=examination.results.filter(row=>!known.has(row.factExternalId));
+  const at=nowIso(now);
+
+  for(const fact of newlyLearned){
+    await executor(INSERT_DOCUMENT_ANALYSIS_KNOWLEDGE_MUTATION,{data:{
+      gameSessionId:loaded.session.id,
+      characterExternalId:actor,
+      factExternalId:fact.factExternalId,
+      sourceType:'DOCUMENT_ANALYSIS',
+      learnedAt:at,
+    }});
+  }
+
+  if(newlyLearned.length){
+    await executor(INSERT_PLAYER_ACTION_LOG_MUTATION,{data:{
+      gameSessionId:loaded.session.id,
+      actionType:'DOCUMENT_EXAMINED',
+      characterExternalId:actor,
+      refExternalId:id,
+      beforeValue:null,
+      afterValue:String(newlyLearned.length),
+      deltaValue:null,
+      note:'Examen documentaire : '+type,
+      createdAt:at,
+    }});
+  }
+  return {...examination,newFactCount:newlyLearned.length};
 }
 
 export async function markPlayerBriefingRead(token,{reader=defaultReader,executor=defaultExecutor,now=new Date()}={}) {
