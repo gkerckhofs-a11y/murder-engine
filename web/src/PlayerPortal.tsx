@@ -225,6 +225,7 @@ export default function PlayerPortal({token}:{token:string}){
       return response;
     }} onVote={(voteExternalId,round,selectedOptionExternalIds)=>act(()=>postJson('/api/player/vote',{token,voteExternalId,round,selectedOptionExternalIds}),tr(portal,'Vote enregistré ✓','Vote recorded ✓'))}/>}
     {tab==='sac'&&<PlayerBag
+      key={`${token}:${s.id}:${c.externalId}`}
       portal={portal}
       busy={busy}
       onGive={(objectExternalId,targetCharacterExternalId)=>act(
