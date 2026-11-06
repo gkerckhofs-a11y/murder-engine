@@ -116,6 +116,7 @@ export function planDocumentExamination(source,runtime,characterExternalId,type,
   const facts = byId(rows(source,'facts'));
   const levels = new Map();
   for (const a of rows(source,'abilityAssignments')) {
+    if (a.active === false) continue;
     if (a.ownerType !== 'CHARACTER' || a.ownerExternalId !== characterExternalId) continue;
     if (!abilities.has(a.abilityExternalId)) continue;
     levels.set(a.abilityExternalId,Math.max(Number(levels.get(a.abilityExternalId) ?? -1),Number(a.level ?? 0)));
