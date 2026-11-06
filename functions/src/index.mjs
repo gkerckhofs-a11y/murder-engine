@@ -42,7 +42,7 @@ import { initializeSessionRuntime, getSessionRuntime } from './runtime.mjs';
 import { getLiveDashboard, controlLiveSession, changeLiveResource, setLiveCharacterState, setLiveEventStatus, validateBusinessDeal } from './live.mjs';
 import { getInteractionDashboard, executeInteraction, revealClueToCharacter, transferSessionObject } from './interactions.mjs';
 import { getVoteDashboard, openSessionVote, castSessionBallot, closeSessionVote } from './votes.mjs';
-import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, sharePlayerClue, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
+import { configureSessionPlayerAccess, getPlayerPortal, examinePlayerDocument, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, sharePlayerClue, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
 import {playerCasino,organizerCasino} from './casino/service.mjs';
 import { updateScenarioAppearanceFamily } from './scenario-appearance.mjs';
 import {
@@ -944,6 +944,24 @@ export const getPublicPlayerPortal = securedOnRequest('getPublicPlayerPortal', {
   try { return res.status(200).json({ok:true,portal:await getPlayerPortal(token,{trackOpen})}); }
   catch(error){ logger.error('Player portal read failed',error); return res.status(404).json({error:'PLAYER_PORTAL_READ_FAILED',message:error instanceof Error?error.message:String(error)}); }
 });
+
+export const examinePublicPlayerDocument = securedOnRequest('examinePublicPlayerDocument',
+  {region:'europe-west1',cors:true,maxInstances:15,timeoutSeconds:60},
+  async(req,res)=>{
+    const body=requirePostJson(req,res);
+    if(!body)return;
+    res.set('Cache-Control','private, no-store');
+    try{
+      const result=await examinePlayerDocument(String(body.token??'').trim(),body);
+      return res.status(200).json({ok:true,result});
+    }catch(error){
+      const message=error instanceof Error?error.message:String(error);
+      const known=/^(DOCUMENT_[A-Z_]+|PLAYER_[A-Z_]+|INVALID_PLAYER_TOKEN|SESSION_ARCHIVED|RUNTIME_NOT_INITIALIZED|PLAYER_LINK_NOT_FOUND)$/.test(message);
+      if(!known)logger.error('Player document examination failed');
+      return res.status(known?400:500).json({error:'DOCUMENT_EXAMINATION_FAILED',message:known?message:'DOCUMENT_EXAMINATION_FAILED'});
+    }
+  }
+);
 
 export const markPlayerBriefing = securedOnRequest('markPlayerBriefing', { region:'europe-west1', cors:true, maxInstances:15, timeoutSeconds:60 }, async (req,res)=>{
   const body=requirePostJson(req,res); if(!body)return;
