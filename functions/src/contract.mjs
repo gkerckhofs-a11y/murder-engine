@@ -18,6 +18,7 @@ export const SHEETS = {
   INDICES: { id: 'clue_id', required: ['clue_id','nom_interne','nom_joueur','type_indice','texte_joueur','interpretation_mj','support','partageable','transferable','consommable','majeur','presentation_mode','ajouter_au_carnet','actif'] },
   OBJETS: { id: 'object_id', required: ['object_id','nom','description','support','owner_initial_type','transferable','volable','consommable','critique','actif'] },
   DOCUMENTS: { id: 'document_id', required: ['document_id','titre','contenu_texte','support','reutilisable','consommable','owner_initial_type','actif'] },
+  ANALYSES: { id: 'analysis_id', required: ['analysis_id','target_type','target_id','fact_id','min_level','actif'] },
   LIEUX: { id: 'location_id', required: ['location_id','nom','description','permanent','actif'] },
   VERROUS: { id: 'lock_id', required: ['lock_id','target_type','target_id','lock_type','case_sensitive','success_text','failure_text','actif'] },
   CAPACITES: { id: 'ability_id', required: ['ability_id','nom','description','categorie','secrete','actif'] },
