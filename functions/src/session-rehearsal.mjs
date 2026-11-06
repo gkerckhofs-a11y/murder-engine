@@ -1,9 +1,11 @@
+import {table as casinoTable,GAMES as CASINO_GAMES} from './casino/engine.mjs';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { buildRuntimePlan, __runtimeOps } from './runtime.mjs';
 import { readAllPages } from './pagination.mjs';
 import { authorizeSession, accessReader, accessExecutor, readAccess, canonicalSessionId } from './session-access.mjs';
 
 export const PREPARED_SESSION_QUERY=`query PreparedSelfServiceSession($sessionId: UUID!) {
+  sessionCasino(key:{gameSessionId:$sessionId}){stateJson}
   gameSession(id: $sessionId) {
     id name language scheduledAt venue notes status runtimeInitializedAt startedAt
     organizerEmail organizerAccessEnabled selfServiceEnabled realSessionStartedAt rehearsalOfId activeRehearsalId
@@ -29,7 +31,7 @@ export const TIMELINE_QUERY=`query RehearsalTimeline($versionId: UUID!, $pageLim
   gamePhaseDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) { externalId orderIndex active }
   gameEventDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) { externalId active }
 }`;
-const RUNTIME_TABLES=['sessionPlayerNotification','sessionBallot','sessionVote','sessionActionLog','sessionEvent',
+const RUNTIME_TABLES=['sessionCasinoCommand','sessionCasino','sessionPlayerNotification','sessionBallot','sessionVote','sessionActionLog','sessionEvent',
   'sessionClueDiscovery','sessionStealGrant','sessionInteractionUse','sessionCharacterState','sessionObject',
   'sessionObjective','sessionKnowledge','sessionResource','sessionCharacter'];
 
@@ -49,6 +51,7 @@ export async function getSelfServiceState(identity,sessionId,deps={}) {
 async function preparation(sessionId,reader) {
   const data=await reader(PREPARED_SESSION_QUERY,{sessionId});
   const root=data?.gameSession;
+  if(root)root.casinoStateJson=data?.sessionCasino?.stateJson??null;
   if(!root || root.rehearsalOfId || !root.selfServiceEnabled)throw new Error('SELF_SERVICE_NOT_CONFIGURED');
   if(root.realSessionStartedAt)throw new Error('REAL_SESSION_ALREADY_STARTED');
   if(root.status!=='READY' || root.startedAt)throw new Error('SESSION_MUST_BE_READY');
@@ -122,6 +125,11 @@ export function buildRehearsalMutation(root,plan,participants,{real=false,identi
     }
     // Personal notebooks and briefing progress from preparation are not game data.
     // They remain attached to the original participants, never copied from tests.
+  }
+  if(root.casinoStateJson){
+    const saved=JSON.parse(root.casinoStateJson);
+    const tables=Object.fromEntries(CASINO_GAMES.map(g=>[g,casinoTable(g,{...saved.tables[g],bank:saved.tables[g].bankInitial})]));
+    insert('sessionCasino','SessionCasino',{gameSessionId:plan.characters[0].gameSessionId,revision:0,stateJson:JSON.stringify({tables,pausedAt:null}),updatedAt:now});
   }
   const groups=[['characters','sessionCharacter','SessionCharacter'],['resources','sessionResource','SessionResource'],
     ['knowledge','sessionKnowledge','SessionKnowledge'],['objectives','sessionObjective','SessionObjective'],['objects','sessionObject','SessionObject']];

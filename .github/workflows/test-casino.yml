@@ -1,0 +1,46 @@
+name: Casino targeted checks
+on:
+  push:
+    branches: [work/casino-modules-v1]
+  pull_request:
+    branches: [work/session-organizer-rehearsal]
+    paths:
+      - 'functions/src/casino/**'
+      - 'functions/test/casino.test.mjs'
+      - 'functions/integration/casino.test.mjs'
+      - 'web/src/Casino.tsx'
+      - 'web/src/casino.css'
+      - 'dataconnect/schema/schema.gql'
+permissions:
+  contents: read
+jobs:
+  casino:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix functions
+      - name: Test casino and affected money and lifecycle flows
+        run: node --test functions/test/casino.test.mjs functions/test/player.test.mjs functions/test/interactions.test.mjs functions/test/live.test.mjs functions/test/session-rehearsal.test.mjs functions/test/session-access.test.mjs functions/test/cleanup.test.mjs
+      - run: npm install --global firebase-tools@15.34.0
+      - name: Test actual SQL reservations, conflicts and replay
+        run: node functions/integration/run.mjs casino
+      - run: npm ci --prefix web
+      - run: npm run build --prefix web
+      - name: Test two-phone casino journey
+        run: |
+          npm install --prefix web --no-save --package-lock=false playwright@1.58.2
+          cd web
+          npx playwright install --with-deps chromium
+          npm run dev -- --host 127.0.0.1 --port 4175 > /tmp/casino-vite.log 2>&1 &
+          for attempt in $(seq 1 30); do curl --silent --fail http://127.0.0.1:4175/ > /dev/null && break; sleep 1; done
+          node test/browser-casino.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: casino-mobile
+          path: web/test-results/casino
+          if-no-files-found: ignore

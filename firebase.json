@@ -12,6 +12,27 @@
     ],
     "rewrites": [
       {
+        "source": "/api/player/casino/table",
+        "function": {
+          "functionId": "getPublicPlayerCasinoTable",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/casino/action",
+        "function": {
+          "functionId": "executePublicPlayerCasinoAction",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/casino",
+        "function": {
+          "functionId": "manageSessionCasinoView",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/organizer/real/start",
         "function": {
           "functionId": "startRealSessionView",

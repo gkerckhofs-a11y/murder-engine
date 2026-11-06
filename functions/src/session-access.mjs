@@ -80,7 +80,7 @@ export const PUBLIC_ENDPOINTS=new Set([
   'getPublicPlayerPortal','markPlayerBriefing','readPlayerNotification','executePublicPlayerInteraction',
   'getPublicPlayerLocation','executePublicPlayerLocationAction','attemptPublicPlayerClandestineAction',
   'claimPublicPlayerStolenObject','sharePublicPlayerClue','transferPublicPlayerObject','transferPublicPlayerCash',
-  'castPublicPlayerVote','managePublicPlayerNotes',
+  'castPublicPlayerVote','managePublicPlayerNotes','getPublicPlayerCasinoTable','executePublicPlayerCasinoAction',
 ]);
 export const CLIENT_SESSION_ENDPOINTS=new Set([
   'getSession','getSessionSetup','addSessionParticipant','castSessionParticipant','applySessionCasting','updateSessionDetails',
@@ -89,7 +89,7 @@ export const CLIENT_SESSION_ENDPOINTS=new Set([
   'executeLiveInteraction','revealLiveClue','transferLiveObject','getVoteState','openLiveVote','castLiveBallot',
   'closeLiveVote','configurePlayerAccess','sendLivePlayerNotification','getSessionIncarnationsView',
   'updateSessionIncarnationView','freezeSessionIncarnationsView','getSessionGmPackView','getSessionAccessView',
-  'resetSessionRehearsalView','startRealSessionView',
+  'resetSessionRehearsalView','startRealSessionView','manageSessionCasinoView',
 ]);
 const PREPARATION_WRITES=new Set(['addSessionParticipant','castSessionParticipant','applySessionCasting','updateSessionDetails',
   'updateSessionStatus','configureSessionPrecast','initializeRuntime','updateSessionIncarnationView','freezeSessionIncarnationsView']);
