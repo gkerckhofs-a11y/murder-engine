@@ -1,3 +1,4 @@
+import {SESSION_LOCK} from './vote-storage.mjs';
 import { readAllPages } from './pagination.mjs';
 import { randomBytes } from 'node:crypto';
 import { executeInteraction, transferSessionObject, revealClueToCharacter } from './interactions.mjs';
@@ -296,11 +297,18 @@ mutation TransferPlayerCash(
   $targetCharacterExternalId: String!,
   $senderValue: Int!,
   $targetValue: Int!,
+  $senderBefore: Int!,
+  $targetBefore: Int!,
   $updatedAt: Timestamp!,
   $notification: SessionPlayerNotification_Data!,
   $senderLog: SessionActionLog_Data!,
   $targetLog: SessionActionLog_Data!
 ) @transaction {
+  ${SESSION_LOCK}
+  cashGuard: query @check(expr: "response.cashGuard.sender.currentValue == vars.senderBefore && response.cashGuard.target.currentValue == vars.targetBefore", message: "CASH_BALANCE_CHANGED") @redact {
+    sender: sessionResource(key:{gameSessionId:$sessionId,characterExternalId:$senderCharacterExternalId,resourceExternalId:"RES_CASH"}) {currentValue}
+    target: sessionResource(key:{gameSessionId:$sessionId,characterExternalId:$targetCharacterExternalId,resourceExternalId:"RES_CASH"}) {currentValue}
+  }
   senderResource: sessionResource_update(
     key: {gameSessionId: $sessionId, characterExternalId: $senderCharacterExternalId, resourceExternalId: "RES_CASH"}
     data: {currentValue: $senderValue, updatedAt: $updatedAt}
@@ -2664,6 +2672,8 @@ export async function transferPlayerCash(token,input,{reader=defaultReader,execu
     targetCharacterExternalId,
     senderValue:senderAfter,
     targetValue:targetAfter,
+    senderBefore,
+    targetBefore,
     updatedAt:createdAt,
     notification,
     senderLog,

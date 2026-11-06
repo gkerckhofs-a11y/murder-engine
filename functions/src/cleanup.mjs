@@ -6,6 +6,8 @@ mutation PurgeSession($sessionId: UUID!, $sessionIdText: String!) @transaction {
     where:{transferredSessionId:{eq:$sessionIdText}}
     data:{status:"REGISTERED",transferredSessionId:null}
   )
+  sessionCasinoCommand_deleteMany(where:{gameSessionId:{eq:$sessionId}})
+  sessionCasino_deleteMany(where:{gameSessionId:{eq:$sessionId}})
   sessionPlayerNotification_deleteMany(where:{gameSessionId:{eq:$sessionId}})
   sessionBallot_deleteMany(where:{gameSessionId:{eq:$sessionId}})
   sessionVote_deleteMany(where:{gameSessionId:{eq:$sessionId}})

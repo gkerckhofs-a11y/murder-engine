@@ -1,3 +1,4 @@
+import {SESSION_LOCK} from './vote-storage.mjs';
 import {
   resolveSessionCharacter
 } from './session-character-resolver.mjs';
@@ -74,9 +75,13 @@ query InteractionRuntime($sessionId: UUID!) {
 
 const EXECUTE_WITH_COST_MUTATION = `
 mutation ExecuteInteractionWithCost(
-  $sessionId: UUID!, $characterExternalId: String!, $resourceExternalId: String!, $currentValue: Int!, $updatedAt: Timestamp!,
+  $sessionId: UUID!, $characterExternalId: String!, $resourceExternalId: String!, $currentValue: Int!, $expectedValue: Int!, $updatedAt: Timestamp!,
   $use: SessionInteractionUse_Data!, $log: SessionActionLog_Data!
 ) @transaction {
+  ${SESSION_LOCK}
+  resourceGuard: query @check(expr: "response.resourceGuard.sessionResource.currentValue == vars.expectedValue", message: "RESOURCE_BALANCE_CHANGED") @redact {
+    sessionResource(key:{gameSessionId:$sessionId,characterExternalId:$characterExternalId,resourceExternalId:$resourceExternalId}) {currentValue}
+  }
   sessionResource_update(
     key: {gameSessionId: $sessionId, characterExternalId: $characterExternalId, resourceExternalId: $resourceExternalId}
     data: {currentValue: $currentValue, updatedAt: $updatedAt}
@@ -422,7 +427,7 @@ export async function executeInteraction(sessionId, input, { reader=defaultReade
     note:`${interaction.name}${targetExternalId?` → ${targetExternalId}`:''}${input?.note?` · ${String(input.note).trim()}`:''}`,
     createdAt,
   };
-  if (shouldCharge) await executor(EXECUTE_WITH_COST_MUTATION,{sessionId,characterExternalId:actorCharacterExternalId,resourceExternalId:interaction.costResourceExternalId,currentValue:resourceAfter,updatedAt:createdAt,use,log});
+  if (shouldCharge) await executor(EXECUTE_WITH_COST_MUTATION,{sessionId,characterExternalId:actorCharacterExternalId,resourceExternalId:interaction.costResourceExternalId,currentValue:resourceAfter,expectedValue:Number(resourceRow.currentValue),updatedAt:createdAt,use,log});
   else await executor(EXECUTE_NO_COST_MUTATION,{use,log});
   return {
     interactionExternalId, interactionName:interaction.name, actorCharacterExternalId, targetType:interaction.targetType,targetExternalId,scanMode:interaction.scanMode??null,

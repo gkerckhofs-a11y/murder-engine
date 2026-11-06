@@ -560,6 +560,21 @@ type SessionCharacter @table(key: ["gameSession", "characterExternalId"]) {
   initializedAt: Timestamp! @default(expr: "request.time")
 }
 
+type SessionCasino @table(key: ["gameSession"]) {
+  gameSession: GameSession!
+  revision: Int! @default(value: 0)
+  # Server-only state includes private cards. Never expose via a public connector.
+  stateJson: String!
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+type SessionCasinoCommand @table(key: ["gameSession", "requestId"]) {
+  gameSession: GameSession!
+  requestId: String!
+  actor: String!
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
 type SessionResource @table(key: ["gameSession", "characterExternalId", "resourceExternalId"]) {
   gameSession: GameSession!
   characterExternalId: String!

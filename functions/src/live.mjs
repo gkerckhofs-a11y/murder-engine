@@ -136,7 +136,11 @@ mutation UpdateSessionEvent(
 `;
 
 const UPDATE_SESSION_RESOURCE_MUTATION = `
-mutation UpdateSessionResource($sessionId: UUID!, $characterExternalId: String!, $resourceExternalId: String!, $currentValue: Int!, $updatedAt: Timestamp!) {
+mutation UpdateSessionResource($sessionId: UUID!, $characterExternalId: String!, $resourceExternalId: String!, $currentValue: Int!, $expectedValue: Int!, $updatedAt: Timestamp!) @transaction {
+  ${SESSION_LOCK}
+  resourceGuard: query @check(expr: "response.resourceGuard.sessionResource.currentValue == vars.expectedValue", message: "RESOURCE_BALANCE_CHANGED") @redact {
+    sessionResource(key:{gameSessionId:$sessionId,characterExternalId:$characterExternalId,resourceExternalId:$resourceExternalId}) {currentValue}
+  }
   sessionResource_update(
     key: {gameSessionId: $sessionId, characterExternalId: $characterExternalId, resourceExternalId: $resourceExternalId}
     data: {currentValue: $currentValue, updatedAt: $updatedAt}
@@ -430,7 +434,7 @@ export async function changeLiveResource(sessionId,input,{reader=defaultReader,e
   let after=mode==='SET'?amount:before+amount;
   if (row.maxValue!=null) after=Math.min(after,Number(row.maxValue));
   const updatedAt=now.toISOString();
-  await executor(UPDATE_SESSION_RESOURCE_MUTATION,{sessionId,characterExternalId,resourceExternalId,currentValue:after,updatedAt});
+  await executor(UPDATE_SESSION_RESOURCE_MUTATION,{sessionId,characterExternalId,resourceExternalId,currentValue:after,expectedValue:before,updatedAt});
   await logAction(executor,{gameSessionId:sessionId,actionType:'RESOURCE_CHANGE',characterExternalId,refExternalId:resourceExternalId,beforeValue:String(before),afterValue:String(after),deltaValue:after-before,note:String(input?.note??'').trim()||null});
   return {characterExternalId,resourceExternalId,before,after};
 }

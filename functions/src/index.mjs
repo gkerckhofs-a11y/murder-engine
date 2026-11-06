@@ -43,6 +43,7 @@ import { getLiveDashboard, controlLiveSession, changeLiveResource, setLiveCharac
 import { getInteractionDashboard, executeInteraction, revealClueToCharacter, transferSessionObject } from './interactions.mjs';
 import { getVoteDashboard, openSessionVote, castSessionBallot, closeSessionVote } from './votes.mjs';
 import { configureSessionPlayerAccess, getPlayerPortal, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, sharePlayerClue, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
+import {playerCasino,organizerCasino} from './casino/service.mjs';
 import { updateScenarioAppearanceFamily } from './scenario-appearance.mjs';
 import {
   listMediaLibrary,
@@ -1325,4 +1326,24 @@ export const startRealSessionView = securedOnRequest('startRealSessionView', {re
   if(body.confirm!=='START_REAL_SESSION')return res.status(400).json({error:'CONFIRMATION_REQUIRED'});
   try{return res.json({ok:true,result:await replaceSessionRehearsal(req.organizerIdentity,String(body.sessionId??''),{real:true})});}
   catch(error){logger.error('Real session launch failed',error);return res.status(400).json({error:error.message});}
+});
+
+// Casino modules use player links for seats and verified session access for management.
+export const getPublicPlayerCasinoTable = securedOnRequest('getPublicPlayerCasinoTable', {region:'europe-west1',cors:true,maxInstances:15,timeoutSeconds:60}, async(req,res)=>{
+  if(!requireGet(req,res))return;
+  res.set('Cache-Control','no-store');
+  try{return res.status(200).json({ok:true,...await playerCasino(String(req.query.token??''),{sessionId:String(req.query.sessionId??''),game:String(req.query.game??''),type:'VIEW'})});}
+  catch(error){logger.error('Casino read failed',error);return res.status(400).json({error:'CASINO_READ_FAILED',message:error.message});}
+});
+export const executePublicPlayerCasinoAction = securedOnRequest('executePublicPlayerCasinoAction', {region:'europe-west1',cors:true,maxInstances:15,timeoutSeconds:60}, async(req,res)=>{
+  const body=requirePostJson(req,res);if(!body)return;
+  res.set('Cache-Control','no-store');
+  try{return res.status(200).json({ok:true,...await playerCasino(String(body.token??''),body)});}
+  catch(error){logger.error('Casino action failed',error);return res.status(400).json({error:'CASINO_ACTION_FAILED',message:error.message});}
+});
+export const manageSessionCasinoView = securedOnRequest('manageSessionCasinoView', {region:'europe-west1',cors:true,maxInstances:10,timeoutSeconds:60}, async(req,res)=>{
+  const body=req.method==='GET'?req.query:requirePostJson(req,res);if(!body)return;
+  res.set('Cache-Control','no-store');
+  try{return res.status(200).json({ok:true,...await organizerCasino(String(body.sessionId??''),body)});}
+  catch(error){logger.error('Casino configuration failed',error);return res.status(400).json({error:'CASINO_CONFIG_FAILED',message:error.message});}
 });

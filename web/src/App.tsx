@@ -3,6 +3,7 @@ import SessionLicensePanel, { type SessionAccess } from './SessionLicensePanel';
 import { organizerFetch } from './organizer-api';
 import { useEffect, useMemo, useState } from 'react';
 import PlayerPortal from './PlayerPortal';
+import {CasinoTable,CasinoAdmin} from './Casino';
 import LocationScan from './LocationScan';
 import GmPackView from './GmPackView';
 import { QRCodeSVG } from 'qrcode.react';
@@ -240,7 +241,7 @@ function versionGenderCompatible(v:VersionSummary,count:number,women:number|null
 
 export default function App() {
   const params = new URLSearchParams(window.location.search);
-  const publicView = params.has('player') || params.has('precast') || params.has('register') || window.location.pathname.startsWith('/scan/');
+  const publicView = params.has('casino') || params.has('player') || params.has('precast') || params.has('register') || window.location.pathname.startsWith('/scan/');
   if (publicView) return <EngineApp isAdmin={false}/>;
   return <OrganizerGate>{identity => <EngineApp isAdmin={identity.admin}/>}</OrganizerGate>;
 }
@@ -287,7 +288,7 @@ function EngineApp({isAdmin}: {isAdmin: boolean}) {
   const filtered = useMemo(() => data?.diagnostics.filter(d => filter === 'ALL' || d.severity === filter) ?? [], [data, filter]);
 
   useEffect(() => {
-    if (publicPrecastToken || publicRegistrationToken || publicPlayerToken || scanLocationExternalId || GM_PACK_SESSION_ID || GM_PACK_VERSION_ID) return;
+    if (params.has('casino') || publicPrecastToken || publicRegistrationToken || publicPlayerToken || scanLocationExternalId || GM_PACK_SESSION_ID || GM_PACK_VERSION_ID) return;
     if (!scoped) { void loadLibrary(); void loadSessions(); }
     // The client panel resolves the currently active rehearsal before loading it.
   }, [publicPrecastToken, publicRegistrationToken, publicPlayerToken, scanLocationExternalId, scoped]);
@@ -547,6 +548,7 @@ function EngineApp({isAdmin}: {isAdmin: boolean}) {
   if (scanLocationExternalId) return <LocationScan locationExternalId={scanLocationExternalId}/>;
   if (publicRegistrationToken) return <PublicRegistrationView token={publicRegistrationToken}/>;
   if (publicPrecastToken) return <PublicPrecastView token={publicPrecastToken}/>;
+  if(params.get('casino'))return <CasinoTable token={publicPlayerToken} sessionId={params.get('casinoSession')||''} game={params.get('casino')||''}/>;
   if (publicPlayerToken) return <PlayerPortal token={publicPlayerToken}/>;
 
   return <main className="shell">
@@ -563,6 +565,7 @@ function EngineApp({isAdmin}: {isAdmin: boolean}) {
     {organizerSessionId && <SessionLicensePanel sessionId={organizerSessionId} admin={false} onState={next => {if(!license || license.workingSessionId!==next.workingSessionId)openWorkingSession(next);}} onChanged={openWorkingSession}/>}
     {scoped && !organizerSessionId && <section className="card"><h2>Votre accès organisateur</h2><p>Ouvrez le lien de session qui vous a été transmis pour préparer et animer votre murder.</p></section>}
     {!scoped && view === 'sessions' && session && <SessionLicensePanel key={session.id} sessionId={session.id} admin={isAdmin} onState={setLicense} onChanged={setLicense}/>}
+    {view==='sessions'&&session&&<CasinoAdmin key={session.id} sessionId={session.id}/>}
     {view === 'library' && version && <div className="gmPackShortcut"><button onClick={()=>window.open(`/?gmPack=${encodeURIComponent(version.id)}`,'_blank')}>📦 Ouvrir le Pack MJ</button></div>}
 
     {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{
