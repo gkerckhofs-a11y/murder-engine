@@ -812,14 +812,15 @@ test('QR room search is normalized to automatic 1 PA and grants one reward',asyn
  );
 
  assert.equal(interactionCalls,0);
- assert.equal(clueInput.clueExternalId,'C2');
- assert.equal(objectInput.objectExternalId,'ITEM2');
- assert.equal(objectInput.holderExternalId,'CHAR_A');
+ assert.equal(writes[0].vars.discovery.clueExternalId,'C2');
+ assert.equal(writes[0].vars.objectId,'ITEM2');
+ assert.equal(writes[0].vars.actor,'CHAR_A');
+ assert.equal(clueInput,undefined);assert.equal(objectInput,undefined);
  assert.equal(out.result.success,true);
  assert.equal(out.result.resolution,'AUTO');
  assert.equal(out.result.cost.value,1);
  assert.equal(out.reward.kind,'CLUE_OBJECT');
- assert.ok(writes.length>=2);
+ assert.equal(writes.length,1);
 });
 
 test('location discovery returns Media Library override for the physical object',async()=>{
@@ -877,8 +878,8 @@ test('QR location provides standard 1 PA fallback when no explicit automatic act
  const view=await getPlayerLocation(participant().playerAccessToken,'LOC1',{reader});assert.equal(view.actions[0].externalId,'SYSTEM_LOCATION_SEARCH');assert.equal(view.actions[0].costValue,1);
  let mutation,clueInput,objectInput;
  const out=await executePlayerLocationAction(participant().playerAccessToken,{interactionExternalId:'SYSTEM_LOCATION_SEARCH',locationExternalId:'LOC1'},{reader,executor:async(op,vars)=>{mutation={op,vars};return{};},clueReveal:async(sid,input)=>{clueInput=input;return{};},objectTransfer:async(sid,input)=>{objectInput=input;return{};}});
- assert.equal(mutation.op,__playerOps.INSERT_NOTIFICATION_MUTATION ?? mutation.op); // final write is notification
- assert.equal(clueInput.clueExternalId,'C2');assert.equal(objectInput.objectExternalId,'ITEM2');assert.equal(out.result.cost.remaining,3);
+ assert.match(mutation.op,/AtomicLocationSearch.*@transaction/s);
+ assert.equal(mutation.vars.discovery.clueExternalId,'C2');assert.equal(mutation.vars.objectId,'ITEM2');assert.equal(clueInput,undefined);assert.equal(objectInput,undefined);assert.equal(out.result.cost.remaining,3);
 });
 
 test('takeable clue is globally unavailable after another player found it',async()=>{
@@ -972,8 +973,8 @@ test('static clue remains available to another player but loses priority to take
    },
    {
      reader,
-     executor:async()=>({}),
-     clueReveal:async(sid,input)=>{firstClue=input.clueExternalId;return{};},
+     executor:async(op,vars)=>{firstClue=vars.discovery?.clueExternalId;return{};},
+     clueReveal:async()=>{throw Error("must be atomic");},
      objectTransfer:async()=>({})
    }
  );
@@ -995,8 +996,8 @@ test('static clue remains available to another player but loses priority to take
    },
    {
      reader,
-     executor:async()=>({}),
-     clueReveal:async(sid,input)=>{secondClue=input.clueExternalId;return{};},
+     executor:async(op,vars)=>{secondClue=vars.discovery?.clueExternalId;return{};},
+     clueReveal:async()=>{throw Error("must be atomic");},
      objectTransfer:async()=>({}),
      now:new Date('2026-09-21T18:20:00Z')
    }
@@ -1457,4 +1458,15 @@ test('clue recaps refer only to facts already learned by this player',()=>{
  assert.deepEqual(out.discoveries.find(d=>d.clueExternalId==='C1').clue.knownFacts,expected);
  assert.deepEqual(out.documentEntries.find(d=>d.clueExternalId==='C1').knownFacts,expected);
  assert.equal(JSON.stringify(out).includes('Hidden solution'),false);
+});
+
+test('Nid seduction refuses protected initial identities before spending PA',async()=>{
+ const src=source(),rt=runtime();
+ src.facts.push({externalId:'IDENTITY',title:'Identity',text:'Secret name and codes',charmable:false,active:true});
+ rt.sessionKnowledges.push({characterExternalId:'CHAR_B',factExternalId:'IDENTITY'});
+ src.interactions.push({externalId:'NID_CHARM',name:'Séduction',abilityExternalId:'AB_SEDUCTION',targetType:'CHARACTER',scanMode:'DIRECT',resolution:'AUTO',validation:'AUTO',active:true});
+ const reader=async op=>op===__playerOps.PLAYER_ACCESS_QUERY?{sessionParticipants:[{...participant(),gameSession:session()}]}:op===__playerOps.PLAYER_SOURCE_QUERY?src:rt;
+ let calls=0;
+ await assert.rejects(()=>executePlayerInteraction(participant().playerAccessToken,{interactionExternalId:'NID_CHARM',targetExternalId:'CHAR_B'},{reader,executor:async()=>{calls++;},interactionExecutor:async()=>{calls++;}}),/CHARM_NO_INFORMATION/);
+ assert.equal(calls,0);
 });

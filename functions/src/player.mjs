@@ -1,9 +1,11 @@
+import {searchRequestId,readSearchReplay,searchFailure,buildLocationSearchTransaction} from './location-search.mjs';
 import {SESSION_LOCK} from './vote-storage.mjs';
 import { readAllPages } from './pagination.mjs';
 import { randomBytes } from 'node:crypto';
 import { executeInteraction, transferSessionObject, revealClueToCharacter } from './interactions.mjs';
 import { castSessionBallot, resolveElectorate } from './votes.mjs';
 import { getGameSession } from './sessions.mjs';
+import { isDocumentExaminable, planDocumentExamination, buildExaminationTransaction } from './document-analysis.mjs';
 
 const PLAYER_ACCESS_QUERY = `
 query PlayerAccessByToken($token: String!) {
@@ -56,7 +58,7 @@ query PlayerSource($versionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
     externalId characterAExternalId characterBExternalId relationType textA textB visibility plotExternalId active
   }
   facts(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
-    externalId title text nature importance notebookCategory isPublic active
+    externalId title text nature importance notebookCategory isPublic charmable active
   }
   clues(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId playerName clueType playerText discoveryHook support presentationMode shareable transferable consumable addToNotebook locationExternalId objectExternalId documentExternalId logisticsCode mediaExternalId major active
@@ -64,6 +66,9 @@ query PlayerSource($versionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
   clueFacts(where: {scenarioVersionId: {eq: $versionId}}, orderBy: [{clueExternalId: ASC}, {factExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) { clueExternalId factExternalId }
   documentDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId title textContent support mediaExternalIds reusable consumable ownerInitialType ownerInitialExternalId transferable stealable active
+  }
+  documentAnalysisDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
+    externalId targetType targetExternalId abilityExternalId minLevel factExternalId active
   }
   mediaAssets(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) { externalId mediaType source altText notes active }
   skinVisualDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
@@ -196,6 +201,7 @@ mutation MarkBriefingRead($participantId: UUID!, $readAt: Timestamp!) {
 const INSERT_PLAYER_ACTION_LOG_MUTATION = `
 mutation InsertPlayerActionRequest($data: SessionActionLog_Data!) { sessionActionLog_insert(data: $data) }
 `;
+
 const INSERT_NOTIFICATION_MUTATION = `mutation InsertPlayerNotification($data: SessionPlayerNotification_Data!) { sessionPlayerNotification_insert(data: $data) }`;
 const MARK_NOTIFICATION_READ_MUTATION = `mutation MarkPlayerNotificationRead($notificationId: UUID!, $readAt: Timestamp!) { sessionPlayerNotification_update(id: $notificationId, data: {readAt: $readAt}) }`;
 const INSERT_STEAL_GRANT_MUTATION = `mutation InsertStealGrant($data: SessionStealGrant_Data!) { sessionStealGrant_insert(data: $data) }`;
@@ -320,20 +326,6 @@ mutation TransferPlayerCash(
   notification: sessionPlayerNotification_insert(data: $notification)
   senderLog: sessionActionLog_insert(data: $senderLog)
   targetLog: sessionActionLog_insert(data: $targetLog)
-}
-`;
-
-const SYSTEM_LOCATION_SEARCH_MUTATION = `
-mutation SystemLocationSearch(
-  $sessionId: UUID!, $characterExternalId: String!, $currentValue: Int!, $updatedAt: Timestamp!,
-  $use: SessionInteractionUse_Data!, $log: SessionActionLog_Data!
-) @transaction {
-  sessionResource_update(
-    key: {gameSessionId: $sessionId, characterExternalId: $characterExternalId, resourceExternalId: "RES_PA"}
-    data: {currentValue: $currentValue, updatedAt: $updatedAt}
-  )
-  sessionInteractionUse_insert(data: $use)
-  sessionActionLog_insert(data: $log)
 }
 `;
 
@@ -655,7 +647,7 @@ async function loadPlayerData(token, reader=defaultReader) {
   const session=participant.gameSession;
   const versionId=session?.scenarioVersion?.id;
   const [source,runtime]=await Promise.all([
-    readAllPages(reader,PLAYER_SOURCE_QUERY,{versionId},['characters', 'objectives', 'relationships', 'facts', 'clues', 'documentDefinitions', 'mediaAssets', 'skinVisualDefinitions', 'resources', 'gameObjects', 'gameStateDefinitions', 'abilities', 'abilityAssignments', 'interactions', 'gameLocations', 'voteDefinitions', 'voteOptionDefinitions', 'clueFacts']),
+    readAllPages(reader,PLAYER_SOURCE_QUERY,{versionId},['characters', 'objectives', 'relationships', 'facts', 'clues', 'documentDefinitions', 'documentAnalysisDefinitions', 'mediaAssets', 'skinVisualDefinitions', 'resources', 'gameObjects', 'gameStateDefinitions', 'abilities', 'abilityAssignments', 'interactions', 'gameLocations', 'voteDefinitions', 'voteOptionDefinitions', 'clueFacts']),
     readAllPages(reader,PLAYER_RUNTIME_QUERY,{sessionId:session.id},['sessionVotes', 'sessionBallots', 'sessionResources', 'sessionKnowledges', 'sessionObjectives', 'sessionObjects', 'sessionCharacterStates', 'sessionClueDiscoveries', 'sessionInteractionUses', 'sessionPlayerNotifications', 'sessionStealGrants']),
   ]);
   const resolvedSource=
@@ -675,6 +667,10 @@ async function loadPlayerData(token, reader=defaultReader) {
 
 function directAbilityPlayerDescription(session,externalId,fallback='') {
   switch(String(externalId??'').trim().toUpperCase()){
+    case 'AB_SEDUCTION':
+      return sessionText(session,'Pour 1 PA, la cible choisit une information acquise dans l’enquête à vous confier. Les identités et codes secrets de départ sont protégés. Une fois par cible. Sans information disponible, aucun PA n’est consommé.','For 1 AP, the target chooses a learned investigation fact to share. Initial identities and secret codes are protected. Once per target; no charge if no eligible fact.');
+    case 'AB_INTIMIDATION':
+      return sessionText(session,'Pour 1 PA par tentative : 2D6 + Intimidation contre 2D6 + Intimidation adverse. Un pistolet détenu ajoute +3 à votre jet, sans cumul. Égalité : la cible résiste. En cas de réussite, prenez un objet transférable. Une tentative par cible.','For 1 AP per attempt: 2D6 + Intimidation versus the target’s 2D6 + Intimidation. A carried pistol adds +3 to your roll, without stacking. Ties favour the target. On success, take one transferable object. Once per target.');
     case 'ABILITY_CHARM':
       return sessionText(
         session,
@@ -803,6 +799,8 @@ function businessDealStatus(runtime,grantToken){
 
 const SPECIAL_PLAYER_ABILITY_KIND = new Map([
   ['ABILITY_CHARM','CHARM'],
+  ['AB_SEDUCTION','CHARM'],
+  ['AB_INTIMIDATION','INTIMIDATION'],
   ['ABILITY_NEGOTIATION','NEGOTIATION'],
   ['ABILITY_POLICE_INTIMIDATION','INTIMIDATION'],
   ['ABILITY_BUSINESS_DEAL','BUSINESS_DEAL'],
@@ -844,7 +842,7 @@ function charmInformationForTarget(source,runtime,actorCharacterExternalId,targe
       !actorKnown.has(k.factExternalId)
     )
     .map(k=>({knowledge:k,fact:facts.get(k.factExternalId)}))
-    .filter(x=>Boolean(x.fact))
+    .filter(x=>Boolean(x.fact)&&x.fact.charmable!==false)
     .map(x=>({
       factExternalId:x.knowledge.factExternalId,
       title:x.fact?.title??x.knowledge.factExternalId,
@@ -1754,7 +1752,8 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
               knownFacts:knownFactsForClue(clue.externalId),
               inBag:!clue.objectExternalId,
               visualMedia:clueVisualMedia(session,source,mediaMap,objectMap,clue),
-              immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap)
+              immersiveDocument:immersiveDocumentForClue(clue,documentMap,mediaMap),
+              canExamine:isDocumentExaminable(source,'CLUE',clue.externalId)
             }
           : null
       };
@@ -1768,7 +1767,8 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
       o.holderExternalId===characterExternalId
     )
     .map(o=>playerObjectView(session,source,mediaMap,objectMap,o))
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(o=>({...o,canExamine:isDocumentExaminable(source,'OBJECT',o.objectExternalId)}));
   const states=(runtime.sessionCharacterStates??[]).filter(s=>s.characterExternalId===characterExternalId&&s.active!==false).map(s=>({...s,definition:stateMap.get(s.stateExternalId)})).filter(s=>s.definition?.visibleToHolder!==false).map(s=>({...s,name:s.definition?.name??s.stateExternalId,description:s.definition?.description??''}));
   const inventoryById=new Map(
     inventory.map(o=>[o.objectExternalId,o])
@@ -1795,6 +1795,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
       logisticsCode:c.logisticsCode??null,
       visualMedia:clueVisualMedia(session,source,mediaMap,objectMap,c),
       immersiveDocument:immersiveDocumentForClue(c,documentMap,mediaMap),
+      canExamine:isDocumentExaminable(source,'CLUE',c.externalId),
       object:inventoryById.get(c.objectExternalId)??null,
       owned:true,
     }));
@@ -1919,6 +1920,29 @@ export async function getPlayerPortal(token,{reader=defaultReader,executor=defau
     loaded.participant={...loaded.participant,playerFirstOpenedAt:firstOpenedAt,playerLastOpenedAt:openedAt,playerOpenCount:Number(loaded.participant.playerOpenCount??0)+1,briefingStatus};
   }
   return shapePlayerPortal(loaded.participant,loaded.session,loaded.source,loaded.runtime,now instanceof Date?now:new Date(now));
+}
+
+/**
+ * Examination is a private, free action. Each unlocked fact is persisted as
+ * player knowledge; no analysis definitions or locked text enter the portal.
+ * A previous holder keeps knowledge, but cannot re-examine a transferred object.
+ */
+export async function examinePlayerDocument(token,input,{reader=defaultReader,executor=defaultExecutor,now=new Date()}={}) {
+  const loaded=await loadPlayerData(token,reader);
+  if(loaded.session.status!=='LIVE')throw new Error('PLAYER_ACTIONS_NOT_LIVE');
+  const actor=loaded.participant.characterExternalId;
+  const type=String(input?.targetType??'').trim().toUpperCase();
+  const id=String(input?.targetExternalId??'').trim();
+  const examination=planDocumentExamination(loaded.source,loaded.runtime,actor,type,id);
+  const known=new Set((loaded.runtime.sessionKnowledges??[])
+    .filter(row=>row.characterExternalId===actor)
+    .map(row=>row.factExternalId));
+  const newlyLearned=examination.results.filter(row=>!known.has(row.factExternalId));
+  const at=nowIso(now);
+
+  const transaction=buildExaminationTransaction(loaded,type,id,newlyLearned,at);
+  await executor(transaction.operation,transaction.variables);
+  return {...examination,newFactCount:newlyLearned.length};
 }
 
 export async function markPlayerBriefingRead(token,{reader=defaultReader,executor=defaultExecutor,now=new Date()}={}) {
@@ -2689,19 +2713,16 @@ export async function transferPlayerCash(token,input,{reader=defaultReader,execu
   };
 }
 
-async function executeSystemLocationSearch(loaded, locationExternalId, {executor=defaultExecutor,now=new Date()}={}) {
+function prepareSystemLocationSearch(loaded, locationExternalId) {
   const actor=loaded.participant.characterExternalId;
   const pa=(loaded.runtime.sessionResources??[]).find(r=>r.characterExternalId===actor&&r.resourceExternalId==='RES_PA');
   if(!pa) throw new Error('INTERACTION_COST_RESOURCE_NOT_FOUND');
   if(Number(pa.currentValue??0)<1) throw new Error('INTERACTION_INSUFFICIENT_RESOURCE');
-  const after=Number(pa.currentValue)-1; const createdAt=nowIso(now);
-  const use={gameSessionId:loaded.session.id,interactionExternalId:'SYSTEM_LOCATION_SEARCH',actorCharacterExternalId:actor,targetType:'LOCATION',targetExternalId:locationExternalId,resolution:'AUTO',success:true,abilityLevel:0,actorRollJson:null,targetRollJson:null,costResourceExternalId:'RES_PA',costValue:1,note:sessionText(loaded.session,'Fouille QR automatique','Automatic QR search'),createdAt};
-  const log={gameSessionId:loaded.session.id,actionType:'INTERACTION_EXECUTE',characterExternalId:actor,refExternalId:'SYSTEM_LOCATION_SEARCH',beforeValue:null,afterValue:'SUCCESS',deltaValue:-1,note:sessionText(loaded.session,`Fouille QR → ${locationExternalId}`,`QR search → ${locationExternalId}`),createdAt};
-  await executor(SYSTEM_LOCATION_SEARCH_MUTATION,{sessionId:loaded.session.id,characterExternalId:actor,currentValue:after,updatedAt:createdAt,use,log});
+  const after=Number(pa.currentValue)-1;
   return {interactionExternalId:'SYSTEM_LOCATION_SEARCH',interactionName:sessionText(loaded.session,'Fouiller','Search'),actorCharacterExternalId:actor,targetType:'LOCATION',targetExternalId:locationExternalId,success:true,resolution:'AUTO',actorRoll:null,targetRoll:null,actorTotal:null,targetTotal:null,abilityLevel:0,cost:{resourceExternalId:'RES_PA',value:1,remaining:after}};
 }
 
-async function grantAutomaticLocationReward(loaded, locationExternalId, interactionExternalId, {clueReveal=revealClueToCharacter,objectTransfer=transferSessionObject}={}) {
+function selectAutomaticLocationReward(loaded, locationExternalId) {
   const actor=loaded.participant.characterExternalId;
   const rewards=availableLocationRewards(loaded.source,loaded.runtime,actor,locationExternalId);
 
@@ -2717,8 +2738,6 @@ async function grantAutomaticLocationReward(loaded, locationExternalId, interact
   }else if(!clue){
     clue=rewards.staticClues[0]??null;
   }
-  if(clue) await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:clue.externalId,sourceInteractionExternalId:interactionExternalId,sourceRef:locationExternalId,note:sessionText(loaded.session,'Découverte automatique via QR','Automatic discovery via QR')});
-  if(objectRow) await objectTransfer(loaded.session.id,{objectExternalId:objectRow.objectExternalId,holderType:'CHARACTER',holderExternalId:actor,note:sessionText(loaded.session,`Ramassé lors de la fouille de ${locationExternalId}`,`Picked up while searching ${locationExternalId}`)});
   const mediaMap=byId(
     (loaded.source.mediaAssets??[])
       .filter(m=>m.active!==false)
@@ -2798,9 +2817,11 @@ export async function getPlayerLocation(token,locationExternalId,{reader=default
   };
 }
 
-export async function executePlayerLocationAction(token,input,{reader=defaultReader,executor=defaultExecutor,interactionExecutor=executeInteraction,clueReveal=revealClueToCharacter,objectTransfer=transferSessionObject,now=new Date()}={}) {
+export async function executePlayerLocationAction(token,input,{reader=defaultReader,executor=defaultExecutor,interactionExecutor=executeInteraction,clueReveal=revealClueToCharacter,objectTransfer=transferSessionObject,now=new Date(),searchAttempt=0}={}) {
   const loaded=await loadPlayerData(token,reader); if(loaded.session.status!=='LIVE') throw new Error('PLAYER_ACTIONS_NOT_LIVE');
   const actor=loaded.participant.characterExternalId; const locationExternalId=String(input?.locationExternalId??'').trim(); const interactionExternalId=String(input?.interactionExternalId??'').trim();
+  const requestId=searchRequestId(input?.requestId);
+  if(input?.requestId){const replay=await readSearchReplay(reader,loaded,requestId,locationExternalId);if(replay)return replay;}
   const location=(loaded.source.gameLocations??[]).find(x=>x.externalId===locationExternalId&&x.active!==false); if(!location) throw new Error('PLAYER_LOCATION_NOT_FOUND');
 
   const ownerCharacterExternalId=locationOwnerCharacter(location,loaded.source);
@@ -2818,9 +2839,9 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
 
   const resources=(loaded.runtime.sessionResources??[]).filter(r=>r.characterExternalId===actor); const shaped=locationActionShape(loaded.source,loaded.runtime,loaded.session,actor,locationExternalId,resources,now instanceof Date?now:new Date(now));
   const action=shaped.actions.find(a=>a.externalId===interactionExternalId); if(!action) throw new Error('LOCATION_ACTION_NOT_AVAILABLE'); if(!action.available) throw new Error(action.blockedReason||'LOCATION_ACTION_BLOCKED');
-  let result;
+  let result;let atomicSearch=false;
   if(interactionExternalId==='SYSTEM_LOCATION_SEARCH'){
-    result=await executeSystemLocationSearch(loaded,locationExternalId,{executor,now});
+    atomicSearch=true;result=prepareSystemLocationSearch(loaded,locationExternalId);
   }else{
     const sourceInteraction=(loaded.source.interactions??[]).find(
       i=>i.externalId===interactionExternalId&&i.active!==false
@@ -2830,7 +2851,7 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
       throw new Error('LOCATION_ACTION_NOT_AUTONOMOUS');
 
     if(isLocationSearchInteraction(sourceInteraction)){
-      result=await executeSystemLocationSearch(loaded,locationExternalId,{executor,now});
+      atomicSearch=true;result=prepareSystemLocationSearch(loaded,locationExternalId);
     }else{
       const gmOutcome=String(sourceInteraction.resolution).toUpperCase()==='GM'
         ? 'SUCCESS'
@@ -2848,7 +2869,7 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
       );
     }
   }
-  const reward=result.success?await grantAutomaticLocationReward(loaded,locationExternalId,result.interactionExternalId,{clueReveal,objectTransfer}):{kind:'NONE',clue:null,object:null};
+  const reward=result.success?selectAutomaticLocationReward(loaded,locationExternalId):{kind:'NONE',clue:null,object:null};
 
   const language=String(loaded.session?.language??'FR').trim().toUpperCase();
   const english=language==='EN';
@@ -2895,8 +2916,24 @@ export async function executePlayerLocationAction(token,input,{reader=defaultRea
     ? (english?'Collect your prop from the GM':'Objet à récupérer auprès du GM')
     : location.name;
 
-  await executor(INSERT_NOTIFICATION_MUTATION,{data:{gameSessionId:loaded.session.id,characterExternalId:actor,kind:physicalPickup?'PHYSICAL_PICKUP':'LOCATION',title:notificationTitle,body,priority:physicalPickup?'IMPORTANT':'NORMAL',refExternalId:physicalPickup?reward.object.externalId:locationExternalId,createdAt:nowIso(now),readAt:null}});
-  return {result,reward,location:{externalId:location.externalId,name:location.name}};
+  const notification={gameSessionId:loaded.session.id,characterExternalId:actor,kind:physicalPickup?'PHYSICAL_PICKUP':'LOCATION',title:notificationTitle,body,priority:physicalPickup?'IMPORTANT':'NORMAL',refExternalId:physicalPickup?reward.object.externalId:locationExternalId,createdAt:nowIso(now),readAt:null};
+  const response={result,reward,location:{externalId:location.externalId,name:location.name}};
+  if(atomicSearch){
+    const transaction=buildLocationSearchTransaction(loaded,{requestId,locationExternalId,response,notification,now,searchIds:['SYSTEM_LOCATION_SEARCH',...(loaded.source.interactions??[]).filter(isLocationSearchInteraction).map(i=>i.externalId)]});
+    try{await executor(transaction.operation,transaction.variables);}
+    catch(error){
+      const replay=await readSearchReplay(reader,loaded,requestId,locationExternalId);if(replay)return replay;
+      const failure=searchFailure(error);
+      if(failure==='SEARCH_REWARD_CHANGED'&&searchAttempt<2)return executePlayerLocationAction(token,{...input,requestId},{reader,executor,interactionExecutor,clueReveal,objectTransfer,now,searchAttempt:searchAttempt+1});
+      if(failure)throw Error(failure);
+      throw error;
+    }
+  }else{
+    if(reward.clue)await clueReveal(loaded.session.id,{characterExternalId:actor,clueExternalId:reward.clue.externalId,sourceInteractionExternalId:result.interactionExternalId,sourceRef:locationExternalId});
+    if(reward.object)await objectTransfer(loaded.session.id,{objectExternalId:reward.object.externalId,holderType:'CHARACTER',holderExternalId:actor});
+    await executor(INSERT_NOTIFICATION_MUTATION,{data:notification});
+  }
+  return response;
 }
 
 function clandestineVisibleObjects(loaded,targetCharacterExternalId,kind='STEAL') {
@@ -3139,7 +3176,7 @@ export async function castPlayerVote(token,input,{reader=defaultReader,voteCaste
   return voteCaster(participant.gameSession.id,{voteExternalId:String(input?.voteExternalId??'').trim(),electorCharacterExternalId:participant.characterExternalId,selectedOptionExternalIds:Array.isArray(input?.selectedOptionExternalIds)?input.selectedOptionExternalIds:[],round:input?.round});
 }
 
-export const __playerOps={PLAYER_ACCESS_QUERY,PLAYER_SOURCE_QUERY,PLAYER_RUNTIME_QUERY,UPDATE_PLAYER_ACCESS_MUTATION,TRACK_PLAYER_OPEN_MUTATION,MARK_BRIEFING_READ_MUTATION,INSERT_NOTIFICATION_MUTATION,MARK_NOTIFICATION_READ_MUTATION,INSERT_PLAYER_ACTION_LOG_MUTATION,SYSTEM_LOCATION_SEARCH_MUTATION,INSERT_STEAL_GRANT_MUTATION,CLAIM_STEAL_MUTATION,TRANSFER_PLAYER_CASH_MUTATION};
+export const __playerOps={PLAYER_ACCESS_QUERY,PLAYER_SOURCE_QUERY,PLAYER_RUNTIME_QUERY,UPDATE_PLAYER_ACCESS_MUTATION,TRACK_PLAYER_OPEN_MUTATION,MARK_BRIEFING_READ_MUTATION,INSERT_NOTIFICATION_MUTATION,MARK_NOTIFICATION_READ_MUTATION,INSERT_PLAYER_ACTION_LOG_MUTATION,INSERT_STEAL_GRANT_MUTATION,CLAIM_STEAL_MUTATION,TRANSFER_PLAYER_CASH_MUTATION};
 
 
 // Shared authorization and Data Connect transport for participant-private features.

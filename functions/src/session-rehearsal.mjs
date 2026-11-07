@@ -31,7 +31,7 @@ export const TIMELINE_QUERY=`query RehearsalTimeline($versionId: UUID!, $pageLim
   gamePhaseDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) { externalId orderIndex active }
   gameEventDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) { externalId active }
 }`;
-const RUNTIME_TABLES=['sessionCasinoCommand','sessionCasino','sessionPlayerNotification','sessionBallot','sessionVote','sessionActionLog','sessionEvent',
+const RUNTIME_TABLES=['sessionLocationSearchCommand','sessionCasinoCommand','sessionCasino','sessionPlayerNotification','sessionBallot','sessionVote','sessionActionLog','sessionEvent',
   'sessionClueDiscovery','sessionStealGrant','sessionInteractionUse','sessionCharacterState','sessionObject',
   'sessionObjective','sessionKnowledge','sessionResource','sessionCharacter'];
 

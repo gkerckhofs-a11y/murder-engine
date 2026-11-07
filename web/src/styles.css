@@ -14559,3 +14559,7 @@ button.skinGalleryCard:disabled{
 
 .sessionLicense.mode-REHEARSAL h3 {color:#3b2910}
 .sessionLicense.mode-REHEARSAL .eyebrow {color:#7b4c11}
+
+/* Confirmation must retain readable text even when a scenario uses light cards. */
+.playerShell .paConfirmPanel { background:#f4e8d0; color:#292015; }
+.playerShell .paConfirmPanel h2, .playerShell .paConfirmPanel p { color:#292015; }

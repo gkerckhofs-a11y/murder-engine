@@ -1,0 +1,360 @@
+{
+  "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+  "expectedVersionLabel": "1.3-master-20261107-r2",
+  "expectedSourceHash": "854c74c6be1109ad1594f99c34763f4b4a421662a2269dfedce77a8d8e8fe478",
+  "description": "Nid readiness correction 2026-11-07",
+  "documentAnalyses": [
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_A1",
+      "targetType": "DOCUMENT",
+      "targetExternalId": "DOC_NE_A",
+      "abilityExternalId": "AB_TELE",
+      "minLevel": 1,
+      "factExternalId": "F_A1",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_A2",
+      "targetType": "DOCUMENT",
+      "targetExternalId": "DOC_NE_A",
+      "abilityExternalId": "AB_TELE",
+      "minLevel": 2,
+      "factExternalId": "F_A2",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_B1",
+      "targetType": "DOCUMENT",
+      "targetExternalId": "DOC_NE_B",
+      "abilityExternalId": "AB_CHRONOS",
+      "minLevel": 1,
+      "factExternalId": "F_B1",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_B2",
+      "targetType": "DOCUMENT",
+      "targetExternalId": "DOC_NE_B",
+      "abilityExternalId": "AB_CHRONOS",
+      "minLevel": 2,
+      "factExternalId": "F_B2",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_C1",
+      "targetType": "DOCUMENT",
+      "targetExternalId": "DOC_NE_C",
+      "abilityExternalId": "AB_CHRONOS",
+      "minLevel": 1,
+      "factExternalId": "F_C1",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_C2",
+      "targetType": "DOCUMENT",
+      "targetExternalId": "DOC_NE_C",
+      "abilityExternalId": "AB_SYNCHRO",
+      "minLevel": 2,
+      "factExternalId": "F_C2",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_F1",
+      "targetType": "CLUE",
+      "targetExternalId": "CL_NE_206_02",
+      "abilityExternalId": "AB_AUTH_SCI",
+      "minLevel": 1,
+      "factExternalId": "F_FAUX1",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_F2",
+      "targetType": "CLUE",
+      "targetExternalId": "CL_NE_206_04",
+      "abilityExternalId": "AB_AUTH_SCI",
+      "minLevel": 2,
+      "factExternalId": "F_FAUX2",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_S1",
+      "targetType": "CLUE",
+      "targetExternalId": "CL_NE_202_02",
+      "abilityExternalId": "AB_SCEAUX",
+      "minLevel": 2,
+      "factExternalId": "F_SCEAUX1",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_S2",
+      "targetType": "CLUE",
+      "targetExternalId": "CL_NE_215_02",
+      "abilityExternalId": "AB_SCEAUX",
+      "minLevel": 2,
+      "factExternalId": "F_SCEAUX2",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_COPIE_1",
+      "targetType": "OBJECT",
+      "targetExternalId": "OBJ_CHRONOS_COPIE",
+      "abilityExternalId": "AB_AUTH_SCI",
+      "minLevel": 1,
+      "factExternalId": "F_COPIE_INCOHERENCE",
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "ANA_COPIE_2",
+      "targetType": "OBJECT",
+      "targetExternalId": "OBJ_CHRONOS_COPIE",
+      "abilityExternalId": "AB_AUTH_SCI",
+      "minLevel": 2,
+      "factExternalId": "F_COPIE_FABRICATION",
+      "active": true
+    }
+  ],
+  "facts": [
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "F_COPIE_INCOHERENCE",
+      "title": "Chronos — incohérence de copie",
+      "text": "Les deux folios 17 utilisent des signes opposés sans changer la convention. La surcharge et la duplication indiquent une recopie mal raccordée. Ce dossier ne permet pas de déduire un fonctionnement de Chronos ; il faut le confronter aux originaux.",
+      "nature": "INTERPRETATION",
+      "importance": "IMPORTANT",
+      "plotExternalId": "PLOT_SCIENCE",
+      "notebookCategory": "Analyse privée",
+      "isPublic": false,
+      "charmable": true,
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "F_COPIE_FABRICATION",
+      "title": "Chronos — fabrication décelée",
+      "text": "L’examen du support et des corrections révèle une imitation : le prétendu filigrane est tracé en surface et la correction suit la recopie. Ces feuillets ne sont pas un original scientifique de Sava. Cette constatation ne suffit pas à identifier leur fabricant.",
+      "nature": "INTERPRETATION",
+      "importance": "IMPORTANT",
+      "plotExternalId": "PLOT_SCIENCE",
+      "notebookCategory": "Analyse privée",
+      "isPublic": false,
+      "charmable": true,
+      "active": true
+    }
+  ],
+  "protectedFacts": [
+    "F_SECRET_P01",
+    "F_SECRET_P02",
+    "F_SECRET_P03",
+    "F_SECRET_P04",
+    "F_SECRET_P05",
+    "F_SECRET_P06",
+    "F_SECRET_P07",
+    "F_SECRET_P08",
+    "F_SECRET_P09",
+    "F_SECRET_P10",
+    "F_SECRET_P11",
+    "F_SECRET_P12",
+    "F_SECRET_P13",
+    "F_SECRET_P14",
+    "F_SECRET_P15",
+    "F_SECRET_P16"
+  ],
+  "abilities": [
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "AB_SEDUCTION",
+      "name": "Séduction",
+      "description": "Pour 1 PA, la cible choisit une information acquise dans l’enquête à confier. Les identités et codes secrets initiaux sont protégés. Une fois par cible ; sans information disponible, aucun PA n’est consommé.",
+      "category": "SOCIAL",
+      "defaultLevel": 0,
+      "defaultMaxUses": null,
+      "defaultCooldownMinutes": null,
+      "secret": false,
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "AB_INTIMIDATION",
+      "name": "Intimidation",
+      "description": "Pour 1 PA par tentative : 2D6 + niveau d’Intimidation contre 2D6 + niveau adverse (0 sans compétence). Un pistolet détenu ajoute +3 au jet de l’attaquant, sans cumul. Égalité : la cible résiste. Réussite : choisir un objet transférable dans ses affaires. Une tentative par cible.",
+      "category": "SOCIAL",
+      "defaultLevel": 0,
+      "defaultMaxUses": null,
+      "defaultCooldownMinutes": null,
+      "secret": false,
+      "active": true
+    }
+  ],
+  "interactions": [
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "INT_AB_SEDUCTION",
+      "name": "Séduction",
+      "category": "SOCIAL",
+      "targetType": "CHARACTER",
+      "scanMode": "DIRECT",
+      "abilityExternalId": "AB_SEDUCTION",
+      "actorScope": "ABILITY_HOLDER",
+      "targetScope": null,
+      "costResourceExternalId": "RES_PA",
+      "costValue": 1,
+      "costTiming": "BEFORE",
+      "resolution": "AUTO",
+      "diceCount": null,
+      "diceSides": null,
+      "abilityLevelMultiplier": null,
+      "flatBonus": null,
+      "difficulty": null,
+      "opposedAbilityExternalId": null,
+      "tieRule": "DEFENDER",
+      "validation": "AUTO",
+      "maxUses": null,
+      "limitPerTarget": 1,
+      "cooldownMinutes": 0,
+      "targetSecret": false,
+      "notificationSuccessActorExternalId": null,
+      "notificationFailureActorExternalId": null,
+      "notificationSuccessTargetExternalId": null,
+      "notificationFailureTargetExternalId": null,
+      "active": true
+    },
+    {
+      "scenarioVersionId": "67bc1a02-6255-5bef-a999-1baaa1d1a1d7",
+      "externalId": "INT_AB_INTIMIDATION",
+      "name": "Intimidation",
+      "category": "SOCIAL",
+      "targetType": "CHARACTER",
+      "scanMode": "DIRECT",
+      "abilityExternalId": "AB_INTIMIDATION",
+      "actorScope": "ABILITY_HOLDER",
+      "targetScope": null,
+      "costResourceExternalId": "RES_PA",
+      "costValue": 1,
+      "costTiming": "BEFORE",
+      "resolution": "OPPOSED",
+      "diceCount": 2,
+      "diceSides": 6,
+      "abilityLevelMultiplier": 1,
+      "flatBonus": 0,
+      "difficulty": null,
+      "opposedAbilityExternalId": "AB_INTIMIDATION",
+      "tieRule": "DEFENDER",
+      "validation": "AUTO",
+      "maxUses": null,
+      "limitPerTarget": 1,
+      "cooldownMinutes": 0,
+      "targetSecret": false,
+      "notificationSuccessActorExternalId": null,
+      "notificationFailureActorExternalId": null,
+      "notificationSuccessTargetExternalId": null,
+      "notificationFailureTargetExternalId": null,
+      "active": true
+    }
+  ],
+  "objects": [
+    {
+      "externalId": "OBJ_PISTOLET_P04",
+      "description": "Pistolet de jeu transférable. Il accorde +3 à une tentative d’Intimidation uniquement tant que son auteur possède ce pistolet. Le bonus cesse si le pistolet est cédé, perdu ou volé.",
+      "bonusAbilityExternalId": "AB_INTIMIDATION",
+      "bonusValue": 3
+    },
+    {
+      "externalId": "OBJ_PISTOLET_P07",
+      "description": "Pistolet de jeu transférable. Il accorde +3 à une tentative d’Intimidation uniquement tant que son auteur possède ce pistolet. Le bonus cesse si le pistolet est cédé, perdu ou volé.",
+      "bonusAbilityExternalId": "AB_INTIMIDATION",
+      "bonusValue": 3
+    },
+    {
+      "externalId": "OBJ_PISTOLET_P16",
+      "description": "Pistolet de jeu transférable. Il accorde +3 à une tentative d’Intimidation uniquement tant que son auteur possède ce pistolet. Le bonus cesse si le pistolet est cédé, perdu ou volé.",
+      "bonusAbilityExternalId": "AB_INTIMIDATION",
+      "bonusValue": 3
+    },
+    {
+      "externalId": "OBJ_CHRONOS_COPIE",
+      "description": "DOSSIER CHRONOS — FEUILLETS DE TRAVAIL\nMention manuscrite : « S. Tesla — copie de circulation, à confronter aux annexes ».\n\nFolio 16 — Conditions de raccordement. Un déplacement ne peut être déduit d’une seule série de calculs. Les valeurs de référence et la table de synchronisation doivent être réunies avant toute conclusion.\n\nFolio 17 — Rapport de phase. Une relation est recopiée sous la forme Δt = +κ·Φ. Le signe présente une surcharge d’encre. Une seconde page, également numérotée 17, porte la relation Δt = −κ·Φ, sans expliquer le changement de convention.\n\nFolio 18 — Essais. « Résultats à confirmer après collation des séries. » Les cases de mesure restent vierges.\n\nLes pages sont jaunies. Dans la marge, un motif pâle imite un filigrane ; il apparaît plus net en surface sur les deux folios 17. Une signature « S. Tesla » figure au dernier feuillet. Aucune date d’essai n’est inscrite.",
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    }
+  ],
+  "characters": [
+    {
+      "externalId": "P01",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P02",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P03",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P04",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P05",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation.",
+      "biography": "Ma vie, mon Œuvre\nJe suis Monique Lafayette, actuellement connue du beau monde comme Margaret Greaves, chroniqueuse mondaine britannique. J'ai appris très tôt que les femmes auxquelles on ne prête qu'un intérêt pour les cocktails sont souvent celles qui entendent le mieux les conversations. On me confie les petites indiscrétions, les grosses rancœurs et parfois les noms qu'il faudrait absolument oublier. Je les note avec soin. Le secret professionnel est une jolie invention, mais il ne règle jamais une facture.\n\nCe sommet n'est pas un dîner mondain auquel je me serais invitée au hasard. Un cabinet baptisé Hélios Conseil a proposé une rencontre privée autour de l'héritage scientifique de Sava Tesla, celui qu'on présente comme le neveu du célèbre inventeur Nikola. Le programme promet des mécènes, des industriels et quelques garanties de confidentialité. Je traduis cela en français courant : on y trouve des gens riches, méfiants et persuadés que la science devrait leur appartenir avant d'être comprise. J'ai obtenu ma place avec la couverture de Margaret Greaves et une mission américaine de surveillance commerciale. Mon métier de chroniqueuse me donne l'avantage d'interroger n'importe qui sans paraître indiscrète. Il suffit d'écouter suffisamment longtemps les confidences pour qu'elles deviennent des factures.\n\nJe travaille pour les Américains, à ma manière. Jack Sullivan m'a demandé de surveiller les intermédiaires de la vente Tesla ; je lui ai répondu qu'il me fallait un budget. Il en a fourni un. J'ai ensuite appris que d'autres acheteurs étaient prêts à payer pour exactement les mêmes informations. Je n'y vois pas d'infidélité, seulement une diversification raisonnable des revenus. J'ai fait établir deux factures de commissions, dont l'une ne doit surtout pas être découverte par Jack. Toutes deux sont rangées avec mes notes dans ma chambre.\n\nLa transaction du Mirador sent la mauvaise farce. J'ai obtenu deux contrats d'exclusivité, signés selon des formules différentes mais promettant chacun l'impossible. Quelqu'un a vendu la même chose plusieurs fois. Une société aux allures respectables est citée dans les deux documents, tandis qu'une organisatrice américaine, Dorothy Palmer, assure le lien entre les invités. Je n'ai jamais vu une philanthropie demander tant de versements avant la découverte du cadavre.\n\nAntoine de Mirecourt me doit de l'argent. Il prétend être héritier ; je conserve une reconnaissance de dette qui me laisse penser que son arbre généalogique a surtout des branches de crédit. Il se vante de ses papiers scientifiques mais refuse systématiquement de les montrer à une véritable spécialiste. Je peux le ruiner, le sauver ou lui acheter une copie. J'ai aussi observé avant le meurtre le passage d'un homme du service de sécurité dans un couloir réservé. L'heure m'a marquée : autour de 18 h 30. J'ai écrit ce que j'ai vu sur une note, sans identifier formellement le visage. C'est peut-être banal. Dans un hôtel où l'on vient de trouver un savant étranglé, cela pourrait devenir précieux.\n\nLes deux contrats que j'ai copiés ne sont pas deux versions d'un même accord : ils promettent tous les deux un droit exclusif sur des travaux qui n'existent qu'en un seul exemplaire original. Le nom d'Hélios apparaît sur leurs lettres de transmission, et Dorothy Palmer, l'organisatrice américaine de la réception, semble en avoir supervisé la distribution. Je ne sais pas qu'une organisation appelée Aurore se cache derrière ces signatures. J'ai reconnu en Antoine de Mirecourt un débiteur fort peu solvable, mais certainement pas le véritable artisan de ses documents. Mon observation du couloir vers 18 h 30 concerne un uniforme de sécurité, pas un visage formellement identifié : je la vendrai comme un indice, non comme un témoignage définitif.\n\nJe dois renouer avec mes contacts américains en utilisant les formules convenues, sans compromettre ma couverture. Je cherche une personne assez riche pour racheter mes contrats et assez inquiète pour payer deux fois. Dorothy me devra une explication ; Antoine me devra toujours de l'argent ; et la traductrice Isabelle Moreau voudra probablement comprendre pourquoi deux virements empruntent le même chemin. Un mort, une tempête, mallettes : rarement une soirée m'a donné tant de sujets pour ma chronique. Dommage que je ne puisse rien publier sans attirer l'attention de mon propre employeur.\n\nJe connais Antoine de Mirecourt depuis une nuit à Nice, deux ans auparavant. Il avait réussi à convaincre un croupier, deux baronnes et moi-même qu'il descendait d'une grande famille ; je n'ai jamais trouvé la famille, mais j'ai trouvé sa chambre. Nous nous sommes aimés pendant trois semaines, ce qui est plus long que la durée moyenne de ses promesses. Je lui ai avancé 600 $ pour régler une dette de jeu et lancer une activité respectable. Il est parti avec mon argent, ma confiance et une chemise qui n'était pas à lui. Lorsque je l'ai aperçu au Mirador, j'ai hésité entre l'embrasser et faire vendre ses boutons de manchette. Je porte encore sa reconnaissance de dette, rangée parmi mes contrats, comme d'autres gardent une lettre d'amour.\n\nJ'ai 1 200 $ de fortune personnelle, résultat d'honoraires réels, de commissions officieuses et de deux placements que je refuserais d'expliquer à Jack. Rien de cela ne provient de la mallette américaine. C'est assez pour jouer gros, assez aussi pour racheter le silence d'un amateur. Je maîtrise la Séduction au sens professionnel : une confidence obtenue avec un compliment, un rire ou une chaise rapprochée vaut parfois plus qu'une enquête. Je ne force personne à me raconter sa vie ; j'aime simplement lui laisser croire que je ne m'intéresse pas à la sienne. Si Antoine se présente avec une copie des équations, je pourrais choisir de dénoncer sa fraude… ou de lui offrir une dernière chance contre paiement comptant.\n\nLe directeur du Mirador a annoncé la mort de Tesla au moment où les négociations devaient commencer. Les lignes sont mortes aussi, ce qui compromet fortement mes habitudes de négociation par téléphone. Je vais garder pour moi les deux contrats et ma note sur le couloir jusqu'à trouver qui a le plus besoin de les acheter. Il me faudra reconnaître mes contacts américains avec les phrases prévues. Je me méfie des gens qui demandent de la discrétion sans préciser s'ils entendent par là le silence ou la gratuité.\n\nMon argent personnel et mes compétences\nJe commence la soirée avec 1 200 $ personnels  utilisables au casino ou dans mes transactions privées ; cette somme est distincte de toute mallette de réseau.\nJe peux tenter une Séduction : une confidence obtenue à l’oreille vaut mieux qu’un rapport volé.\n\nLes personnes que je dois rencontrer\nJe dois faire pression sur Dorothy Palmer, organisatrice officielle de la réception, au sujet des contrats incompatibles.\nJe souhaite récupérer l’argent qu’Antoine de Mirecourt me doit.\nJe peux échanger une information bancaire avec Isabelle Moreau.\nJe dois éclaircir le lien personnel qui me rattache à Antoine de Mirecourt : nos affaires et nos sentiments risquent de se confondre.\n\nMes mots de reconnaissance\nSi j’entends « Votre usine livre-t-elle à l’heure ? », je dois répondre « Toujours avec deux factures. ».\nJe peux lancer la phrase « Quel est votre élément préféré ? » et attendre « Celui qui ne se vend pas. ».\n\nCe que je possède et ce que je cache\nJe conserve des copies de deux offres incompatibles et mes notes de frais officieuses.\nJe détiens une reconnaissance de dette d’Antoine et une observation de couloir datée.\nJe dispose aussi de 1200 $ d’argent personnel en début de partie, indépendamment de toute mallette collective.\nDans ma chambre 205, j’ai notamment laissé les traces suivantes, qu’un autre invité pourrait découvrir :\nJe garde ici : « Deux contrats promettant chacun l’exclusivité ».\nJe garde ici : « Facture personnelle de double commission ».\nJe garde ici : « Reconnaissance de dette d’Antoine de Mirecourt ».\nJe garde ici : « Note de témoin signalant un passage de sécurité vers 18 h 30 ».\n\nRègles de partie\nLa partie dure 3 heures. Je commence avec 5 PA. Une fouille coûte 1 PA et ne demande aucun jet de dés."
+    },
+    {
+      "externalId": "P06",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P07",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P08",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P09",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P10",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P11",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P12",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P13",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P14",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P15",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    },
+    {
+      "externalId": "P16",
+      "interpretationNotes": "\n\nRègles de la session : 3 heures ; 5 PA au départ. Une fouille automatique coûte 1 PA, sans dé, et révèle un élément disponible. Attendez 10 minutes entre deux fouilles, même dans des lieux différents. Vous ne pouvez pas fouiller votre propre chambre. Lire, discuter, négocier et examiner un document détenu ne coûtent pas de PA. Le casino utilise uniquement vos dollars personnels ; chaque mallette de 100 000 $ reste un objet de négociation."
+    }
+  ],
+  "versionNotes": "Corrections du 07/11/2026 : analyses privées, faux Chronos analysable, séduction et intimidation actives, pistolet +3 conditionné à la possession ; fouilles atomiques. Les règles sociales sont la configuration retenue pour rendre la session testable."
+}

@@ -70,6 +70,13 @@ export function validateWorkbook(workbook) {
     if (r.media_id) ref('INDICES',r,'media_id','MEDIA');
   }
   for (const r of workbook.sheets.OBJETS ?? []) {
+    if (r.bonus_ability_id) ref('OBJETS',r,'bonus_ability_id','CAPACITES');
+    if (!empty(r.bonus_valeur)) {
+      const bonus=Number(r.bonus_valeur);
+      if(!Number.isInteger(bonus)||bonus<0||bonus>100||(!r.bonus_ability_id&&bonus!==0))
+        diagnostics.push(diag('ERROR','OBJECT_ABILITY_BONUS_INVALID','OBJETS',r.object_id,'Le bonus doit être un entier de 0 à 100 associé à une capacité.','',true));
+    }
+
     if (r.prop_requirement_id) ref('OBJETS',r,'prop_requirement_id','PROPS_REQUIS');
     if (r.owner_initial_type === 'CHARACTER' && r.owner_initial_id) ref('OBJETS',r,'owner_initial_id','PERSONNAGES');
     if (r.owner_initial_type === 'LOCATION' && r.owner_initial_id) ref('OBJETS',r,'owner_initial_id','LIEUX');
@@ -79,6 +86,28 @@ export function validateWorkbook(workbook) {
     ref('DOCUMENTS',r,'clue_ids','INDICES',true);
     if (r.media_id) ref('DOCUMENTS',r,'media_id','MEDIA');
     if (r.prop_requirement_id) ref('DOCUMENTS',r,'prop_requirement_id','PROPS_REQUIS');
+  }
+  for (const r of workbook.sheets.ANALYSES ?? []) {
+    const id = String(r.analysis_id ?? '');
+    const type = String(r.target_type ?? '').toUpperCase();
+    if (!['CLUE','OBJECT','DOCUMENT'].includes(type)) {
+      diagnostics.push(diag('ERROR','ANALYSIS_TARGET_TYPE','ANALYSES',id,'Type de cible non supporté : '+type+'.','Utiliser CLUE, OBJECT ou DOCUMENT.',true));
+    } else {
+      const target = type==='CLUE'?'INDICES':type==='OBJECT'?'OBJETS':'DOCUMENTS';
+      const generated = type==='OBJECT' && String(r.target_id ?? '').startsWith('DOC_OBJ_')
+        && indexes.DOCUMENTS?.has(String(r.target_id).slice(8));
+      if (!generated) ref('ANALYSES',r,'target_id',target,false,true);
+    }
+    ref('ANALYSES',r,'fact_id','FAITS',false,true);
+    if (r.ability_id) ref('ANALYSES',r,'ability_id','CAPACITES');
+    const level=Number(r.min_level);
+    if (!Number.isInteger(level) || level<0 || level>50)
+      diagnostics.push(diag('ERROR','ANALYSIS_LEVEL_INVALID','ANALYSES',id,'min_level doit être un entier de 0 à 50.','',true));
+    if (!r.ability_id && level>0)
+      diagnostics.push(diag('ERROR','ANALYSIS_LEVEL_REQUIRES_SKILL','ANALYSES',id,'Un niveau positif nécessite une compétence.','',true));
+    const fact = (workbook.sheets.FAITS??[]).find(f=>f.fact_id===r.fact_id);
+    if(fact && (fact.public===true || String(fact.public).toUpperCase()==='TRUE'))
+      diagnostics.push(diag('WARNING','ANALYSIS_FACT_PUBLIC','ANALYSES',id,'Ce fait est public : le résultat risque d’être connu avant l’analyse.'));
   }
   for (const r of workbook.sheets.ATTRIB_CAPACITES ?? []) {
     ref('ATTRIB_CAPACITES',r,'ability_id','CAPACITES',false,true);

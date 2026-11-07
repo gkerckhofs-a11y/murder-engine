@@ -18,6 +18,7 @@ query ExistingEnrichment($scenarioVersionId: UUID!) {
   objectives(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   relationships(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   documentDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
+  documentAnalysisDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   mediaAssets(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   skinVisualDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   gameObjects(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
@@ -92,6 +93,12 @@ mutation InsertRelationship($data: Relationship_Data!) {
 export const INSERT_DOCUMENT_DEFINITION_MUTATION = `
 mutation InsertDocumentDefinition($data: DocumentDefinition_Data!) {
   documentDefinition_insert(data: $data)
+}
+`;
+
+export const INSERT_DOCUMENT_ANALYSIS_MUTATION = `
+mutation InsertDocumentAnalysisDefinition($data: DocumentAnalysisDefinition_Data!) {
+  documentAnalysisDefinition_insert(data: $data)
 }
 `;
 
@@ -318,6 +325,7 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
   const existingObjectives = new Set((enrichment.objectives ?? []).map(row => row.externalId));
   const existingRelationships = new Set((enrichment.relationships ?? []).map(row => row.externalId));
   const existingDocumentDefinitions = new Set((enrichment.documentDefinitions ?? []).map(row => row.externalId));
+  const existingDocumentAnalyses = new Set((enrichment.documentAnalysisDefinitions ?? []).map(row => row.externalId));
   const existingMediaAssets = new Set((enrichment.mediaAssets ?? []).map(row => row.externalId));
   const existingSkinVisualDefinitions = new Set((enrichment.skinVisualDefinitions ?? []).map(row => row.externalId));
   const existingGameObjects = new Set((enrichment.gameObjects ?? []).map(row => row.externalId));
@@ -341,6 +349,7 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
   const missingObjectives = plan.objectives.filter(row => !existingObjectives.has(row.externalId));
   const missingRelationships = plan.relationships.filter(row => !existingRelationships.has(row.externalId));
   const missingDocumentDefinitions = (plan.documents ?? []).filter(row => !existingDocumentDefinitions.has(row.externalId));
+  const missingDocumentAnalyses = (plan.documentAnalyses ?? []).filter(row => !existingDocumentAnalyses.has(row.externalId));
   const missingMediaAssets = (plan.mediaAssets ?? []).filter(row => !existingMediaAssets.has(row.externalId));
   const missingSkinVisualDefinitions = (plan.skinVisualDefinitions ?? []).filter(row => !existingSkinVisualDefinitions.has(row.externalId));
   const missingGameObjects = plan.gameObjects.filter(row => !existingGameObjects.has(row.externalId));
@@ -396,6 +405,13 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
     INSERT_MEDIA_ASSET_MUTATION,
     run,
     { concurrency: 8, entityName: 'media_asset' },
+  );
+
+  const analysisResult = await insertRows(
+    missingDocumentAnalyses,
+    INSERT_DOCUMENT_ANALYSIS_MUTATION,
+    run,
+    { concurrency: 8, entityName: 'document_analysis' },
   );
 
   const skinVisualDefinitionResult = await insertRows(
@@ -522,6 +538,7 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
       objectives: objectiveResult.count,
       relationships: relationshipResult.count,
       documents: documentDefinitionResult.count,
+      documentAnalyses: analysisResult.count,
       mediaAssets: mediaAssetResult.count,
       skinVisualDefinitions: skinVisualDefinitionResult.count,
       gameObjects: gameObjectResult.count,

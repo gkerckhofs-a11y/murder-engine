@@ -1,0 +1,75 @@
+name: Deploy Nid readiness corrections
+on:
+  push:
+    branches: [fix/nid-readiness]
+permissions:
+  contents: read
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify destination
+        run: test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+      - run: npm ci --prefix functions
+      - run: npm test --prefix functions
+      - run: npm install --global firebase-tools@15.34.0
+      - name: Verify real SQL contention, analysis privacy and scoped migration
+        run: node functions/integration/run.mjs nid
+      - name: Verify casino integration against the extended schema
+        run: node functions/integration/run.mjs casino
+      - run: npm ci --prefix web
+      - run: npm run build --prefix web
+      - name: Record deployed revision
+        env:
+          DEPLOYED_REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'JS'
+          import {writeFileSync} from 'node:fs';
+          const revision=process.env.DEPLOYED_REVISION;
+          writeFileSync('web/dist/deployment-version.json',JSON.stringify({revision,feature:'casino-modules-v1',nidReadiness:true}));
+          writeFileSync('web/dist/navigation-version.json',JSON.stringify({revision,feature:'four-tab-player-navigation',organizerAccess:true,casino:true,nidReadiness:true}));
+          JS
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - name: Apply additive SQL schema
+        run: |
+          firebase dataconnect:sql:migrate --service murder-engine --project "$FIREBASE_PROJECT_ID" --non-interactive
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only dataconnect:murder-engine:schema --non-interactive
+      - name: Deploy backend
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          const names=[...readFileSync('functions/src/index.mjs','utf8').matchAll(/export const (\w+) = securedOnRequest\(/g)].map(m=>'functions:'+m[1]);
+          if(names.length<60)throw Error('INCOMPLETE_DEPLOYMENT_SCOPE');
+          writeFileSync('/tmp/nid-deploy-scope',names.join(','));
+          JS
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only "$(cat /tmp/nid-deploy-scope)" --non-interactive
+      - name: Apply scoped Nid scenario corrections and verify preservation
+        env:
+          GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: node functions/tools/apply-nid-readiness.mjs
+      - name: Publish player interface
+        run: firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting --non-interactive
+      - name: Verify live access boundaries and revision
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: node functions/scripts/verify-casino-deployment.mjs
+      - name: Save scoped correction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nid-correction-evidence
+          path: nid-correction-evidence/
+          retention-days: 14
+          if-no-files-found: ignore

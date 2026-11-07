@@ -432,6 +432,13 @@
         }
       },
       {
+        "source": "/api/player/document/examine",
+        "function": {
+          "functionId": "examinePublicPlayerDocument",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/player/portal",
         "function": {
           "functionId": "getPublicPlayerPortal",
