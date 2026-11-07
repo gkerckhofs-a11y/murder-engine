@@ -564,8 +564,8 @@ function EngineApp({isAdmin}: {isAdmin: boolean}) {
 
     {organizerSessionId && <SessionLicensePanel sessionId={organizerSessionId} admin={false} onState={next => {if(!license || license.workingSessionId!==next.workingSessionId)openWorkingSession(next);}} onChanged={openWorkingSession}/>}
     {scoped && !organizerSessionId && <section className="card"><h2>Votre accès organisateur</h2><p>Ouvrez le lien de session qui vous a été transmis pour préparer et animer votre murder.</p></section>}
-    {!scoped && view === 'sessions' && session && <SessionLicensePanel key={session.id} sessionId={session.id} admin={isAdmin} onState={setLicense} onChanged={setLicense}/>}
-    {view==='sessions'&&session&&<CasinoAdmin key={session.id} sessionId={session.id}/>}
+    {!scoped && view === 'sessions' && session && <SessionLicensePanel key={`license:${session.id}`} sessionId={session.id} admin={isAdmin} onState={setLicense} onChanged={setLicense}/>}
+    {view==='sessions'&&session&&<CasinoAdmin key={`casino:${session.id}`} sessionId={session.id}/>}
     {view === 'library' && version && <div className="gmPackShortcut"><button onClick={()=>window.open(`/?gmPack=${encodeURIComponent(version.id)}`,'_blank')}>📦 Ouvrir le Pack MJ</button></div>}
 
     {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{
