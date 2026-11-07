@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { asSkinId, skinClassFor, defaultAccentForSkin } from './skin-registry';
 
 type Language='FR'|'EN';
@@ -156,6 +156,8 @@ export default function LocationScan({
   const [last,setLast]=useState<ActionResult|null>(null);
   const [cooldown,setCooldown]=useState(0);
   const [pendingAction,setPendingAction]=useState<LocationAction|null>(null);
+  const pendingRequest=useRef<{key:string;id:string}|null>(null);
+  const submitting=useRef(false);
 
   useEffect(()=>{
     const nextToken=playerToken||queryToken;
@@ -216,6 +218,10 @@ export default function LocationScan({
   },[cooldown>0,token,locationExternalId]);
 
   async function execute(action:LocationAction){
+    if(submitting.current)return;
+    submitting.current=true;
+    const key=`${token}:${locationExternalId}:${action.externalId}`;
+    if(pendingRequest.current?.key!==key)pendingRequest.current={key,id:crypto.randomUUID()};
     setBusy(action.externalId);
     setError('');
     setLast(null);
@@ -223,13 +229,24 @@ export default function LocationScan({
     try{
       const r=await postJson<{ok:boolean;result:ActionResult}>(
         '/api/player/location/action',
-        {token,locationExternalId,interactionExternalId:action.externalId}
+        {token,locationExternalId,interactionExternalId:action.externalId,requestId:pendingRequest.current.id}
       );
+      pendingRequest.current=null;
       setLast(r.result);
       await load();
     }catch(e){
-      setError(e instanceof Error?e.message:String(e));
+      const code=e instanceof Error?e.message:String(e);
+      const messages:Record<string,[string,string]>={
+        SEARCH_BALANCE_CHANGED:['Vos PA ont changé. Rechargez le lieu avant de réessayer.','Your AP changed. Reload this location before retrying.'],
+        SEARCH_COOLDOWN:['Une fouille vient déjà d’être enregistrée. Attendez la fin du délai.','A search was already recorded. Wait for the cooldown.'],
+        SEARCH_REWARD_CHANGED:['Un autre joueur vient de prendre cet élément. Rechargez le lieu.','Another player just took this item. Reload the location.'],
+        SEARCH_SESSION_NOT_LIVE:['La partie est en pause.','The game is paused.'],
+        SEARCH_ACCESS_CHANGED:['Votre accès a changé. Rouvrez votre lien joueur.','Your access changed. Reopen your player link.'],
+      };
+      setError(messages[code]?tx(language,...messages[code]):code);
+      if(messages[code]){pendingRequest.current=null;await load();}
     }finally{
+      submitting.current=false;
       setBusy('');
     }
   }

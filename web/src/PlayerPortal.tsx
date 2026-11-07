@@ -225,6 +225,7 @@ export default function PlayerPortal({token}:{token:string}){
       return response;
     }} onVote={(voteExternalId,round,selectedOptionExternalIds)=>act(()=>postJson('/api/player/vote',{token,voteExternalId,round,selectedOptionExternalIds}),tr(portal,'Vote enregistré ✓','Vote recorded ✓'))}/>}
     {tab==='sac'&&<PlayerBag
+      key={`${token}:${s.id}:${c.externalId}`}
       portal={portal}
       busy={busy}
       onGive={(objectExternalId,targetCharacterExternalId)=>act(
@@ -238,6 +239,9 @@ export default function PlayerPortal({token}:{token:string}){
       onCashTransfer={(targetCharacterExternalId,amount)=>act(
         ()=>postJson('/api/player/cash',{token,targetCharacterExternalId,amount}),
         tr(portal,'Virement effectué ✓','Transfer completed ✓')
+      )}
+      onExamine={(targetType,targetExternalId)=>act(
+        ()=>postJson('/api/player/document/examine',{token,targetType,targetExternalId})
       )}
     />}
     {introOpen&&<div className="qrScannerOverlay playerStoryOverlay" role="dialog" aria-modal="true" aria-label="Introduction"><div className="qrScannerPanel playerStoryPanel"><p className="eyebrow">{tr(portal,'L’HISTOIRE COMMENCE','THE STORY BEGINS')}</p><h2>{s.scenarioTitle}</h2><div className="playerStoryText">{s.playerSummary}</div><button className="playerPrimary" onClick={closeIntro}>{tr(portal,'Entrer dans l’histoire','Enter the story')}</button></div></div>}
@@ -936,12 +940,14 @@ function PlayerBag({
   onGive,
   onShareClue,
   onCashTransfer,
+  onExamine,
 }:{
   portal:Portal;
   busy:boolean;
   onGive:(objectId:string,targetId:string)=>void;
   onShareClue:(clueExternalId:string,targetId:string)=>Promise<any>|void;
   onCashTransfer:(targetId:string,amount:number)=>Promise<any>|void;
+  onExamine:(targetType:string,targetExternalId:string)=>Promise<any>|void;
 }){
   const [scanObject,setScanObject]=useState<any|null>(null);
   const [pending,setPending]=useState<{object:any;target:any}|null>(null);
@@ -952,6 +958,8 @@ function PlayerBag({
   const [cashAmount,setCashAmount]=useState('');
   const [cashConfirmation,setCashConfirmation]=useState<string>('');
   const [cashError,setCashError]=useState('');
+  const [analysisResult,setAnalysisResult]=useState<any|null>(null);
+  const [analysisBusy,setAnalysisBusy]=useState(false);
 
   const documentRows=useMemo(()=>playerClues(portal),[portal]);
   const docObjectIds=new Set(documentRows.map(d=>d.objectExternalId).filter(Boolean));
@@ -960,6 +968,16 @@ function PlayerBag({
   const cash=resources.find((r:any)=>r.resourceExternalId==='RES_CASH');
   const cashValue=Number(cash?.currentValue??0);
   const possessionCount=documentRows.length+objects.length;
+
+  async function examine(type:string,id:string){
+    setAnalysisBusy(true);
+    try{
+      const response=await Promise.resolve(onExamine(type,id));
+      if(response?.result)setAnalysisResult(response.result);
+    }finally{
+      setAnalysisBusy(false);
+    }
+  }
 
   async function confirmCashTransfer(){
     if(!cashTarget)return;
@@ -1063,6 +1081,15 @@ function PlayerBag({
                 )}</em>
               </div>
 
+              {d.owned && d.canExamine && <div className="giveRow giveQrRow">
+                <button className="playerSecondary" disabled={busy||analysisBusy} onClick={()=>void examine(
+                  d.documentExternalId?'DOCUMENT':d.objectExternalId?'OBJECT':'CLUE',
+                  d.documentExternalId||d.objectExternalId||d.clueExternalId
+                )}>
+                  🔍 {tr(portal,'Examiner le document','Examine document')}
+                </button>
+              </div>}
+
               {d.owned && !d.object && d.shareable!==false && portal.otherCharacters.length>0&&
                 <div className="giveRow giveQrRow">
                   <button className="playerSecondary" disabled={busy} onClick={()=>setScanClue(d)}>
@@ -1092,14 +1119,19 @@ function PlayerBag({
                 <div className="bagPossessionType">{tr(portal,'Objet','Item')}</div>
                 <strong>{o.name}</strong>
                 <p>{o.identification}</p>
-                {/* Imported standalone documents keep their text in the owned object's description. */}
-                {String(o.objectExternalId??'').startsWith('DOC_OBJ_') && o.description &&
+                {/* Standalone scientific objects also expose their public document text. */}
+                {(String(o.objectExternalId??'').startsWith('DOC_OBJ_') || o.canExamine) && o.description &&
                   <ImmersiveDocument
                     entry={{immersiveDocument:{title:o.name,textContent:o.description,media:[]}}}
                     language={portal.session?.language}
                   />}
                 {o.charges!=null&&!String(o.objectExternalId??'').startsWith('DOC_OBJ_')&&<small>{tr(portal,'Charges','Charges')} : {o.charges}</small>}
               </div>
+              {o.canExamine&&<div className="giveRow giveQrRow objectVisualAction">
+                <button className="playerSecondary" disabled={busy||analysisBusy} onClick={()=>void examine('OBJECT',o.objectExternalId)}>
+                  🔍 {tr(portal,'Examiner','Examine')}
+                </button>
+              </div>}
               {o.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow objectVisualAction">
                 <button className="playerSecondary" disabled={busy} onClick={()=>setScanObject(o)}>📷 {tr(portal,'Donner','Give')}</button>
               </div>}
@@ -1107,6 +1139,24 @@ function PlayerBag({
           )}
         </div>}
     </section>
+
+    {analysisResult&&<div className="qrScannerOverlay" role="dialog" aria-modal="true" aria-label={tr(portal,'Résultat de l’examen','Examination result')}>
+      <div className="qrScannerPanel" style={{maxHeight:'82vh',overflowY:'auto'}}>
+        <p className="eyebrow">{tr(portal,'EXAMEN DOCUMENTAIRE','DOCUMENT EXAMINATION')}</p>
+        <h2>{tr(portal,'Ce que vous comprenez','What you can interpret')}</h2>
+        {analysisResult.results?.length
+          ? <div className="playerStack">{analysisResult.results.map((result:any)=>(
+            <article key={result.factExternalId}>
+              {result.abilityName&&<small>{result.abilityName}</small>}
+              <h3>{result.title}</h3>
+              <NarrativeText text={result.text} className="playerNarrativeText"/>
+            </article>
+          ))}</div>
+          : <p>{tr(portal,'Vous ne parvenez pas à en tirer d’information supplémentaire avec vos compétences actuelles.','Your current skills do not reveal any additional information.')}</p>}
+        {analysisResult.results?.length>0&&<p className="playerAnalysisNote">{tr(portal,'Votre interprétation est conservée dans Carnet → Infos, même si vous remettez le document à quelqu’un.','Your interpretation is kept in Notebook → Info, even if you give the document away.')}</p>}
+        <button className="playerPrimary" onClick={()=>setAnalysisResult(null)}>{tr(portal,'Fermer','Close')}</button>
+      </div>
+    </div>}
 
     {scanClue&&<QrCharacterScanner
       title={tr(portal,'Partager cet indice','Share this clue')}

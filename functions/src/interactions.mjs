@@ -37,7 +37,7 @@ query InteractionSource($versionId: UUID!) {
     externalId name description qrCode permanent lockExternalId active
   }
   gameObjects(where: {scenarioVersionId: {eq: $versionId}}) {
-    externalId name description transferable stealable consumable critical active
+    externalId name description transferable stealable consumable critical bonusAbilityExternalId bonusValue active
   }
   clues(
     where: {scenarioVersionId: {eq: $versionId}}
@@ -395,14 +395,16 @@ export async function executeInteraction(sessionId, input, { reader=defaultReade
   if (!participantByCharacter(session, actorCharacterExternalId)) throw new Error('ACTOR_NOT_IN_SESSION');
   const interaction = (source.interactions ?? []).find(i=>i.externalId===interactionExternalId && i.active!==false);
   if (!interaction) throw new Error('INTERACTION_NOT_FOUND');
-  const actorAbility = effectiveAbility(source, actorCharacterExternalId, interaction.abilityExternalId);
+  const baseAbility = effectiveAbility(source, actorCharacterExternalId, interaction.abilityExternalId);
+  const equipmentBonus = heldAbilityBonus(source,runtime,actorCharacterExternalId,interaction.abilityExternalId);
+  const actorAbility = baseAbility ? {...baseAbility,flatBonus:baseAbility.flatBonus+equipmentBonus} : null;
   if (interaction.actorScope === 'ABILITY_HOLDER' && interaction.abilityExternalId && !actorAbility) throw new Error('ABILITY_NOT_ASSIGNED');
   const targetExternalId = validateTarget(source, session, interaction.targetType, String(input?.targetExternalId ?? '').trim() || null);
   const targetAbility = ['PLAYER','CHARACTER'].includes(String(interaction.targetType).toUpperCase()) && targetExternalId && interaction.opposedAbilityExternalId ? effectiveAbility(source,targetExternalId,interaction.opposedAbilityExternalId) : null;
   assertUsageAllowed(runtime.sessionInteractionUses, actorCharacterExternalId, interaction, targetExternalId, actorAbility, now);
   const outcome = resolveInteractionOutcome(interaction, actorAbility, targetAbility, { gmOutcome:input?.gmOutcome, roller });
   const cost = Number(interaction.costValue ?? 0);
-  const shouldCharge = cost > 0 && interaction.costResourceExternalId && (String(interaction.costTiming ?? 'BEFORE').toUpperCase() === 'BEFORE' || outcome.success);
+  const shouldCharge = cost > 0 && interaction.costResourceExternalId && (String(interaction.costTiming ?? 'BEFORE').toUpperCase() === 'BEFORE' || String(interaction.costTiming).toUpperCase() === 'ATTEMPT' || outcome.success);
   let resourceRow = null, resourceAfter = null;
   if (shouldCharge) {
     resourceRow = (runtime.sessionResources ?? []).find(r=>r.characterExternalId===actorCharacterExternalId&&r.resourceExternalId===interaction.costResourceExternalId);
@@ -427,8 +429,19 @@ export async function executeInteraction(sessionId, input, { reader=defaultReade
     note:`${interaction.name}${targetExternalId?` → ${targetExternalId}`:''}${input?.note?` · ${String(input.note).trim()}`:''}`,
     createdAt,
   };
-  if (shouldCharge) await executor(EXECUTE_WITH_COST_MUTATION,{sessionId,characterExternalId:actorCharacterExternalId,resourceExternalId:interaction.costResourceExternalId,currentValue:resourceAfter,expectedValue:Number(resourceRow.currentValue),updatedAt:createdAt,use,log});
-  else await executor(EXECUTE_NO_COST_MUTATION,{use,log});
+  let operation=shouldCharge?EXECUTE_WITH_COST_MUTATION:EXECUTE_NO_COST_MUTATION;
+  const variables=shouldCharge?{sessionId,characterExternalId:actorCharacterExternalId,resourceExternalId:interaction.costResourceExternalId,currentValue:resourceAfter,expectedValue:Number(resourceRow.currentValue),updatedAt:createdAt,use,log}:{use,log};
+  if(equipmentBonus>0){
+    const item=(source.gameObjects??[]).find(o=>o.active!==false&&o.bonusAbilityExternalId===interaction.abilityExternalId&&Number(o.bonusValue)===equipmentBonus&&(runtime.sessionObjects??[]).some(r=>r.objectExternalId===o.externalId&&r.inPlay!==false&&r.holderType==='CHARACTER'&&r.holderExternalId===actorCharacterExternalId));
+    variables.equipmentId=item.externalId;variables.sessionId=sessionId;variables.characterExternalId=actorCharacterExternalId;
+    operation=operation.replace(') @transaction',`, $equipmentId:String!${shouldCharge?'':', $sessionId:UUID!, $characterExternalId:String!'}) @transaction`);
+    const guard=`
+      equipmentLock:sessionObject_update(key:{gameSessionId:$sessionId,objectExternalId:$equipmentId},data:{identificationLevel_update:{inc:0}})
+      equipmentGuard:query @check(expr:"response.equipmentGuard.sessionObject != null && response.equipmentGuard.sessionObject.inPlay == true && response.equipmentGuard.sessionObject.holderType == 'CHARACTER' && response.equipmentGuard.sessionObject.holderExternalId == vars.characterExternalId",message:"INTERACTION_EQUIPMENT_CHANGED") @redact{sessionObject(key:{gameSessionId:$sessionId,objectExternalId:$equipmentId}){inPlay holderType holderExternalId}}
+    `;
+    operation=operation.replace('  sessionInteractionUse_insert(',guard+'  sessionInteractionUse_insert(');
+  }
+  await executor(operation,variables);
   return {
     interactionExternalId, interactionName:interaction.name, actorCharacterExternalId, targetType:interaction.targetType,targetExternalId,scanMode:interaction.scanMode??null,
     success:outcome.success,resolution:outcome.resolution,actorRoll:outcome.actorRoll,targetRoll:outcome.targetRoll,actorTotal:outcome.actorTotal,targetTotal:outcome.targetTotal,
@@ -477,3 +490,10 @@ export async function transferSessionObject(sessionId, input, { reader=defaultRe
 }
 
 export const __interactionOps={INTERACTION_SESSION_QUERY,INTERACTION_SOURCE_QUERY,INTERACTION_RUNTIME_QUERY,EXECUTE_WITH_COST_MUTATION,EXECUTE_NO_COST_MUTATION,REVEAL_CLUE_MUTATION,REVEAL_CLUE_NO_KNOWLEDGE_MUTATION,TRANSFER_OBJECT_MUTATION};
+
+/** A carried weapon follows its holder; multiple weapons do not stack. */
+export function heldAbilityBonus(source,runtime,actor,abilityId){
+ if(!abilityId)return 0;
+ const held=new Set((runtime.sessionObjects??[]).filter(o=>o.inPlay!==false&&o.holderType==='CHARACTER'&&o.holderExternalId===actor).map(o=>o.objectExternalId));
+ return Math.max(0,...(source.gameObjects??[]).filter(o=>o.active!==false&&held.has(o.externalId)&&o.bonusAbilityExternalId===abilityId).map(o=>Number(o.bonusValue)||0));
+}

@@ -139,6 +139,7 @@ type Fact @table(key: ["scenarioVersion", "externalId"]) {
   plotExternalId: String
   notebookCategory: String
   isPublic: Boolean! @default(value: false)
+  charmable: Boolean! @default(value: true)
   active: Boolean! @default(value: true)
 }
 
@@ -225,6 +226,18 @@ type DocumentDefinition @table(key: ["scenarioVersion", "externalId"]) {
   active: Boolean! @default(value: true)
 }
 
+# A document can yield different private facts depending on the holder's skills.
+type DocumentAnalysisDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  targetType: String!
+  targetExternalId: String!
+  abilityExternalId: String
+  minLevel: Int! @default(value: 0)
+  factExternalId: String!
+  active: Boolean! @default(value: true)
+}
+
 type GameObject @table(key: ["scenarioVersion", "externalId"]) {
   scenarioVersion: ScenarioVersion!
   externalId: String!
@@ -246,6 +259,8 @@ type GameObject @table(key: ["scenarioVersion", "externalId"]) {
   identification3: String
   mediaExternalId: String
   visualArchetypeCode: String
+  bonusAbilityExternalId: String
+  bonusValue: Int! @default(value: 0)
   active: Boolean! @default(value: true)
 }
 
@@ -583,6 +598,17 @@ type SessionResource @table(key: ["gameSession", "characterExternalId", "resourc
   currentValue: Int!
   maxValue: Int
   updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+# Idempotent receipt for a complete location search, scoped to its session.
+type SessionLocationSearchCommand @table(key: ["gameSession", "requestId"]) {
+  gameSession: GameSession!
+  requestId: String!
+  participantId: UUID!
+  characterExternalId: String!
+  locationExternalId: String!
+  resultJson: String!
+  createdAt: Timestamp! @default(expr: "request.time")
 }
 
 type SessionKnowledge @table(key: ["gameSession", "characterExternalId", "factExternalId"]) {

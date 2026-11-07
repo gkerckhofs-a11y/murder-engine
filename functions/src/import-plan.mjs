@@ -141,6 +141,7 @@ export function buildImportPlan(workbook, {
     plotExternalId: textOrNull(r.plot_id),
     notebookCategory: textOrNull(r.categorie_carnet),
     isPublic: truthy(r.public, false),
+    charmable: truthy(r.revelable_charme, true),
     active: truthy(r.actif, true),
   }));
 
@@ -196,6 +197,17 @@ export function buildImportPlan(workbook, {
     transferable: truthy(r.transferable, true),
     stealable: truthy(r.volable, true),
     active: truthy(r.actif, true),
+  }));
+
+  const documentAnalyses = (workbook.sheets.ANALYSES ?? []).map(r => ({
+    scenarioVersionId,
+    externalId: String(r.analysis_id),
+    targetType: String(r.target_type).trim().toUpperCase(),
+    targetExternalId: String(r.target_id).trim(),
+    abilityExternalId: textOrNull(r.ability_id),
+    minLevel: intOrNull(r.min_level) ?? 0,
+    factExternalId: String(r.fact_id).trim(),
+    active: truthy(r.actif,true),
   }));
 
   const documentObjectId = documentExternalId => `DOC_OBJ_${documentExternalId}`;
@@ -272,6 +284,8 @@ export function buildImportPlan(workbook, {
     identification3: textOrNull(r.identification_3),
     mediaExternalId: textOrNull(r.media_id),
     visualArchetypeCode: textOrNull(r.visual_archetype_code),
+    bonusAbilityExternalId: textOrNull(r.bonus_ability_id),
+    bonusValue: intOrNull(r.bonus_valeur) ?? 0,
     active: truthy(r.actif, true),
   }));
   const explicitObjectIds = new Set(gameObjects.map(o=>o.externalId));
@@ -537,6 +551,7 @@ export function buildImportPlan(workbook, {
     clues,
     clueFacts,
     documents,
+    documentAnalyses,
     mediaAssets,
     skinVisualDefinitions,
     gameObjects,
@@ -565,6 +580,7 @@ export function importPlanCounts(plan) {
     clues: plan.clues.length,
     clueFacts: plan.clueFacts.length,
     documents: plan.documents.length,
+    documentAnalyses: plan.documentAnalyses.length,
     mediaAssets: plan.mediaAssets.length,
     skinVisualDefinitions: plan.skinVisualDefinitions.length,
     gameObjects: plan.gameObjects.length,
