@@ -1,0 +1,54 @@
+name: Deploy casino setup UI fix
+on:
+  push:
+    branches: [fix/casino-session-setup]
+permissions:
+  contents: read
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify deployment destination
+        run: test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+      - run: npm ci --prefix functions
+      - name: Check casino behavior and application boot
+        run: node --test functions/test/casino.test.mjs web/test/boot.test.mjs
+      - run: npm ci --prefix web
+      - run: npm run build --prefix web
+      - name: Record deployed revision
+        env:
+          DEPLOYED_REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'JS'
+          import {writeFileSync} from 'node:fs';
+          const revision=process.env.DEPLOYED_REVISION;
+          writeFileSync('web/dist/deployment-version.json',JSON.stringify({revision,sourceRevision:'2afd2cc22899ea098de39b352fd3163c1203d463',feature:'casino-session-setup-fix'}));
+          writeFileSync('web/dist/navigation-version.json',JSON.stringify({revision,feature:'four-tab-player-navigation',organizerAccess:true,casino:true}));
+          JS
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - run: npm install --global firebase-tools@15.34.0
+      - name: Deploy Hosting only
+        run: firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting --non-interactive
+      - name: Verify published revision
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'JS'
+          const response=await fetch('https://murder-engine-ludificateur.web.app/deployment-version.json?revision='+process.env.EXPECTED_REVISION);
+          if(!response.ok)throw new Error('DEPLOYMENT_VERSION_UNAVAILABLE');
+          const deployed=await response.json();
+          if(deployed.revision!==process.env.EXPECTED_REVISION)throw new Error('DEPLOYMENT_REVISION_MISMATCH');
+          console.log('Published revision verified:',deployed.revision);
+          JS
