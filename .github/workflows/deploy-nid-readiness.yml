@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -55,14 +55,14 @@ jobs:
           import {execFileSync} from 'node:child_process';
           const names=[...readFileSync('functions/src/index.mjs','utf8').matchAll(/export const (\w+) = securedOnRequest\(/g)].map(m=>'functions:'+m[1]);
           if(names.length<60)throw Error('INCOMPLETE_DEPLOYMENT_SCOPE');
-          // Run 42406348059 attempt 2 deployed this source everywhere except purgeScenarioView.
-          // Recover only that endpoint when the backend is byte-for-byte unchanged.
+          // Backend 365558c was deployed by runs 42406348059 and 42407771466.
+          // Tools/fixtures-only corrections do not require redeploying unchanged endpoints.
           let recovery=false;
-          try { recovery=!execFileSync('git',['diff','--name-only','365558cbfed43e6059c51d644f8ac8690186675f','HEAD','--','functions'],{encoding:'utf8'}).trim(); } catch {}
-          const scope=recovery?['functions:purgeScenarioView']:names;
+          try { recovery=!execFileSync('git',['diff','--name-only','365558cbfed43e6059c51d644f8ac8690186675f','HEAD','--','functions/src','functions/package.json','functions/package-lock.json'],{encoding:'utf8'}).trim(); } catch {}
+          const scope=recovery?[]:names;
           const batches=[];
           for(let i=0;i<scope.length;i+=10)batches.push(scope.slice(i,i+10).join(','));
-          writeFileSync('/tmp/nid-deploy-scope',batches.join('\n')+'\n');
+          writeFileSync('/tmp/nid-deploy-scope',batches.length?batches.join('\n')+'\n':'');
           JS
           while IFS= read -r scope; do
             firebase deploy --project "$FIREBASE_PROJECT_ID" --only "$scope" --non-interactive

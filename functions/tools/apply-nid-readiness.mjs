@@ -12,7 +12,20 @@ initializeApp({projectId:process.env.GCLOUD_PROJECT});
 const dc=getDataConnect({location:'europe-west1',serviceId:'murder-engine'});
 async function read(q,v={}){const r=await dc.executeGraphqlRead(q,{variables:v});if(r.errors?.length)throw Error(JSON.stringify(r.errors));return r.data;}
 async function execute(q,v={}){const r=await dc.executeGraphql(q,{variables:v});if(r.errors?.length)throw Error(JSON.stringify(r.errors));return r.data;}
-const v=patch.scenarioVersionId;
+// Resolve the deployed version through the exact rehearsal, not a locally serialized import plan.
+const targetSession=emulatorFixture?process.argv.find(x=>x.startsWith('--target-session='))?.split('=')[1]:'1925b9db61924404885a1aa2d4cc73ad';
+assert.ok(targetSession,'Explicit test session required');
+const selected=await read('query Target($s:UUID!){gameSession(id:$s){id name scenarioVersion{id sourceHash sourceScenarioId versionLabel scenario{title}}}}',{s:targetSession});
+const target=selected.gameSession;
+assert.ok(target,'NID_TARGET_SESSION_NOT_FOUND');
+assert.equal(target.name,'Nid d’espions — TEST 01');
+const version=target.scenarioVersion;
+console.log(JSON.stringify({resolvedTarget:{sessionId:target.id,name:target.name,versionId:version.id,sourceHash:version.sourceHash,versionLabel:version.versionLabel,title:version.scenario.title}}));
+assert.equal(version.sourceScenarioId,'NID_ESPIONS_1958_16');
+assert.equal(version.versionLabel,patch.expectedVersionLabel);
+const knownHashes=[patch.expectedSourceHash,'21e787f4f3c38f1b1786b6a3791e137d97b418da042b39270dfd4bb770766cb2','d620dc018b39569242d682b874f9370a8013d3e49c456560879a265e1708c795'];
+assert.ok(knownHashes.includes(version.sourceHash),'NID_SOURCE_HASH_NOT_RECOGNIZED');
+const v=version.id,expectedSourceHash=version.sourceHash;
 const before=await read(`query Before($v:UUID!){
  scenarioVersion(id:$v){id sourceHash versionLabel variantNotes mediaOverridesJson scenario{title}}
  gameSessions(where:{scenarioVersionId:{eq:$v}},limit:100){id name status}
@@ -23,7 +36,7 @@ const before=await read(`query Before($v:UUID!){
  gameObjects(where:{scenarioVersionId:{eq:$v}},limit:100){externalId description bonusAbilityExternalId bonusValue}
  characters(where:{scenarioVersionId:{eq:$v}},limit:100){externalId biography interpretationNotes}
 }`,{v});
-assert.equal(before.scenarioVersion?.sourceHash,patch.expectedSourceHash);assert.equal(before.scenarioVersion.versionLabel,patch.expectedVersionLabel);
+assert.equal(before.scenarioVersion?.sourceHash,expectedSourceHash);assert.equal(before.scenarioVersion.versionLabel,patch.expectedVersionLabel);
 assert.equal(before.characters.length,16);assert.ok(before.gameSessions.length<100);assert.ok(before.gameSessions.every(s=>s.status!=='LIVE'),'Pause Nid sessions before applying');
 const fingerprint=async s=>read(`query State($s:UUID!){
  sessionResources(where:{gameSessionId:{eq:$s}},limit:1000,orderBy:[{characterExternalId:ASC},{resourceExternalId:ASC}]){characterExternalId resourceExternalId currentValue}
@@ -38,7 +51,7 @@ for(const session of before.gameSessions){
 mkdirSync('nid-correction-evidence',{recursive:true});
 writeFileSync('nid-correction-evidence/before.json',JSON.stringify(before,null,2));
 if(process.argv.includes('--check-only')){console.log(JSON.stringify({checked:true,sessions:before.gameSessions.map(s=>({name:s.name,status:s.status})),analyses:before.documentAnalysisDefinitions.length}));process.exit(0);}
-const vars={v,label:patch.expectedVersionLabel,hash:patch.expectedSourceHash},decl=['$v:UUID!','$label:String!','$hash:String!'];
+const vars={v,label:patch.expectedVersionLabel,hash:expectedSourceHash},decl=['$v:UUID!','$label:String!','$hash:String!'];
 let body=`lock:scenarioVersion_update(id:$v,data:{versionLabel:$label})
  guard:query @check(expr:"response.guard.scenarioVersion.sourceHash == vars.hash",message:"NID_SOURCE_CHANGED") @redact{scenarioVersion(id:$v){sourceHash}}\n`;
 let n=0;

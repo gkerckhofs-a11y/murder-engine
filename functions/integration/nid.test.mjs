@@ -80,20 +80,20 @@ test('real SQL: examination is private, concurrent-safe and requires current pos
 test('real SQL: scoped Nid migration applies atomically and is safe to replay',async()=>{
  const {readFileSync}=await import('node:fs');const {spawnSync}=await import('node:child_process');const {fileURLToPath}=await import('node:url');
  const patch=JSON.parse(readFileSync(new URL('../../fixtures/nid/readiness-corrections.json',import.meta.url)));
- const org=randomUUID(),sc=randomUUID(),v=patch.scenarioVersionId,s=randomUUID();
+ const org=randomUUID(),sc=randomUUID(),v=randomUUID(),s=randomUUID();
  await insert('Organization','organization',{id:org,name:'Migration',slug:org});
  await insert('Scenario','scenario',{id:sc,organizationId:org,title:'Nid migration',slug:sc});
  await insert('ScenarioVersion','scenarioVersion',{id:v,scenarioId:sc,sourceScenarioId:'NID_ESPIONS_1958_16',sourceHash:patch.expectedSourceHash,versionLabel:patch.expectedVersionLabel,templateVersion:'1.7',language:'FR',status:'TEST',gmSummary:'Test',playerSummary:'Test',mediaOverridesJson:'{"preserve":true}'});
- await insert('GameSession','gameSession',{id:s,organizationId:org,scenarioVersionId:v,status:'PAUSED',language:'FR'});
+ await insert('GameSession','gameSession',{id:s,organizationId:org,scenarioVersionId:v,name:'Nid d’espions — TEST 01',status:'PAUSED',language:'FR'});
  for(const c of patch.characters)await insert('Character','character',{scenarioVersionId:v,externalId:c.externalId,name:c.externalId,biography:'Test',importance:'CORE',intensity:'MEDIUM'});
  for(const id of patch.protectedFacts)await insert('Fact','fact',{scenarioVersionId:v,externalId:id,title:'Identity',text:'Protected',nature:'FACT',importance:'IMPORTANT'});
- for(const row of patch.abilities)await insert('Ability','ability',row);
- for(const row of patch.interactions)await insert('Interaction','interaction',{...row,active:false});
+ for(const row of patch.abilities)await insert('Ability','ability',{...row,scenarioVersionId:v});
+ for(const row of patch.interactions)await insert('Interaction','interaction',{...row,scenarioVersionId:v,active:false});
  for(const row of patch.objects)await insert('GameObject','gameObject',{...row,scenarioVersionId:v,name:row.externalId,support:'DIGITAL'});
  await insert('SessionParticipant','sessionParticipant',{gameSessionId:s,displayName:'Test',characterExternalId:'P05',characterSnapshotJson:JSON.stringify({characterExternalId:'P05',character:{name:'Custom name',biography:'Les cinq mallettes.',interpretationNotes:'Custom notes'}})});
  await insert('SessionResource','sessionResource',{gameSessionId:s,characterExternalId:'P05',resourceExternalId:'RES_PA',initialValue:5,currentValue:4});
  const script=fileURLToPath(new URL('../tools/apply-nid-readiness.mjs',import.meta.url));
- for(let i=0;i<2;i++){const r=spawnSync(process.execPath,[script,'--emulator-fixture'],{env:process.env,encoding:'utf8'});assert.equal(r.status,0,r.stderr||r.stdout);}
+ for(let i=0;i<2;i++){const r=spawnSync(process.execPath,[script,'--emulator-fixture','--target-session='+s],{env:process.env,encoding:'utf8'});assert.equal(r.status,0,r.stderr||r.stdout);}
  const rows=await read('query C($s:UUID!){sessionParticipants(where:{gameSessionId:{eq:$s}}){characterSnapshotJson}}',{s});const snap=JSON.parse(rows.sessionParticipants[0].characterSnapshotJson);assert.equal(snap.character.name,'Custom name');assert.equal(snap.character.biography,'Les mallettes.');assert.equal((snap.character.interpretationNotes.match(/Règles de la session/g)||[]).length,1);
 });
 
