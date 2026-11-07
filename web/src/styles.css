@@ -14563,3 +14563,6 @@ button.skinGalleryCard:disabled{
 /* Confirmation must retain readable text even when a scenario uses light cards. */
 .playerShell .paConfirmPanel { background:#f4e8d0; color:#292015; }
 .playerShell .paConfirmPanel h2, .playerShell .paConfirmPanel p { color:#292015; }
+
+/* Analysis reminders inherit the readable foreground of each modal skin. */
+.qrScannerPanel .playerAnalysisNote{color:inherit;opacity:1;font-size:.9rem;line-height:1.5}

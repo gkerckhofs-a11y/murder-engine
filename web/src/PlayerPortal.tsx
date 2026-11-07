@@ -1119,8 +1119,8 @@ function PlayerBag({
                 <div className="bagPossessionType">{tr(portal,'Objet','Item')}</div>
                 <strong>{o.name}</strong>
                 <p>{o.identification}</p>
-                {/* Imported standalone documents keep their text in the owned object's description. */}
-                {String(o.objectExternalId??'').startsWith('DOC_OBJ_') && o.description &&
+                {/* Standalone scientific objects also expose their public document text. */}
+                {(String(o.objectExternalId??'').startsWith('DOC_OBJ_') || o.canExamine) && o.description &&
                   <ImmersiveDocument
                     entry={{immersiveDocument:{title:o.name,textContent:o.description,media:[]}}}
                     language={portal.session?.language}
@@ -1153,7 +1153,7 @@ function PlayerBag({
             </article>
           ))}</div>
           : <p>{tr(portal,'Vous ne parvenez pas à en tirer d’information supplémentaire avec vos compétences actuelles.','Your current skills do not reveal any additional information.')}</p>}
-        {analysisResult.results?.length>0&&<p className="playerHelp">{tr(portal,'Votre interprétation est conservée dans Carnet → Infos, même si vous remettez le document à quelqu’un.','Your interpretation is kept in Notebook → Info, even if you give the document away.')}</p>}
+        {analysisResult.results?.length>0&&<p className="playerAnalysisNote">{tr(portal,'Votre interprétation est conservée dans Carnet → Infos, même si vous remettez le document à quelqu’un.','Your interpretation is kept in Notebook → Info, even if you give the document away.')}</p>}
         <button className="playerPrimary" onClick={()=>setAnalysisResult(null)}>{tr(portal,'Fermer','Close')}</button>
       </div>
     </div>}
