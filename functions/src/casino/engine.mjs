@@ -1,6 +1,8 @@
+import {randomInt} from 'node:crypto';
+import {rouletteBet,roulettePayout} from './roulette.mjs';
 import {shuffle,rank,blackjackValue,best,compare} from './cards.mjs';
 
-export const GAMES=['BLACKJACK','HOLDEM'];
+export const GAMES=['BLACKJACK','HOLDEM','ROULETTE'];
 const fail=message=>{throw Error(message);};
 export function integer(value,min=0,max=100000000){if(!Number.isSafeInteger(value)||value<min||value>max)fail('INVALID_CASINO_AMOUNT');return value;}
 export function table(game,config={}){
@@ -9,7 +11,7 @@ export function table(game,config={}){
   const maxBet=integer(config.maxBet??200,minBet,1000000);
   if(game==='BLACKJACK'&&(minBet%2||maxBet%2))fail('BLACKJACK_EVEN_BETS_REQUIRED');
   const smallBlind=integer(config.smallBlind??5,1,1000000),bigBlind=integer(config.bigBlind??10,smallBlind*2,1000000);
-  return {game,version:0,enabled:config.enabled===true,minBet,maxBet,smallBlind,bigBlind,turnSeconds:integer(config.turnSeconds??45,15,180),bank:game==='BLACKJACK'?integer(config.bank??10000,0):0,bankInitial:game==='BLACKJACK'?integer(config.bank??10000,0):0,seats:[],phase:'BETTING',round:0,button:-1,hand:null,results:[],history:[]};
+  return {game,version:0,enabled:config.enabled===true,minBet,maxBet,smallBlind,bigBlind,turnSeconds:integer(config.turnSeconds??45,15,180),bank:game!=='HOLDEM'?integer(config.bank??10000,0):0,bankInitial:game!=='HOLDEM'?integer(config.bank??10000,0):0,seats:[],phase:'BETTING',round:0,button:-1,hand:null,results:[],history:[]};
 }
 const draw=t=>t.hand.deck.pop()??fail('CASINO_DECK_EMPTY');
 const hands=t=>t.seats.flatMap(p=>p.hands??[]);
@@ -22,7 +24,7 @@ function requireBank(t,extra){if(t.bank<exposure(t)+extra)fail('CASINO_BANK_INSU
 export function join(t,id,name,amount){
   if(t.phase!=='BETTING'&&t.phase!=='COMPLETE')fail('CASINO_HAND_IN_PROGRESS');if(t.seats.some(p=>p.id===id))fail('CASINO_ALREADY_SEATED');
   if(t.seats.length>=(t.game==='BLACKJACK'?7:9))fail('CASINO_TABLE_FULL');
-  integer(amount,t.game==='BLACKJACK'?t.minBet:t.bigBlind);
+  integer(amount,t.game!=='HOLDEM'?t.minBet:t.bigBlind);
   t.seats.push({id,name:String(name).slice(0,100),stack:amount,ready:false,hands:[]});event(t,`${name} rejoint la table.`);
 }
 export function leave(t,id){
@@ -142,11 +144,25 @@ function pokerAction(t,p,type,amount){
 export function act(t,id,input,{now=Date.now(),deck}={}){
   const p=seat(t,id),type=input.type;
   if(type==='NEXT'){next(t);return;}
+  if(type==='BET'&&t.game==='ROULETTE'){
+    if(t.phase!=='BETTING')fail('CASINO_NOT_BETTING');
+    const bet=rouletteBet(input.selection,integer(input.amount,t.minBet,t.maxBet));
+    if(p.stack<bet.bet)fail('CASINO_INSUFFICIENT_STACK');
+    if(p.hands.reduce((n,h)=>n+h.bet,0)+bet.bet>t.maxBet)fail('INVALID_CASINO_AMOUNT');
+    const all=[...hands(t),bet],total=all.reduce((n,h)=>n+h.bet,0);
+    for(let n=0;n<=36;n++)if(all.reduce((sum,h)=>sum+roulettePayout(h,n),0)>t.bank+total)fail('CASINO_BANK_INSUFFICIENT');
+    p.stack-=bet.bet;p.hands.push(bet);return;
+  }
   if(type==='BET'){if(t.game!=='BLACKJACK')fail('INVALID_CASINO_ACTION');betBlackjack(t,p,integer(input.amount));return;}
   if(type==='READY'){if(t.game!=='HOLDEM'||t.phase==='PLAYING')fail('CASINO_HAND_IN_PROGRESS');next(t);p.ready=!p.ready;return;}
   if(type==='START'){
     if(t.phase!=='BETTING')fail('CASINO_NOT_BETTING');
-    if(t.game==='BLACKJACK')startBlackjack(t,now,deck);else startPoker(t,now,deck);return;
+    if(t.game==='ROULETTE'){
+      if(!hands(t).length)fail('CASINO_BETS_REQUIRED');
+      const number=randomInt(37);t.hand={number};t.round++;
+      t.results=t.seats.filter(p=>p.hands.length).map(p=>{const bet=p.hands.reduce((s,h)=>s+h.bet,0),back=p.hands.reduce((s,h)=>s+roulettePayout(h,number),0);p.stack+=back;t.bank+=bet-back;for(const h of p.hands)h.bet=0;return {id:p.id,name:p.name,bet,back,net:back-bet};});
+      t.phase='COMPLETE';t.actor=null;t.deadline=null;event(t,`La bille s’arrête sur le ${number}.`);
+    }else if(t.game==='BLACKJACK')startBlackjack(t,now,deck);else startPoker(t,now,deck);return;
   }
   if(t.phase!=='PLAYING'||t.actor!==id)fail('CASINO_NOT_YOUR_TURN');
   if(t.game==='BLACKJACK'){blackjackAction(t,p,type);advanceBlackjack(t,now);}else{pokerAction(t,p,type,input.amount);advancePoker(t,id,now);}
@@ -156,15 +172,15 @@ export function tick(t,now=Date.now()){
 }
 export function abort(t){
   if(t.phase==='PLAYING')for(const before of t.hand.before){const p=t.seats.find(s=>s.id===before.id);if(p)p.stack=before.stack;}
-  else if(t.phase==='BETTING'&&t.game==='BLACKJACK')for(const p of t.seats)p.stack+=(p.hands??[]).reduce((n,h)=>n+h.bet,0);
+  else if(t.phase==='BETTING'&&t.game!=='HOLDEM')for(const p of t.seats)p.stack+=(p.hands??[]).reduce((n,h)=>n+h.bet,0);
   t.phase='BETTING';t.hand=null;t.actor=null;t.deadline=null;t.results=[];for(const p of t.seats){p.hands=[];p.ready=false;p.committed=0;p.streetBet=0;delete p.cards;delete p.folded;}event(t,'La main est annulée, les mises sont rendues.');
 }
 export function view(t,id){
   const done=t.phase==='COMPLETE';const own=t.seats.find(p=>p.id===id);
   return {game:t.game,version:t.version??0,enabled:t.enabled,phase:t.phase,round:t.round,minBet:t.minBet,maxBet:t.maxBet,smallBlind:t.smallBlind,bigBlind:t.bigBlind,bank:t.bank,turnSeconds:t.turnSeconds,actor:t.actor??null,handIndex:t.handIndex??0,deadline:t.deadline??null,button:t.button,
-    board:t.hand?.board??[],street:t.hand?.street??null,currentBet:t.hand?.currentBet??0,minRaise:t.hand?.minRaise??t.bigBlind,
+    number:done?t.hand?.number??null:null,board:t.hand?.board??[],street:t.hand?.street??null,currentBet:t.hand?.currentBet??0,minRaise:t.hand?.minRaise??t.bigBlind,
     dealer:t.hand?.dealer?.map((c,i)=>done||i===0?c:null)??[],
     seats:t.seats.map(p=>({id:p.id,name:p.name,stack:p.stack,ready:p.ready,folded:!!p.folded,streetBet:p.streetBet??0,committed:p.committed??0,
-      cards:p.cards?.map(c=>p.id===id||(done&&t.hand?.showdown&&!p.folded)?c:null)??[],hands:(p.hands??[]).map(h=>({cards:h.cards.map(c=>p.id===id||done?c:null),score:p.id===id||done?blackjackValue(h.cards):null,bet:h.bet,done:h.done,split:h.split,aceSplit:h.aceSplit}))})),
+      cards:p.cards?.map(c=>p.id===id||(done&&t.hand?.showdown&&!p.folded)?c:null)??[],hands:(p.hands??[]).map(h=>({cards:h.cards.map(c=>p.id===id||done?c:null),score:p.id===id||done?blackjackValue(h.cards):null,selection:h.selection??null,bet:h.bet,done:h.done,split:h.split,aceSplit:h.aceSplit}))})),
     mayRaise:!!own&&(!own.acted||(t.hand?.currentBet??0)-(own.lastActedBet??0)>=(t.hand?.minRaise??0)),results:done?t.results:[],history:t.history};
 }

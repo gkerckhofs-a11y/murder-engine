@@ -77,3 +77,21 @@ test('casino real SQL: stale wallet writers roll back, including an existing tra
   await execute('mutation Pause($id:UUID!){gameSession_update(id:$id,data:{status:"PAUSED"})}',{id:s});
   await assert.rejects(()=>execute(valid.operation,valid.variables),/CASINO_SESSION_STATE_CHANGED/);
 });
+test('roulette real SQL: duplicate bets/spins settle once, pause and close refund safely',async()=>{
+ const {sessionId:s,players:[a,b]}=await fixture();const game='ROULETTE';
+ await organizerCasino(s,{type:'CONFIGURE',game,revision:-1,config:{enabled:true,bank:10000,minBet:1,maxBet:100}});
+ const get=()=>playerCasino(a.token,{sessionId:s,game});
+ const command=async(type,extra={})=>{const d=await get();return {sessionId:s,game,type,revision:d.revision,tableRevision:d.table.version,round:d.table.round,requestId:key(),...extra};};
+ await playerCasino(a.token,await command('JOIN',{amount:100}));
+ const bet=await command('BET',{amount:10,selection:'NUMBER:0'});
+ const results=await Promise.allSettled([playerCasino(a.token,bet),playerCasino(a.token,bet)]);assert.ok(results.some(r=>r.status==='fulfilled'));
+ let d=await get();assert.equal(d.table.seats[0].stack,90);assert.equal(d.table.seats[0].hands.length,1);
+ const spin=await command('START');await playerCasino(a.token,spin);const settled=await get();await playerCasino(a.token,spin);d=await get();assert.deepEqual(d.table,settled.table);assert.equal(d.table.round,1);
+ await assert.rejects(()=>playerCasino(b.token,spin),/OWNER_MISMATCH/);
+ await playerCasino(a.token,await command('NEXT'));await playerCasino(a.token,await command('BET',{amount:10,selection:'RED'}));
+ await execute('mutation Pause($id:UUID!){gameSession_update(id:$id,data:{status:"PAUSED"})}',{id:s});
+ await assert.rejects(async()=>playerCasino(a.token,await command('START')),/NOT_LIVE/);
+ d=await get();await organizerCasino(s,{game,type:'CLOSE',revision:d.revision});
+ const raw=await read(CASINO_QUERY,{sessionId:s});const t=__casino.parse(raw.sessionCasino).tables.ROULETTE;
+ assert.equal(t.seats.length,0);assert.equal(t.enabled,false);assert.equal(raw.sessionResources.reduce((n,r)=>n+r.currentValue,0)+t.bank,10200);
+});

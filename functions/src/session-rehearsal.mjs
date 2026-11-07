@@ -128,7 +128,7 @@ export function buildRehearsalMutation(root,plan,participants,{real=false,identi
   }
   if(root.casinoStateJson){
     const saved=JSON.parse(root.casinoStateJson);
-    const tables=Object.fromEntries(CASINO_GAMES.map(g=>[g,casinoTable(g,{...saved.tables[g],bank:saved.tables[g].bankInitial})]));
+    const tables=Object.fromEntries(CASINO_GAMES.map(g=>[g,casinoTable(g,{...saved.tables[g],bank:saved.tables[g]?.bankInitial})]));
     insert('sessionCasino','SessionCasino',{gameSessionId:plan.characters[0].gameSessionId,revision:0,stateJson:JSON.stringify({tables,pausedAt:null}),updatedAt:now});
   }
   const groups=[['characters','sessionCharacter','SessionCharacter'],['resources','sessionResource','SessionResource'],

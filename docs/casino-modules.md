@@ -70,3 +70,11 @@ Déploiement nécessaire avant usage en ligne : ajout des tables SQL `SessionCas
 - World Poker Federation, *How to Play Texas Hold’em*, consulté le 6 novembre 2026 : https://worldpokerfederation.org/poker/how-to-play-poker/variants-and-rules/how-to-play-texas-holdem/
 
 Les règles affichées dans l’app constituent la variante de cette table. Les réglages de caisse et de mises sont des paramètres de jeu fictifs, propres à Murder Engine.
+
+## Roulette
+
+Module optionnel indépendant, QR propre à la session. Roulette à un seul zéro (0–36), tirage cryptographique côté serveur. Numéro plein : 35:1 ; douzaine et colonne : 2:1 ; rouge/noir, pair/impair et 1–18/19–36 : 1:1. La mise gagnante est restituée en plus du gain. Zéro perdant pour tous les paris extérieurs, sans partage ni prison.
+
+Chaque joueur peut cumuler plusieurs paris jusqu’au plafond total par tour. La caisse doit couvrir le pire résultat possible de toutes les mises acceptées. Un joueur assis lance la bille après concertation avec les autres ; le tirage ferme et règle immédiatement les mises dans la même transaction. Pas de délai automatique ni de consommation de PA. Les mises non tirées sont remboursées par l’annulation MJ ou à la fin de la session. Retrait bloqué tant qu’une mise reste engagée.
+
+Les anciennes sessions reçoivent le module désactivé, sans modification de leurs tables existantes. Les répétitions reprennent les réglages avec une caisse neuve. Tests supplémentaires : `functions/test/roulette.test.mjs`, intégration SQL casino et parcours navigateur casino à deux téléphones.
