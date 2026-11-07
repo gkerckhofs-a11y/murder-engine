@@ -13,7 +13,7 @@ const COMMAND_QUERY=`query CasinoCommand($sessionId: UUID!,$requestId:String!) {
   sessionCasinoCommand(key:{gameSessionId:$sessionId,requestId:$requestId}) {actor}
 }`;
 function gameKey(value){if(!GAMES.includes(value))throw Error('INVALID_CASINO_GAME');return value;}
-const parse=row=>row?JSON.parse(row.stateJson):{tables:Object.fromEntries(GAMES.map(g=>[g,table(g)])),pausedAt:null};
+const parse=row=>{const state=row?JSON.parse(row.stateJson):{tables:{},pausedAt:null};for(const g of GAMES)state.tables[g]??=table(g);return state;};
 const fail=message=>{throw Error(message);};
 function publicResult(data,state,actor,game){
   const wallet=data.sessionResources.find(r=>r.characterExternalId===actor);
@@ -84,7 +84,7 @@ export async function playerCasino(token,input,{reader=readPlayerData,executor=w
     else if(type==='WITHDRAW'){
       if(t.phase==='PLAYING')fail('CASINO_HAND_IN_PROGRESS');const p=t.seats.find(s=>s.id===actor)??fail('CASINO_NOT_SEATED');
       if(p.hands?.some(h=>h.bet))fail('CASINO_BET_RESERVED');const amount=integer(input.amount,1,p.stack);p.stack-=amount;changes.push({id:actor,delta:amount});
-    }else act(t,actor,{type,amount:input.amount},{now});
+    }else act(t,actor,{type,amount:input.amount,selection:input.selection},{now});
   }
   if(!changes.length&&JSON.stringify(state)===serialized)return publicResult(data,state,actor,game);
   if(type!=='REFRESH')t.version++;
@@ -105,7 +105,7 @@ export async function organizerCasino(sessionId,input={}, {reader=readPlayerData
   const changes=[];
   if(input.type==='CONFIGURE'){
     if(t.seats.length)fail('CASINO_TABLE_MUST_BE_EMPTY');const replacement=table(game,input.config);
-    if(game==='BLACKJACK'&&replacement.bankInitial===t.bankInitial)replacement.bank=t.bank;
+    if(game!=='HOLDEM'&&replacement.bankInitial===t.bankInitial)replacement.bank=t.bank;
     replacement.round=t.round;replacement.version=(t.version??0)+1;replacement.history=t.history;state.tables[game]=replacement;
   }else if(input.type==='CLOSE'){
     abort(t);for(const p of [...t.seats])changes.push({id:p.id,delta:leave(t,p.id)});t.enabled=false;

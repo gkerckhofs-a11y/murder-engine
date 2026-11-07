@@ -1,0 +1,43 @@
+name: Deploy optional casino roulette
+on:
+  push:
+    branches: [feat/casino-roulette]
+permissions:
+  contents: read
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+      - run: npm ci --prefix functions
+      - run: npm test --prefix functions
+      - run: npm install --global firebase-tools@15.34.0
+      - run: node functions/integration/run.mjs casino
+      - run: npm ci --prefix web
+      - run: npm run build --prefix web
+      - name: Record revision
+        env:
+          REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module -e "import {writeFileSync} from 'node:fs';writeFileSync('web/dist/deployment-version.json',JSON.stringify({revision:process.env.REVISION,feature:'casino-roulette',nidReadiness:true}));"
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - name: Deploy casino and session reset endpoints
+        run: firebase deploy --project "$FIREBASE_PROJECT_ID" --only functions:getPublicPlayerCasinoTable,functions:executePublicPlayerCasinoAction,functions:manageSessionCasinoView,functions:resetSessionRehearsalView,functions:startRealSessionView --non-interactive
+      - run: firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting --non-interactive
+      - name: Verify published revision
+        env:
+          REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module -e "const r=await fetch('https://murder-engine-ludificateur.web.app/deployment-version.json?r='+process.env.REVISION);if(!r.ok||(await r.json()).revision!==process.env.REVISION)throw Error('DEPLOYMENT_REVISION_MISMATCH');"
