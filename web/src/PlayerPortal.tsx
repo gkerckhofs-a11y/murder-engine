@@ -304,7 +304,7 @@ function PlayerPrintableSheet({portal}:{portal:Portal}){
       </section>}
 
       {c.personalTimeline&&<section>
-        <h3>{tr(portal,'Ma chronologie','My timeline')}</h3>
+        <h3>{tr(portal,'Ce que j’ai fait le soir du meurtre','What I did on the night of the murder')}</h3>
         <NarrativeText text={c.personalTimeline} className="playerNarrativeText"/>
       </section>}
 
@@ -1070,7 +1070,7 @@ function PlayerBag({
                 </div>
               }
 
-              {d.immersiveDocument&&<ImmersiveDocument entry={d} language={portal.session?.language}/>}
+              <ImmersiveDocument entry={d} language={portal.session?.language}/>
               <div className="bagDocumentMeta">
                 <strong>{d.playerName}</strong>
                 <p>{d.playerText}</p>
@@ -1086,7 +1086,7 @@ function PlayerBag({
                   d.documentExternalId?'DOCUMENT':d.objectExternalId?'OBJECT':'CLUE',
                   d.documentExternalId||d.objectExternalId||d.clueExternalId
                 )}>
-                  🔍 {tr(portal,'Examiner le document','Examine document')}
+                  🔍 {tr(portal,'Analyser avec mes compétences','Analyze using my abilities')}
                 </button>
               </div>}
 
@@ -1119,17 +1119,16 @@ function PlayerBag({
                 <div className="bagPossessionType">{tr(portal,'Objet','Item')}</div>
                 <strong>{o.name}</strong>
                 <p>{o.identification}</p>
-                {/* Standalone scientific objects also expose their public document text. */}
-                {(String(o.objectExternalId??'').startsWith('DOC_OBJ_') || o.canExamine) && o.description &&
+                {(o.description || o.visualMedia) &&
                   <ImmersiveDocument
-                    entry={{immersiveDocument:{title:o.name,textContent:o.description,media:[]}}}
+                    entry={{...o,description:String(o.objectExternalId??'').startsWith('DOC_OBJ_')||o.canExamine?o.description:(o.identification||o.name)}}
                     language={portal.session?.language}
                   />}
                 {o.charges!=null&&!String(o.objectExternalId??'').startsWith('DOC_OBJ_')&&<small>{tr(portal,'Charges','Charges')} : {o.charges}</small>}
               </div>
               {o.canExamine&&<div className="giveRow giveQrRow objectVisualAction">
                 <button className="playerSecondary" disabled={busy||analysisBusy} onClick={()=>void examine('OBJECT',o.objectExternalId)}>
-                  🔍 {tr(portal,'Examiner','Examine')}
+                  🔍 {tr(portal,'Analyser avec mes compétences','Analyze using my abilities')}
                 </button>
               </div>}
               {o.transferable&&portal.otherCharacters.length>0&&<div className="giveRow giveQrRow objectVisualAction">

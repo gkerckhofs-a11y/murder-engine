@@ -1,4 +1,4 @@
-name: Review Nid editorial corrections
+name: Validate Nid editorial corrections
 on:
   push:
     branches: [fix/nid-editorial]
@@ -10,7 +10,7 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       GCLOUD_PROJECT: murder-engine-ludificateur
     steps:
@@ -19,6 +19,22 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --prefix functions
+      - name: Targeted player and snapshot checks
+        run: node --test functions/test/player.test.mjs functions/test/document-analysis.test.mjs functions/test/session-incarnations.test.mjs
+      - run: npm install --global firebase-tools@15.34.0
+      - name: Exercise atomic correction on SQL emulator
+        run: node functions/integration/run.mjs nid-editorial
+      - run: npm ci --prefix web
+      - run: npm run build --prefix web
+      - name: Verify evidence viewer on phones and desktop
+        run: |
+          npm install --prefix web --no-save --package-lock=false playwright@1.58.2
+          cd web
+          npx playwright install --with-deps chromium
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/editorial-vite.log 2>&1 &
+          for attempt in $(seq 1 30); do curl --silent --fail http://127.0.0.1:4173/ > /dev/null && break; sleep 1; done
+          node test/browser-navigation.cjs
+          node test/browser-evidence.cjs
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
@@ -29,5 +45,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nid-editorial-evidence
-          path: nid-editorial-evidence/
+          path: |
+            nid-editorial-evidence/
+            web/test-results/evidence/
           retention-days: 14

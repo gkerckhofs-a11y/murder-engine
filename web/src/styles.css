@@ -14566,3 +14566,16 @@ button.skinGalleryCard:disabled{
 
 /* Analysis reminders inherit the readable foreground of each modal skin. */
 .qrScannerPanel .playerAnalysisNote{color:inherit;opacity:1;font-size:.9rem;line-height:1.5}
+
+/* Evidence viewer: media and transcription stay available together. Zoom uses
+   real scrollable dimensions so the top/left of a page is never clipped. */
+.immersiveViewerStage{display:block;overflow:auto;overscroll-behavior:contain;padding:20px}
+.immersiveViewerStage.hasImage{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start;gap:22px}
+.immersiveImageSection{min-width:0;width:100%}
+.immersiveImageScroller{display:block;width:100%;height:auto;max-height:72vh;overflow:auto;touch-action:pan-x pan-y pinch-zoom;border-radius:4px}
+.immersiveImageCanvas{min-width:100%;line-height:0}
+.immersiveImageCanvas img{display:block;width:100%;max-width:none;height:auto;max-height:none;transform:none;transition:none;box-shadow:none}
+.immersiveViewerStage .immersivePaperFallback{width:100%;max-width:800px;max-height:none;overflow:visible;box-sizing:border-box;margin:0 auto;transform:none;padding:28px;color:#34271b}
+.immersivePaperFallback .narrativeText{position:relative}
+.immersiveViewerHeader strong{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:760px){.immersiveViewerStage.hasImage{display:block}.immersiveViewerStage{padding:12px}.immersiveImageSection{margin-bottom:18px}.immersiveImageScroller{max-height:65vh}.immersiveViewerStage .immersivePaperFallback{padding:24px 20px}.immersiveViewerHeader{padding:10px 12px}.immersiveViewerControls{gap:6px;padding-top:8px}}
