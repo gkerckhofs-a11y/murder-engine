@@ -1,22 +1,26 @@
-name: Prepare Mirador update
+name: Apply and verify Mirador character context
 on:
   push:
     branches: [ops/nid-character-context]
 permissions:
   contents: read
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
 jobs:
-  public-key:
+  prepare:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GCLOUD_PROJECT: murder-engine-ludificateur
     steps:
-      - name: Derive public encryption key
-        env:
-          PROJECT_CREDENTIAL: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
-        run: |
-          node --input-type=module <<'NODE'
-          import {createPublicKey} from 'node:crypto';
-          const credential = JSON.parse(process.env.PROJECT_CREDENTIAL);
-          if (credential.project_id !== 'murder-engine-ludificateur') throw Error('Unexpected project');
-          const publicKey = createPublicKey(credential.private_key);
-          const encoded = publicKey.export({type:'spki', format:'der'}).toString('base64');
-          console.log('NID_PUBLIC_SPKI ' + encoded);
-          NODE
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix functions
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - run: node functions/tools/apply-nid-character-context.mjs
+      - run: node functions/tools/apply-nid-character-context.mjs --verify
