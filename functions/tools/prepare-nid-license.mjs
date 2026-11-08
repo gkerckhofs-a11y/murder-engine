@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import {initializeApp} from 'firebase-admin/app';
 import {getAuth} from 'firebase-admin/auth';
-import {accessReader} from '../src/session-access.mjs';
+import {accessReader, accessExecutor, authorizeSession, authorizeEndpoint} from '../src/session-access.mjs';
+import {getSelfServiceState, replaceSessionRehearsal} from '../src/session-rehearsal.mjs';
 
 assert.equal(process.env.GCLOUD_PROJECT, 'murder-engine-ludificateur');
 initializeApp({projectId:process.env.GCLOUD_PROJECT});
@@ -45,3 +46,77 @@ console.log(JSON.stringify({session:publicState, sameOrganizer:organizerEmail?.t
   resourcesChanged:state.sessionResources.filter(row=>row.initialValue!==row.currentValue).length,
   casinoRevision:state.sessionCasino?.revision??null,
 }));
+
+if (process.argv.includes('--apply')) {
+  assert.equal(session.name, 'Nid d’espions — TEST JOUEURS — 16 participants');
+  assert.equal(session.status, 'PAUSED');
+  assert.equal(session.selfServiceEnabled, false);
+  assert.equal(session.organizerAccessEnabled, false);
+  assert.equal(session.organizerEmail, null);
+  assert.equal(session.realSessionStartedAt, null);
+  assert.equal(session.activeRehearsalId, null);
+  assert.equal(session.rehearsalOfId, null);
+  assert.equal(session.liveClockStartedAt, null);
+  assert.equal(state.sessionParticipants.length, 16);
+  assert.ok(state.sessionParticipants.every(player=>player.active && player.playerAccessEnabled && player.playerAccessToken && player.characterSnapshotAt));
+  assert.equal(state.sessionClueDiscoveries.length, 0);
+  assert.ok(state.sessionActionLogs.every(row=>['CASINO','LIVE_START','DOCUMENT_EXAMINED','LIVE_PAUSE'].includes(row.actionType)));
+  const data = {
+    venue:'Centerpark',
+    organizerEmail:email,
+    organizerAccessEnabled:true,
+    selfServiceEnabled:true,
+    status:'READY',
+    startedAt:null,
+    pausedAt:null,
+    finishedAt:null,
+    liveClockStartedAt:null,
+    liveElapsedSeconds:0,
+    currentPhaseExternalId:null,
+  };
+  const schedule = process.env.NID_SCHEDULED_AT;
+  if (schedule) {
+    const date = new Date(schedule);
+    assert.ok(Number.isFinite(date.getTime()));
+    assert.equal(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Brussels',year:'numeric',month:'2-digit',day:'2-digit'}).format(date),'2026-11-13');
+    data.scheduledAt = date.toISOString();
+  }
+  const backup = Object.fromEntries(Object.keys(data).map(key=>[key,session[key]??null]));
+  const operation = `mutation PrepareLicensedNid($sessionId:UUID!, $started:Timestamp!, $paused:Timestamp!, $data:GameSession_Data!, $backup:String!) @transaction {
+    activate:gameSession_updateMany(where:{
+      id:{eq:$sessionId}, status:{eq:"PAUSED"}, startedAt:{eq:$started}, pausedAt:{eq:$paused},
+      selfServiceEnabled:{eq:false}, organizerAccessEnabled:{eq:false}, organizerEmail:{isNull:true},
+      realSessionStartedAt:{isNull:true}, activeRehearsalId:{isNull:true}, rehearsalOfId:{isNull:true}
+    },data:$data) @check(expr:"this == 1",message:"NID_LICENCE_STATE_CHANGED")
+    sessionActionLog_insert(data:{gameSessionId:$sessionId,actionType:"LICENCE_PREPARATION_FROM_TEST",beforeValue:"PAUSED",afterValue:"READY",note:$backup})
+  }`;
+  await accessExecutor(operation, {sessionId, started:session.startedAt, paused:session.pausedAt, data, backup:JSON.stringify(backup)});
+  const after = await accessReader(stateQuery,{sessionId});
+  for(const [key,value] of Object.entries(data)) {
+    if(key==='scheduledAt')assert.equal(new Date(after.gameSession[key]).toISOString(),value);
+    else assert.equal(after.gameSession[key],value,key);
+  }
+  const stable = rows=>[...rows].sort((a,b)=>a.id.localeCompare(b.id));
+  assert.deepEqual(stable(after.sessionParticipants),stable(state.sessionParticipants));
+  assert.deepEqual(after.sessionCasino,state.sessionCasino);
+  assert.deepEqual(after.sessionClueDiscoveries,state.sessionClueDiscoveries);
+  const resources = rows=>rows.map(row=>JSON.stringify(row)).sort();
+  assert.deepEqual(resources(after.sessionResources),resources(state.sessionResources));
+
+  // Exercise production authorisation and both launch plans without starting either.
+  const identity={uid:'licence-policy-check',email,email_verified:true};
+  const access = await getSelfServiceState(identity,sessionId);
+  assert.equal(access.mode,'PREPARATION');
+  assert.equal(access.workingSessionId,sessionId);
+  assert.equal(access.enabled,true);
+  await assert.rejects(authorizeSession({...identity,email:'other@example.com'},sessionId), /SESSION_ACCESS_DENIED/);
+  await assert.rejects(authorizeEndpoint('listSessions',identity,{}), /ADMINISTRATOR_REQUIRED/);
+  const rehearsal = await replaceSessionRehearsal(identity,sessionId,{executor:async()=>{}});
+  const real = await replaceSessionRehearsal(identity,sessionId,{real:true,executor:async()=>{}});
+  assert.equal(rehearsal.mode,'REHEARSAL');
+  assert.notEqual(rehearsal.workingSessionId,sessionId);
+  assert.equal(real.workingSessionId,sessionId);
+  console.log(JSON.stringify({applied:true,status:after.gameSession.status,venue:after.gameSession.venue,
+    scheduledAt:after.gameSession.scheduledAt,accessMode:access.mode,existingPlayerLinks:after.sessionParticipants.length,
+    isolatedRehearsalPlan:true,realLaunchPlan:true,organizerAccountExists:auth.exists??null}));
+}
