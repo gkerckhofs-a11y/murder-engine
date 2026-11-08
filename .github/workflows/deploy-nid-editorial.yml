@@ -1,0 +1,33 @@
+name: Review Nid editorial corrections
+on:
+  push:
+    branches: [fix/nid-editorial]
+permissions:
+  contents: read
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GCLOUD_PROJECT: murder-engine-ludificateur
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix functions
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - name: Read source and frozen sheets before correction
+        run: node functions/tools/apply-nid-editorial.mjs --check-only
+      - name: Save scoped evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nid-editorial-evidence
+          path: nid-editorial-evidence/
+          retention-days: 14
