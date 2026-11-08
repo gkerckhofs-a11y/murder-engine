@@ -2,6 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {playerClues,playerInfoFeed,playerReadEntries,unreadCount,clueRecap} from '../src/player-navigation.ts';
 const portal=()=>({session:{id:'S',playerSummary:'Context'},character:{externalId:'A',biography:'Bio'},participant:{id:'P'},objectives:[],relationships:[],resources:[],inventory:[],knowledge:[],discoveries:[{clueExternalId:'C',discoveredAt:'2026-10-15T19:00:00Z',clue:{playerName:'Letter',playerText:'A meeting was arranged. It is signed by the director.',objectExternalId:'OBJ',inBag:false}}],documentEntries:[],notifications:[{id:'N',title:'Latest news',body:'The doors are closed.',createdAt:'2026-10-15T20:00:00Z',readAt:null}],votes:[],voteResults:[]});
+test('initial contact notes stay in Relations without duplicating the Info feed',()=>{
+ const p=portal();(p.knowledge as any[]).push({factExternalId:'CONTACT',fact:{nature:'RELATION',title:'A contact',text:'Known person'}},{factExternalId:'NORMAL',fact:{nature:'SECRET',title:'A fact',text:'Useful information'}});
+ const feed=playerInfoFeed(p);assert.equal(feed.filter(f=>f.id==='info:fact:CONTACT').length,0);assert.equal(feed.filter(f=>f.id==='info:fact:NORMAL').length,1);
+});
 test('remembered evidence survives a transfer and cannot be marked as owned',()=>{
  const p=portal();assert.equal(playerClues(p)[0].owned,false);
  (p.inventory as any[]).push({objectExternalId:'OBJ',name:'Letter'});

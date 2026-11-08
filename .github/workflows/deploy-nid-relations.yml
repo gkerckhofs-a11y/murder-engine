@@ -1,0 +1,75 @@
+name: Complete private Nid story relations
+on:
+  push:
+    branches: [fix/nid-relations]
+permissions:
+  contents: read
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GCLOUD_PROJECT: murder-engine-ludificateur
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+      - run: npm ci --prefix functions
+      - run: node --test functions/test/relationship-contacts.test.mjs functions/test/player.test.mjs functions/test/session-access.test.mjs
+      - run: node --experimental-strip-types --test web/test/player-navigation.test.ts
+      - run: npm install --global firebase-tools@15.34.0
+      - run: node functions/integration/run.mjs nid-relations
+      - run: npm ci --prefix web
+      - run: npm run build --prefix web
+      - name: Check mobile and printable relationships
+        run: |
+          npm install --prefix web --no-save --package-lock=false playwright@1.58.2
+          cd web
+          npx playwright install --with-deps chromium
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/nid-relations-vite.log 2>&1 &
+          for attempt in $(seq 1 30); do curl --silent --fail http://127.0.0.1:4173/ > /dev/null && break; sleep 1; done
+          node test/browser-relations.cjs
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - name: Apply private contacts with session and story guards
+        run: node functions/tools/complete-nid-relations.mjs
+      - name: Publish player portal and interface
+        env:
+          REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module -e "import {writeFileSync} from 'node:fs';writeFileSync('web/dist/deployment-version.json',JSON.stringify({revision:process.env.REVISION,feature:'nid-private-relations',casinoRoulette:true,largeDocumentViewer:true}));"
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only functions:getPublicPlayerPortal --non-interactive
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting --non-interactive
+      - name: Verify sixteen published player portals
+        run: node functions/tools/complete-nid-relations.mjs --verify-only --http
+      - name: Verify interface publication
+        env:
+          REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'JS'
+          import {writeFileSync} from 'node:fs';
+          let published;
+          for(let i=0;i<12;i++){
+            const r=await fetch('https://murder-engine-ludificateur.web.app/deployment-version.json?verify='+Date.now(),{headers:{'Cache-Control':'no-cache'}});
+            published=r.ok?await r.json():{status:r.status};
+            if(published.revision===process.env.REVISION)break;
+            await new Promise(resolve=>setTimeout(resolve,5000));
+          }
+          writeFileSync('nid-relations-evidence/published.json',JSON.stringify(published));
+          if(published.revision!==process.env.REVISION)throw Error('DEPLOYMENT_REVISION_MISMATCH');
+          JS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nid-relations-evidence
+          path: |
+            nid-relations-evidence/
+            web/test-results/relations/
+          retention-days: 14

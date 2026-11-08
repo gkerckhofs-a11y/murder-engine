@@ -21,7 +21,7 @@ schema:
 connectorDirs: []
 `);
 writeFileSync(join(temp,'firebase.json'),JSON.stringify({dataconnect:{source:'dataconnect'},emulators:{dataconnect:{port:process.argv[2]==='self-service'?9401:9399,postgresPort:process.argv[2]==='self-service'?5435:5432},ui:{enabled:false}}}));
-const suite=process.argv[2]==='nid-editorial'?'nid-editorial.test.mjs':process.argv[2]==='nid'?'nid.test.mjs':process.argv[2]==='casino'?'casino.test.mjs':process.argv[2]==='self-service'?'session-rehearsal.test.mjs':'vote-session.test.mjs';
+const suite=process.argv[2]==='nid-relations'?'nid-relations.test.mjs':process.argv[2]==='nid-editorial'?'nid-editorial.test.mjs':process.argv[2]==='nid'?'nid.test.mjs':process.argv[2]==='casino'?'casino.test.mjs':process.argv[2]==='self-service'?'session-rehearsal.test.mjs':'vote-session.test.mjs';
 const child=spawnSync(process.env.FIREBASE_CLI||'firebase',[
   'emulators:exec','--only','dataconnect','--project','demo-murder-engine-votes',
   '--config',join(temp,'firebase.json'),'--non-interactive',...(process.env.CASINO_DEBUG?['--debug']:[]),

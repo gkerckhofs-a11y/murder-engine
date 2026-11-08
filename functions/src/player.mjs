@@ -1,3 +1,4 @@
+import {relationshipContacts} from './relationship-contacts.mjs';
 import {searchRequestId,readSearchReplay,searchFailure,buildLocationSearchTransaction} from './location-search.mjs';
 import {SESSION_LOCK} from './vote-storage.mjs';
 import { readAllPages } from './pagination.mjs';
@@ -57,6 +58,7 @@ query PlayerSource($versionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
   relationships(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId characterAExternalId characterBExternalId relationType textA textB visibility plotExternalId active
   }
+  initialKnowledges(where: {scenarioVersionId: {eq: $versionId}}, orderBy: [{characterExternalId: ASC}, {factExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {characterExternalId factExternalId sourceType}
   facts(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId title text nature importance notebookCategory isPublic charmable active
   }
@@ -647,7 +649,7 @@ async function loadPlayerData(token, reader=defaultReader) {
   const session=participant.gameSession;
   const versionId=session?.scenarioVersion?.id;
   const [source,runtime]=await Promise.all([
-    readAllPages(reader,PLAYER_SOURCE_QUERY,{versionId},['characters', 'objectives', 'relationships', 'facts', 'clues', 'documentDefinitions', 'documentAnalysisDefinitions', 'mediaAssets', 'skinVisualDefinitions', 'resources', 'gameObjects', 'gameStateDefinitions', 'abilities', 'abilityAssignments', 'interactions', 'gameLocations', 'voteDefinitions', 'voteOptionDefinitions', 'clueFacts']),
+    readAllPages(reader,PLAYER_SOURCE_QUERY,{versionId},['characters', 'objectives', 'relationships', 'initialKnowledges', 'facts', 'clues', 'documentDefinitions', 'documentAnalysisDefinitions', 'mediaAssets', 'skinVisualDefinitions', 'resources', 'gameObjects', 'gameStateDefinitions', 'abilities', 'abilityAssignments', 'interactions', 'gameLocations', 'voteDefinitions', 'voteOptionDefinitions', 'clueFacts']),
     readAllPages(reader,PLAYER_RUNTIME_QUERY,{sessionId:session.id},['sessionVotes', 'sessionBallots', 'sessionResources', 'sessionKnowledges', 'sessionObjectives', 'sessionObjects', 'sessionCharacterStates', 'sessionClueDiscoveries', 'sessionInteractionUses', 'sessionPlayerNotifications', 'sessionStealGrants']),
   ]);
   const resolvedSource=
@@ -1800,7 +1802,7 @@ export function shapePlayerPortal(participant, session, source, runtime, now=new
       owned:true,
     }));
   const actionLogs=(runtime.sessionActionLogs??[]).filter(l=>l.characterExternalId===characterExternalId).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()).slice(0,50);
-  const relationships=mergePlayerRelationships((source.relationships??[]).filter(r=>r.active!==false&&visibilityAllowed(r.visibility)&&(r.characterAExternalId===characterExternalId||r.characterBExternalId===characterExternalId)).map(r=>{const isA=r.characterAExternalId===characterExternalId;const otherExternalId=isA?r.characterBExternalId:r.characterAExternalId;const other=charMap.get(otherExternalId);return{externalId:r.externalId,otherExternalId,otherName:other?.name??otherExternalId,otherPublicRole:other?.publicRole??null,relationType:r.relationType,text:isA?r.textA:(r.textB||r.textA),visibility:r.visibility,portrait:mediaOverrideVisual(session,'CHARACTER',otherExternalId)??visualMedia(mediaMap,other?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',other?.portraitArchetypeCode)};}));
+  const relationships=mergePlayerRelationships([...(source.relationships??[]).filter(r=>r.active!==false&&visibilityAllowed(r.visibility)&&(r.characterAExternalId===characterExternalId||r.characterBExternalId===characterExternalId)).map(r=>{const isA=r.characterAExternalId===characterExternalId;const otherExternalId=isA?r.characterBExternalId:r.characterAExternalId;const other=charMap.get(otherExternalId);return{externalId:r.externalId,otherExternalId,otherName:other?.name??otherExternalId,otherPublicRole:other?.publicRole??null,relationType:r.relationType,text:isA?r.textA:(r.textB||r.textA),visibility:r.visibility,portrait:mediaOverrideVisual(session,'CHARACTER',otherExternalId)??visualMedia(mediaMap,other?.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',other?.portraitArchetypeCode)};}),...relationshipContacts(source,characterExternalId,{portraitFor:other=>mediaOverrideVisual(session,'CHARACTER',other.externalId)??visualMedia(mediaMap,other.portraitMediaId)??skinVisualMedia(source,mediaMap,session,'CHARACTER',other.portraitArchetypeCode)})]);
   const discoverableAboutMe=(source.clues??[])
     .filter(clue=>
       clue.active!==false &&
