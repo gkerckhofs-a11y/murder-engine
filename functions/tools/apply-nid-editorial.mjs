@@ -88,8 +88,8 @@ for(const session of source.sessions){
    // The source row's endpoints are static. Resolve direction from the character IDs.
    const endpoints={REL_02:['P01','P02'],REL_03:['P01','P03'],REL_07:['P07','P08'],REL_10:['P09','P16'],REL_11:['P10','P11'],REL_13:['P11','P12']}[rel.externalId];
    const field=endpoints[0]===person.characterExternalId?'textA':'textB';
-   assert.ok(same(rel.text,fix.expected[field])||same(rel.text,fix.data[field]),'CUSTOM_RELATION');
-   rel.text=fix.data[field];rel.relationType=fix.data.relationType;
+   if(Object.hasOwn(fix.data,field)){assert.ok(same(rel.text,fix.expected[field])||same(rel.text,fix.data[field]),'CUSTOM_RELATION');rel.text=fix.data[field];}
+   if(Object.hasOwn(fix.data,'relationType'))rel.relationType=fix.data.relationType;
   }
   for(const obj of snap.objectives??[]){const fix=patch.groups.objectives.find(o=>o.externalId===obj.externalId);if(fix){assert.ok(same(obj.description,fix.expected.description)||same(obj.description,fix.data.description),'CUSTOM_OBJECTIVE');obj.description=fix.data.description;}}
   const json=JSON.stringify(snap);
