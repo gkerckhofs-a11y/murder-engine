@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {initializeApp} from 'firebase-admin/app';
 import {getDataConnect} from 'firebase-admin/data-connect';
+import {controlLiveSession} from '../src/live.mjs';
 
 assert.equal(process.env.GCLOUD_PROJECT, 'murder-engine-ludificateur');
 initializeApp({projectId: process.env.GCLOUD_PROJECT});
@@ -29,11 +30,22 @@ const version = selection.gameSession.scenarioVersion;
 assert.equal(version.sourceScenarioId, 'NID_ESPIONS_1958_16');
 assert.equal(version.versionLabel, '1.3-master-20261107-r2');
 const v = version.id;
-const state = await read(`query Before($v:UUID!){gameSessions(where:{scenarioVersionId:{eq:$v}},limit:100){id status} ${queries}}`, {v});
+let state = await read(`query Before($v:UUID!){gameSessions(where:{scenarioVersionId:{eq:$v}},limit:100){id status} ${queries}}`, {v});
 
 const verifyOnly = process.argv.includes('--verify');
 if (!verifyOnly) {
   assert.ok(state.gameSessions.length < 100);
+  if (process.argv.includes('--pause-target')) {
+    const target = state.gameSessions.find(session => session.id === sessionId);
+    assert.ok(target, 'NID_TARGET_MISSING');
+    if (target.status === 'LIVE') {
+      const paused = await controlLiveSession(sessionId, 'PAUSE');
+      assert.equal(paused.status, 'PAUSED');
+      console.log(JSON.stringify({targetStatus:paused.status, elapsedSeconds:paused.liveElapsedSeconds}));
+    }
+    state = await read(`query AfterPause($v:UUID!){gameSessions(where:{scenarioVersionId:{eq:$v}},limit:100){id status} ${queries}}`, {v});
+    console.log(JSON.stringify({targetStatus:state.gameSessions.find(session => session.id === sessionId)?.status, otherLive:state.gameSessions.filter(session => session.id !== sessionId && session.status === 'LIVE').length}));
+  }
   assert.ok(state.gameSessions.every(session => session.status !== 'LIVE'), 'NID_SESSION_RUNNING');
   const variables = {v, label: version.versionLabel};
   const declarations = ['$v:UUID!', '$label:String!'];
