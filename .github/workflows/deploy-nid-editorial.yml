@@ -1,4 +1,4 @@
-name: Apply Nid editorial corrections and publish document viewer
+name: Preserve Nid room illustrations and verify published viewer
 on:
   push:
     branches: [fix/nid-editorial]
@@ -19,33 +19,28 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --prefix functions
-      - run: npm install --global firebase-tools@15.34.0
-      - run: npm ci --prefix web
-      - run: npm run build --prefix web
-      - name: Verify evidence viewer on phones and desktop
-        run: |
-          npm install --prefix web --no-save --package-lock=false playwright@1.58.2
-          cd web
-          npx playwright install --with-deps chromium
-          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/editorial-vite.log 2>&1 &
-          for attempt in $(seq 1 30); do curl --silent --fail http://127.0.0.1:4173/ > /dev/null && break; sleep 1; done
-          node test/browser-navigation.cjs
-          node test/browser-evidence.cjs
+      - run: node --test functions/test/nid-room-media.test.mjs
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
       - name: Apply guarded correction and verify all sixteen player views
         run: node functions/tools/apply-nid-editorial.mjs
-      - name: Record revision
-        env:
-          REVISION: ${{ github.sha }}
-        run: node --input-type=module -e "import {writeFileSync} from 'node:fs';writeFileSync('web/dist/deployment-version.json',JSON.stringify({revision:process.env.REVISION,feature:'nid-editorial-document-viewer',casinoRoulette:true,nidReadiness:true}));"
-      - name: Publish verified viewer
-        run: firebase deploy --project murder-engine-ludificateur --only hosting --non-interactive
-      - name: Verify published revision
-        env:
-          REVISION: ${{ github.sha }}
-        run: node --input-type=module -e "const r=await fetch('https://murder-engine-ludificateur.web.app/deployment-version.json?r='+process.env.REVISION);if(!r.ok||(await r.json()).revision!==process.env.REVISION)throw Error('DEPLOYMENT_REVISION_MISMATCH');"
+      - name: Verify published viewer revision
+        run: |
+          node --input-type=module <<'JS'
+          import {writeFileSync} from 'node:fs';
+          const expected='d80ff0db5ac5f87cfde06cd05d6f8269428df2e9';
+          let published;
+          for(let i=0;i<12;i++){
+            const r=await fetch('https://murder-engine-ludificateur.web.app/deployment-version.json?verify='+Date.now(),{headers:{'Cache-Control':'no-cache'}});
+            published=r.ok?await r.json():{status:r.status};
+            if(published.revision===expected)break;
+            await new Promise(resolve=>setTimeout(resolve,5000));
+          }
+          writeFileSync('nid-editorial-evidence/published.json',JSON.stringify(published));
+          console.log(JSON.stringify(published));
+          if(published.revision!==expected)throw Error('DEPLOYMENT_REVISION_MISMATCH');
+          JS
       - name: Save scoped evidence
         if: always()
         uses: actions/upload-artifact@v4

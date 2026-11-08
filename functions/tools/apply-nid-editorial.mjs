@@ -4,6 +4,7 @@ import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {initializeApp} from 'firebase-admin/app';
 import {getDataConnect} from 'firebase-admin/data-connect';
+import {attachNidRoomMedia} from '../src/nid-room-media.mjs';
 const fixture=process.argv.includes('--emulator-fixture');
 assert.equal(process.env.GCLOUD_PROJECT,fixture?'demo-murder-engine-votes':'murder-engine-ludificateur');
 if(fixture)assert.ok(process.env.DATA_CONNECT_EMULATOR_HOST);
@@ -52,6 +53,11 @@ assert.deepEqual(mismatches,[],'SOURCE_EDITED_SINCE_REVIEW');
 
 const vars={v,label:version.versionLabel,hash:version.sourceHash},decl=['$v:UUID!','$label:String!','$hash:String!'];
 let n=0,body=`lockVersion:scenarioVersion_update(id:$v,data:{versionLabel:$label})\nversionGuard:query @check(expr:"response.versionGuard.scenarioVersion.sourceHash == vars.hash",message:"NID_VERSION_CHANGED") @redact{scenarioVersion(id:$v){sourceHash}}\n`;
+const mediaUpdate=attachNidRoomMedia(source.scenarioVersion.mediaOverridesJson);
+if(mediaUpdate.added){
+ decl.push('$mediaBefore:String','$mediaAfter:String!');vars.mediaBefore=source.scenarioVersion.mediaOverridesJson;vars.mediaAfter=mediaUpdate.json;
+ body+='mediaGuard:query @check(expr:"response.mediaGuard.scenarioVersion.mediaOverridesJson == vars.mediaBefore",message:"NID_MEDIA_CHANGED") @redact{scenarioVersion(id:$v){mediaOverridesJson}}\nmediaUpdate:scenarioVersion_update(id:$v,data:{mediaOverridesJson:$mediaAfter})\n';
+}
 function update(type,field,key,data,current){
  const id='u'+n++;decl.push(`$${id}:${type}_Data!`);vars[id]=data;
  // Lock row first (within transaction) then compare every authored field.
@@ -119,7 +125,7 @@ for(const session of source.sessions){
  assert.deepEqual(after,expected,'UNEXPECTED_RUNTIME_CHANGE');
 }
 const after=await read(`query Verify($v:UUID!){scenarioVersion(id:$v){mediaOverridesJson} ${selections}}`,{v});
-assert.equal(after.scenarioVersion.mediaOverridesJson,source.scenarioVersion.mediaOverridesJson);
+assert.equal(after.scenarioVersion.mediaOverridesJson,mediaUpdate.json);
 for(const [group,rows] of Object.entries(patch.groups))for(const row of rows)for(const [field,value] of Object.entries(row.data))assert.deepEqual(after[group].find(x=>x.externalId===row.externalId)?.[field]??null,value??null);
 for(const session of source.sessions){
  const rows=await read('query VerifyCast($s:UUID!){sessionParticipants(where:{gameSessionId:{eq:$s}},limit:1000){id characterExternalId characterDisplayName characterGenderVariant characterSnapshotJson characterSnapshotAt playerAccessEnabled}}',{s:session.id});
@@ -130,6 +136,7 @@ for(const session of source.sessions){
  }
 }
 const result={applied:true,versionId:v,counts:Object.fromEntries(Object.entries(patch.groups).map(([k,rows])=>[k,rows.length])),snapshotsUpdated:snapshots,duplicateDefinitionsRetired:patch.removedObjects.length,runtimeDuplicatesRetired:retired,objectsMovedToRooms:moved,resourcesCasinoCastingLinksMediaPreserved:true,patchSha256:createHash('sha256').update(JSON.stringify(patch)).digest('hex')};
+result.roomImagesAttached=mediaUpdate.added;
 if(!fixture){
  const {getPlayerPortal}=await import('../src/player.mjs');
  const rows=await read('query PlayerCheck($s:UUID!){sessionParticipants(where:{gameSessionId:{eq:$s}},limit:100){characterExternalId playerAccessToken playerAccessEnabled active}}',{s:targetSession});
