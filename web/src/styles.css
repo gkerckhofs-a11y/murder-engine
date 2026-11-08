@@ -14577,5 +14577,6 @@ button.skinGalleryCard:disabled{
 .immersiveImageCanvas img{display:block;width:100%;max-width:none;height:auto;max-height:none;transform:none;transition:none;box-shadow:none}
 .immersiveViewerStage .immersivePaperFallback{width:100%;max-width:800px;max-height:none;overflow:visible;box-sizing:border-box;margin:0 auto;transform:none;padding:28px;color:#34271b}
 .immersivePaperFallback .narrativeText{position:relative}
+.immersiveViewerStage .immersivePaperFallback h2{color:#34271b}
 .immersiveViewerHeader strong{white-space:normal;overflow-wrap:anywhere}
 @media(max-width:760px){.immersiveViewerStage.hasImage{display:block}.immersiveViewerStage{padding:12px}.immersiveImageSection{margin-bottom:18px}.immersiveImageScroller{max-height:65vh}.immersiveViewerStage .immersivePaperFallback{padding:24px 20px}.immersiveViewerHeader{padding:10px 12px}.immersiveViewerControls{gap:6px;padding-top:8px}}

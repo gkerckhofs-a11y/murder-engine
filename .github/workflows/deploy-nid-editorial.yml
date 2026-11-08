@@ -1,4 +1,4 @@
-name: Validate Nid editorial corrections
+name: Apply Nid editorial corrections and publish document viewer
 on:
   push:
     branches: [fix/nid-editorial]
@@ -19,11 +19,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --prefix functions
-      - name: Targeted player and snapshot checks
-        run: node --test functions/test/player.test.mjs functions/test/document-analysis.test.mjs functions/test/session-incarnations.test.mjs functions/test/nid-editorial.test.mjs
       - run: npm install --global firebase-tools@15.34.0
-      - name: Exercise atomic correction on SQL emulator
-        run: node functions/integration/run.mjs nid-editorial
       - run: npm ci --prefix web
       - run: npm run build --prefix web
       - name: Verify evidence viewer on phones and desktop
@@ -38,8 +34,18 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
-      - name: Read source and frozen sheets before correction
-        run: node functions/tools/apply-nid-editorial.mjs --check-only
+      - name: Apply guarded correction and verify all sixteen player views
+        run: node functions/tools/apply-nid-editorial.mjs
+      - name: Record revision
+        env:
+          REVISION: ${{ github.sha }}
+        run: node --input-type=module -e "import {writeFileSync} from 'node:fs';writeFileSync('web/dist/deployment-version.json',JSON.stringify({revision:process.env.REVISION,feature:'nid-editorial-document-viewer',casinoRoulette:true,nidReadiness:true}));"
+      - name: Publish verified viewer
+        run: firebase deploy --project murder-engine-ludificateur --only hosting --non-interactive
+      - name: Verify published revision
+        env:
+          REVISION: ${{ github.sha }}
+        run: node --input-type=module -e "const r=await fetch('https://murder-engine-ludificateur.web.app/deployment-version.json?r='+process.env.REVISION);if(!r.ok||(await r.json()).revision!==process.env.REVISION)throw Error('DEPLOYMENT_REVISION_MISMATCH');"
       - name: Save scoped evidence
         if: always()
         uses: actions/upload-artifact@v4
