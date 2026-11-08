@@ -54,6 +54,7 @@ function isEnglish(portal:any){return String(portal?.session?.language??'FR').tr
 function tr(portal:any,fr:string,en:string){return isEnglish(portal)?en:fr;}
 function resourceLabel(id:string,portal?:any){return (isEnglish(portal)?{RES_PA:'AP',RES_CASH:'Cash',RES_BANK:'Bank',RES_INFLUENCE:'Influence'}:{RES_PA:'PA',RES_CASH:'Argent',RES_BANK:'Banque',RES_INFLUENCE:'Influence'} as Record<string,string>)[id]??id.replace(/^RES_/,'');}
 function normalizeText(v:any){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
+function isMirador(portal:Portal){return /^nid d[’']espions$/i.test(String(portal?.session?.scenarioTitle??'').trim());}
 function isPhysicalClue(clue:any){
   if(clue?.objectExternalId)return true;
   const hay=normalizeText(`${clue?.clueType??''} ${clue?.support??''} ${clue?.presentationMode??''}`);
@@ -179,7 +180,7 @@ export default function PlayerPortal({token}:{token:string}){
   } as any;
 
   return <main ref={reading.root} className={`playerShell playerShellV161 ${skinClass}`} style={skinStyle}>
-    {s.rehearsal&&<p className="rehearsalBanner" role="status">{tr(portal,'MODE RÉPÉTITION — Ce lien sert uniquement aux essais.','REHEARSAL — This link is for testing only.')}</p>}<header className="playerHero">{presentation.logo?.source&&<img className="playerScenarioLogo" src={presentation.logo.source} alt={presentation.logo.altText||s.scenarioTitle}/>}<p className="eyebrow">{s.scenarioTitle}</p><h1>{c.name}</h1><p className="playerRole">{c.publicRole||tr(portal,'Personnage','Character')}{c.narrativeAge?` · ${c.narrativeAge}`:''}</p><div className="playerSessionMeta"><span>{s.name}</span><span>{niceDate(s.scheduledAt,s.language)}</span>{s.venue&&<span>{s.venue}</span>}</div></header>
+    {s.rehearsal&&<p className="rehearsalBanner" role="status">{tr(portal,'MODE RÉPÉTITION — Ce lien sert uniquement aux essais.','REHEARSAL — This link is for testing only.')}</p>}<header className="playerHero">{presentation.logo?.source&&<img className="playerScenarioLogo" src={presentation.logo.source} alt={presentation.logo.altText||s.scenarioTitle}/>}<p className="eyebrow">{s.scenarioTitle}</p><h1>{c.name}</h1><p className="playerRole">{c.publicRole||tr(portal,'Personnage','Character')}{c.narrativeAge?` · ${c.narrativeAge}`:''}</p><div className="playerSessionMeta">{isMirador(portal)&&!s.rehearsal ? <><span>Grand Hôtel Mirador</span><span>1958</span></> : <><span>{s.name}</span><span>{niceDate(s.scheduledAt,s.language)}</span>{s.venue&&<span>{s.venue}</span>}</>}</div></header>
     <div className="playerStatusBar"><div><small>{tr(portal,'Vous jouez','You are playing')}</small><strong>{c.name}</strong></div><div className="paPill"><small>{isEnglish(portal)?'AP':'PA'}</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div></div>
     {portal.states?.length>0&&<section className="playerStates">{portal.states.map((st:any)=><span key={st.stateExternalId}><b>{st.name}</b>{st.description?` · ${st.description}`:''}</span>)}</section>}
     {flash&&<p className="playerFlash">{flash}</p>}{error&&<p className="playerError">{error}</p>}
@@ -311,7 +312,7 @@ function PlayerPrintableSheet({portal}:{portal:Portal}){
       {(portal.discoverableAboutMe??[]).length>0&&<section>
         <h3>{tr(
           portal,
-          'Ce que les joueurs peuvent découvrir sur moi',
+          isMirador(portal) ? 'Les traces que j’ai laissées' : 'Ce que les joueurs peuvent découvrir sur moi',
           'What other players can discover about me'
         )}</h3>
         <ul>
@@ -411,7 +412,7 @@ function PlayerSheet({portal,busy,onRead,count}:{portal:Portal;busy:boolean;onRe
         <p className="playerSectionKicker">{tr(portal,'CE QUE LES AUTRES PEUVENT APPRENDRE','WHAT OTHERS MAY LEARN')}</p>
         <h3>{tr(
           portal,
-          'Ce que les joueurs peuvent découvrir sur moi',
+          isMirador(portal) ? 'Les traces que j’ai laissées' : 'Ce que les joueurs peuvent découvrir sur moi',
           'What other players can discover about me'
         )}</h3>
         {(portal.discoverableAboutMe??[]).length===0

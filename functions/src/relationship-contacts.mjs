@@ -7,6 +7,6 @@ export function relationshipContacts(source,actor,{portraitFor=()=>null,referenc
   const category=String(f.notebookCategory??'');
   const id=category.startsWith('RELATION:')?category.slice(9):'';
   const other=id!=='REFERENCE'?characters.get(id):null;
-  return {externalId:'CONTACT_'+f.externalId,otherExternalId:other?.externalId??null,otherName:other?.name??f.title,otherPublicRole:other?.publicRole??null,relationType:'Personne citée dans mon histoire',text:f.text,visibility:'PRIVATE',portrait:other?portraitFor(other):referencePortraitFor(f)};
+  return {externalId:'CONTACT_'+f.externalId,otherExternalId:other?.externalId??null,otherName:other?.name??f.title,otherPublicRole:other?.publicRole??null,relationType:'Ce que je sais',text:f.text,visibility:'PRIVATE',portrait:other?portraitFor(other):referencePortraitFor(f)};
  });
 }
