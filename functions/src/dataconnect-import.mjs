@@ -18,7 +18,9 @@ query ExistingEnrichment($scenarioVersionId: UUID!) {
   objectives(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   relationships(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   documentDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
+  documentAnalysisDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   mediaAssets(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
+  skinVisualDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   gameObjects(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   resources(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   resourceAssignments(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
@@ -31,6 +33,8 @@ query ExistingEnrichment($scenarioVersionId: UUID!) {
   gameEventDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   voteDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
   voteOptionDefinitions(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
+  clues(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { externalId }
+  clueFacts(where: {scenarioVersionId: {eq: $scenarioVersionId}}) { clueExternalId factExternalId }
 }
 `;
 
@@ -53,16 +57,24 @@ mutation InsertScenarioSnapshot(
   $plots: [Plot_Data!]!
   $facts: [Fact_Data!]!
   $initialKnowledge: [InitialKnowledge_Data!]!
-  $clues: [Clue_Data!]!
-  $clueFacts: [ClueFact_Data!]!
 ) @transaction {
   scenarioVersion_insert(data: $scenarioVersion)
   character_insertMany(data: $characters)
   plot_insertMany(data: $plots)
   fact_insertMany(data: $facts)
   initialKnowledge_insertMany(data: $initialKnowledge)
-  clue_insertMany(data: $clues)
-  clueFact_insertMany(data: $clueFacts)
+}
+`;
+
+export const INSERT_CLUES_BATCH_MUTATION = `
+mutation InsertCluesBatch($data: [Clue_Data!]!) {
+  clue_insertMany(data: $data)
+}
+`;
+
+export const INSERT_CLUE_FACTS_BATCH_MUTATION = `
+mutation InsertClueFactsBatch($data: [ClueFact_Data!]!) {
+  clueFact_insertMany(data: $data)
 }
 `;
 
@@ -84,9 +96,21 @@ mutation InsertDocumentDefinition($data: DocumentDefinition_Data!) {
 }
 `;
 
+export const INSERT_DOCUMENT_ANALYSIS_MUTATION = `
+mutation InsertDocumentAnalysisDefinition($data: DocumentAnalysisDefinition_Data!) {
+  documentAnalysisDefinition_insert(data: $data)
+}
+`;
+
 export const INSERT_MEDIA_ASSET_MUTATION = `
 mutation InsertMediaAsset($data: MediaAsset_Data!) {
   mediaAsset_insert(data: $data)
+}
+`;
+
+export const INSERT_SKIN_VISUAL_DEFINITION_MUTATION = `
+mutation InsertSkinVisualDefinition($data: SkinVisualDefinition_Data!) {
+  skinVisualDefinition_insert(data: $data)
 }
 `;
 
@@ -195,8 +219,6 @@ export function mutationVariablesFromPlan(plan, importReport) {
     plots: plan.plots,
     facts: plan.facts,
     initialKnowledge: plan.initialKnowledge,
-    clues: plan.clues,
-    clueFacts: plan.clueFacts,
   };
 }
 
@@ -212,6 +234,26 @@ function assertNoErrors(response, code) {
     throw err;
   }
   return response?.data ?? response;
+}
+
+async function insertBatches(rows, operation, run, {
+  batchSize = 100,
+  entityName = 'rows',
+} = {}) {
+  if (!rows?.length) return { count: 0, batches: 0 };
+
+  let completed = 0;
+  let batches = 0;
+
+  for (let start = 0; start < rows.length; start += batchSize) {
+    const batch = rows.slice(start, start + batchSize);
+    const response = await run(operation, { data: batch });
+    assertNoErrors(response, `DATACONNECT_${entityName.toUpperCase()}_BATCH_INSERT_FAILED`);
+    completed += batch.length;
+    batches += 1;
+  }
+
+  return { count: completed, batches };
 }
 
 async function insertRows(rows, operation, run, {
@@ -283,7 +325,9 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
   const existingObjectives = new Set((enrichment.objectives ?? []).map(row => row.externalId));
   const existingRelationships = new Set((enrichment.relationships ?? []).map(row => row.externalId));
   const existingDocumentDefinitions = new Set((enrichment.documentDefinitions ?? []).map(row => row.externalId));
+  const existingDocumentAnalyses = new Set((enrichment.documentAnalysisDefinitions ?? []).map(row => row.externalId));
   const existingMediaAssets = new Set((enrichment.mediaAssets ?? []).map(row => row.externalId));
+  const existingSkinVisualDefinitions = new Set((enrichment.skinVisualDefinitions ?? []).map(row => row.externalId));
   const existingGameObjects = new Set((enrichment.gameObjects ?? []).map(row => row.externalId));
   const existingResources = new Set((enrichment.resources ?? []).map(row => row.externalId));
   const existingResourceAssignments = new Set((enrichment.resourceAssignments ?? []).map(row => row.externalId));
@@ -296,11 +340,18 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
   const existingEventDefinitions = new Set((enrichment.gameEventDefinitions ?? []).map(row => row.externalId));
   const existingVoteDefinitions = new Set((enrichment.voteDefinitions ?? []).map(row => row.externalId));
   const existingVoteOptionDefinitions = new Set((enrichment.voteOptionDefinitions ?? []).map(row => row.externalId));
+  const existingClues = new Set((enrichment.clues ?? []).map(row => row.externalId));
+  const clueFactKey = row => `${row.clueExternalId}\u0000${row.factExternalId}`;
+  const existingClueFacts = new Set((enrichment.clueFacts ?? []).map(clueFactKey));
 
+  const missingClues = (plan.clues ?? []).filter(row => !existingClues.has(row.externalId));
+  const missingClueFacts = (plan.clueFacts ?? []).filter(row => !existingClueFacts.has(clueFactKey(row)));
   const missingObjectives = plan.objectives.filter(row => !existingObjectives.has(row.externalId));
   const missingRelationships = plan.relationships.filter(row => !existingRelationships.has(row.externalId));
   const missingDocumentDefinitions = (plan.documents ?? []).filter(row => !existingDocumentDefinitions.has(row.externalId));
+  const missingDocumentAnalyses = (plan.documentAnalyses ?? []).filter(row => !existingDocumentAnalyses.has(row.externalId));
   const missingMediaAssets = (plan.mediaAssets ?? []).filter(row => !existingMediaAssets.has(row.externalId));
+  const missingSkinVisualDefinitions = (plan.skinVisualDefinitions ?? []).filter(row => !existingSkinVisualDefinitions.has(row.externalId));
   const missingGameObjects = plan.gameObjects.filter(row => !existingGameObjects.has(row.externalId));
   const missingResources = plan.resources.filter(row => !existingResources.has(row.externalId));
   const missingResourceAssignments = plan.resourceAssignments.filter(row => !existingResourceAssignments.has(row.externalId));
@@ -313,6 +364,20 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
   const missingEventDefinitions = plan.eventDefinitions.filter(row => !existingEventDefinitions.has(row.externalId));
   const missingVoteDefinitions = plan.voteDefinitions.filter(row => !existingVoteDefinitions.has(row.externalId));
   const missingVoteOptionDefinitions = plan.voteOptionDefinitions.filter(row => !existingVoteOptionDefinitions.has(row.externalId));
+
+  const clueResult = await insertBatches(
+    missingClues,
+    INSERT_CLUES_BATCH_MUTATION,
+    run,
+    { batchSize: 100, entityName: 'clues' },
+  );
+
+  const clueFactResult = await insertBatches(
+    missingClueFacts,
+    INSERT_CLUE_FACTS_BATCH_MUTATION,
+    run,
+    { batchSize: 100, entityName: 'clue_facts' },
+  );
 
   const objectiveResult = await insertRows(
     missingObjectives,
@@ -342,6 +407,19 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
     { concurrency: 8, entityName: 'media_asset' },
   );
 
+  const analysisResult = await insertRows(
+    missingDocumentAnalyses,
+    INSERT_DOCUMENT_ANALYSIS_MUTATION,
+    run,
+    { concurrency: 8, entityName: 'document_analysis' },
+  );
+
+  const skinVisualDefinitionResult = await insertRows(
+    missingSkinVisualDefinitions,
+    INSERT_SKIN_VISUAL_DEFINITION_MUTATION,
+    run,
+    { concurrency: 8, entityName: 'skin_visual_definition' },
+  );
 
   const gameObjectResult = await insertRows(
     missingGameObjects,
@@ -455,10 +533,14 @@ export async function persistImportPlan(plan, importReport, { executor, reader }
     sourceHash: plan.sourceHash,
     baseInserted,
     imported: {
+      clues: clueResult.count,
+      clueFacts: clueFactResult.count,
       objectives: objectiveResult.count,
       relationships: relationshipResult.count,
       documents: documentDefinitionResult.count,
+      documentAnalyses: analysisResult.count,
       mediaAssets: mediaAssetResult.count,
+      skinVisualDefinitions: skinVisualDefinitionResult.count,
       gameObjects: gameObjectResult.count,
       resources: resourceResult.count,
       resourceAssignments: resourceAssignmentResult.count,

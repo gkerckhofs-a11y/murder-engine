@@ -82,10 +82,35 @@ test('interaction refuses insufficient PA before writing',async()=>{
   assert.equal(writes,0);
 });
 
-test('per-target limit blocks a second search of same location',async()=>{
-  const rt=runtime(); rt.sessionInteractionUses=[{interactionExternalId:'ACT_FOUILLE',actorCharacterExternalId:'CHAR_A',targetExternalId:'LOC_OFFICE',createdAt:'2026-09-21T18:00:00.000Z'}];
-  await assert.rejects(()=>executeInteraction('S1',{actorCharacterExternalId:'CHAR_A',interactionExternalId:'ACT_FOUILLE',targetExternalId:'LOC_OFFICE'},
-    {reader:readerFor(session(),source(),rt),executor:async()=>({}),roller:()=>4}),/INTERACTION_TARGET_LIMIT_REACHED/);
+test('location search ignores per-target limit so the same room can be searched again',async()=>{
+  const rt=runtime();
+  rt.sessionInteractionUses=[
+    {
+      interactionExternalId:'ACT_FOUILLE',
+      actorCharacterExternalId:'CHAR_A',
+      targetExternalId:'LOC_OFFICE',
+      createdAt:'2026-09-21T18:00:00.000Z'
+    }
+  ];
+
+  let wrote=false;
+  const out=await executeInteraction(
+    'S1',
+    {
+      actorCharacterExternalId:'CHAR_A',
+      interactionExternalId:'ACT_FOUILLE',
+      targetExternalId:'LOC_OFFICE'
+    },
+    {
+      reader:readerFor(session(),source(),rt),
+      executor:async()=>{wrote=true;return{};},
+      now:new Date('2026-09-21T19:00:00.000Z'),
+      roller:()=>4
+    }
+  );
+
+  assert.equal(out.success,true);
+  assert.equal(wrote,true);
 });
 
 test('GM interaction cooldown is enforced from use history',async()=>{

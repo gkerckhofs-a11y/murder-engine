@@ -1,3 +1,4 @@
+import {SESSION_LOCK} from './vote-storage.mjs';
 import {
   resolveSessionCharacter
 } from './session-character-resolver.mjs';
@@ -36,9 +37,13 @@ query InteractionSource($versionId: UUID!) {
     externalId name description qrCode permanent lockExternalId active
   }
   gameObjects(where: {scenarioVersionId: {eq: $versionId}}) {
-    externalId name description transferable stealable consumable critical active
+    externalId name description transferable stealable consumable critical bonusAbilityExternalId bonusValue active
   }
-  clues(where: {scenarioVersionId: {eq: $versionId}}) {
+  clues(
+    where: {scenarioVersionId: {eq: $versionId}}
+    orderBy: {externalId: ASC}
+    limit: 2000
+  ) {
     externalId playerName clueType playerText gmInterpretation locationExternalId objectExternalId documentExternalId
     shareable transferable consumable major logisticsCode active
   }
@@ -70,9 +75,13 @@ query InteractionRuntime($sessionId: UUID!) {
 
 const EXECUTE_WITH_COST_MUTATION = `
 mutation ExecuteInteractionWithCost(
-  $sessionId: UUID!, $characterExternalId: String!, $resourceExternalId: String!, $currentValue: Int!, $updatedAt: Timestamp!,
+  $sessionId: UUID!, $characterExternalId: String!, $resourceExternalId: String!, $currentValue: Int!, $expectedValue: Int!, $updatedAt: Timestamp!,
   $use: SessionInteractionUse_Data!, $log: SessionActionLog_Data!
 ) @transaction {
+  ${SESSION_LOCK}
+  resourceGuard: query @check(expr: "response.resourceGuard.sessionResource.currentValue == vars.expectedValue", message: "RESOURCE_BALANCE_CHANGED") @redact {
+    sessionResource(key:{gameSessionId:$sessionId,characterExternalId:$characterExternalId,resourceExternalId:$resourceExternalId}) {currentValue}
+  }
   sessionResource_update(
     key: {gameSessionId: $sessionId, characterExternalId: $characterExternalId, resourceExternalId: $resourceExternalId}
     data: {currentValue: $currentValue, updatedAt: $updatedAt}
@@ -205,6 +214,24 @@ function participantByCharacter(session, characterExternalId) {
   return (session.sessionParticipants_on_gameSession ?? []).find(p => p.active !== false && p.characterExternalId === characterExternalId) ?? null;
 }
 
+function normalizedSearchText(value) {
+  return String(value??'')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase();
+}
+
+function isRepeatableLocationSearch(interaction) {
+  if(String(interaction?.targetType??'').toUpperCase()!=='LOCATION')
+    return false;
+
+  const hay=normalizedSearchText(
+    `${interaction?.externalId??''} ${interaction?.name??''} ${interaction?.category??''}`
+  );
+
+  return /(fouill|search|inspect|explor|chercher|investig)/.test(hay);
+}
+
 function validateTarget(source, session, targetType, targetExternalId) {
   const type = String(targetType ?? 'NONE').toUpperCase();
   if (type === 'NONE') return null;
@@ -219,11 +246,56 @@ function validateTarget(source, session, targetType, targetExternalId) {
   return targetExternalId;
 }
 
+const NO_COOLDOWN_ABILITY_IDS = new Set([
+  'ABILITY_CHARM',
+  'ABILITY_NEGOTIATION',
+  'ABILITY_POLICE_INTIMIDATION',
+  'ABILITY_BUSINESS_DEAL',
+]);
+
+const ONCE_PER_TARGET_ABILITY_IDS = new Set([
+  'ABILITY_CHARM',
+  'ABILITY_NEGOTIATION',
+  'ABILITY_POLICE_INTIMIDATION',
+]);
+
+function noCooldownAbility(interaction) {
+  return NO_COOLDOWN_ABILITY_IDS.has(
+    String(interaction?.abilityExternalId??'').trim().toUpperCase()
+  );
+}
+
+function oncePerTargetAbility(interaction) {
+  return ONCE_PER_TARGET_ABILITY_IDS.has(
+    String(interaction?.abilityExternalId??'').trim().toUpperCase()
+  );
+}
+
 function limitConfig(interaction, ability) {
+  const repeatableLocationSearch=isRepeatableLocationSearch(interaction);
+  const noCooldown=noCooldownAbility(interaction);
+  const oncePerTarget=oncePerTargetAbility(interaction);
+
   return {
-    maxUses: interaction.maxUses ?? ability?.maxUses ?? null,
-    cooldownMinutes: interaction.cooldownMinutes ?? ability?.cooldownMinutes ?? null,
-    limitPerTarget: interaction.limitPerTarget ?? null,
+    maxUses: repeatableLocationSearch
+      ? null
+      : (interaction.maxUses ?? ability?.maxUses ?? null),
+
+    cooldownMinutes:
+      noCooldown
+        ? 0
+        : (
+            interaction.cooldownMinutes ??
+            ability?.cooldownMinutes ??
+            null
+          ),
+
+    limitPerTarget:
+      repeatableLocationSearch
+        ? null
+        : oncePerTarget
+          ? (interaction.limitPerTarget ?? 1)
+          : (interaction.limitPerTarget ?? null),
   };
 }
 
@@ -323,14 +395,16 @@ export async function executeInteraction(sessionId, input, { reader=defaultReade
   if (!participantByCharacter(session, actorCharacterExternalId)) throw new Error('ACTOR_NOT_IN_SESSION');
   const interaction = (source.interactions ?? []).find(i=>i.externalId===interactionExternalId && i.active!==false);
   if (!interaction) throw new Error('INTERACTION_NOT_FOUND');
-  const actorAbility = effectiveAbility(source, actorCharacterExternalId, interaction.abilityExternalId);
+  const baseAbility = effectiveAbility(source, actorCharacterExternalId, interaction.abilityExternalId);
+  const equipmentBonus = heldAbilityBonus(source,runtime,actorCharacterExternalId,interaction.abilityExternalId);
+  const actorAbility = baseAbility ? {...baseAbility,flatBonus:baseAbility.flatBonus+equipmentBonus} : null;
   if (interaction.actorScope === 'ABILITY_HOLDER' && interaction.abilityExternalId && !actorAbility) throw new Error('ABILITY_NOT_ASSIGNED');
   const targetExternalId = validateTarget(source, session, interaction.targetType, String(input?.targetExternalId ?? '').trim() || null);
   const targetAbility = ['PLAYER','CHARACTER'].includes(String(interaction.targetType).toUpperCase()) && targetExternalId && interaction.opposedAbilityExternalId ? effectiveAbility(source,targetExternalId,interaction.opposedAbilityExternalId) : null;
   assertUsageAllowed(runtime.sessionInteractionUses, actorCharacterExternalId, interaction, targetExternalId, actorAbility, now);
   const outcome = resolveInteractionOutcome(interaction, actorAbility, targetAbility, { gmOutcome:input?.gmOutcome, roller });
   const cost = Number(interaction.costValue ?? 0);
-  const shouldCharge = cost > 0 && interaction.costResourceExternalId && (String(interaction.costTiming ?? 'BEFORE').toUpperCase() === 'BEFORE' || outcome.success);
+  const shouldCharge = cost > 0 && interaction.costResourceExternalId && (String(interaction.costTiming ?? 'BEFORE').toUpperCase() === 'BEFORE' || String(interaction.costTiming).toUpperCase() === 'ATTEMPT' || outcome.success);
   let resourceRow = null, resourceAfter = null;
   if (shouldCharge) {
     resourceRow = (runtime.sessionResources ?? []).find(r=>r.characterExternalId===actorCharacterExternalId&&r.resourceExternalId===interaction.costResourceExternalId);
@@ -355,8 +429,19 @@ export async function executeInteraction(sessionId, input, { reader=defaultReade
     note:`${interaction.name}${targetExternalId?` → ${targetExternalId}`:''}${input?.note?` · ${String(input.note).trim()}`:''}`,
     createdAt,
   };
-  if (shouldCharge) await executor(EXECUTE_WITH_COST_MUTATION,{sessionId,characterExternalId:actorCharacterExternalId,resourceExternalId:interaction.costResourceExternalId,currentValue:resourceAfter,updatedAt:createdAt,use,log});
-  else await executor(EXECUTE_NO_COST_MUTATION,{use,log});
+  let operation=shouldCharge?EXECUTE_WITH_COST_MUTATION:EXECUTE_NO_COST_MUTATION;
+  const variables=shouldCharge?{sessionId,characterExternalId:actorCharacterExternalId,resourceExternalId:interaction.costResourceExternalId,currentValue:resourceAfter,expectedValue:Number(resourceRow.currentValue),updatedAt:createdAt,use,log}:{use,log};
+  if(equipmentBonus>0){
+    const item=(source.gameObjects??[]).find(o=>o.active!==false&&o.bonusAbilityExternalId===interaction.abilityExternalId&&Number(o.bonusValue)===equipmentBonus&&(runtime.sessionObjects??[]).some(r=>r.objectExternalId===o.externalId&&r.inPlay!==false&&r.holderType==='CHARACTER'&&r.holderExternalId===actorCharacterExternalId));
+    variables.equipmentId=item.externalId;variables.sessionId=sessionId;variables.characterExternalId=actorCharacterExternalId;
+    operation=operation.replace(') @transaction',`, $equipmentId:String!${shouldCharge?'':', $sessionId:UUID!, $characterExternalId:String!'}) @transaction`);
+    const guard=`
+      equipmentLock:sessionObject_update(key:{gameSessionId:$sessionId,objectExternalId:$equipmentId},data:{identificationLevel_update:{inc:0}})
+      equipmentGuard:query @check(expr:"response.equipmentGuard.sessionObject != null && response.equipmentGuard.sessionObject.inPlay == true && response.equipmentGuard.sessionObject.holderType == 'CHARACTER' && response.equipmentGuard.sessionObject.holderExternalId == vars.characterExternalId",message:"INTERACTION_EQUIPMENT_CHANGED") @redact{sessionObject(key:{gameSessionId:$sessionId,objectExternalId:$equipmentId}){inPlay holderType holderExternalId}}
+    `;
+    operation=operation.replace('  sessionInteractionUse_insert(',guard+'  sessionInteractionUse_insert(');
+  }
+  await executor(operation,variables);
   return {
     interactionExternalId, interactionName:interaction.name, actorCharacterExternalId, targetType:interaction.targetType,targetExternalId,scanMode:interaction.scanMode??null,
     success:outcome.success,resolution:outcome.resolution,actorRoll:outcome.actorRoll,targetRoll:outcome.targetRoll,actorTotal:outcome.actorTotal,targetTotal:outcome.targetTotal,
@@ -405,3 +490,10 @@ export async function transferSessionObject(sessionId, input, { reader=defaultRe
 }
 
 export const __interactionOps={INTERACTION_SESSION_QUERY,INTERACTION_SOURCE_QUERY,INTERACTION_RUNTIME_QUERY,EXECUTE_WITH_COST_MUTATION,EXECUTE_NO_COST_MUTATION,REVEAL_CLUE_MUTATION,REVEAL_CLUE_NO_KNOWLEDGE_MUTATION,TRANSFER_OBJECT_MUTATION};
+
+/** A carried weapon follows its holder; multiple weapons do not stack. */
+export function heldAbilityBonus(source,runtime,actor,abilityId){
+ if(!abilityId)return 0;
+ const held=new Set((runtime.sessionObjects??[]).filter(o=>o.inPlay!==false&&o.holderType==='CHARACTER'&&o.holderExternalId===actor).map(o=>o.objectExternalId));
+ return Math.max(0,...(source.gameObjects??[]).filter(o=>o.active!==false&&held.has(o.externalId)&&o.bonusAbilityExternalId===abilityId).map(o=>Number(o.bonusValue)||0));
+}

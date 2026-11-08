@@ -55,6 +55,9 @@ type ScenarioVersion @table {
   logoMediaExternalId: String
   backgroundMediaExternalId: String
 
+  # Presentation overrides selected from the reusable organization media library.
+  mediaOverridesJson: String
+
   locked: Boolean! @default(value: false)
   importedAt: Timestamp! @default(expr: "request.time")
 }
@@ -82,6 +85,7 @@ type Character @table(key: ["scenarioVersion", "externalId"]) {
   personalTimeline: String
   motto: String
   portraitMediaId: String
+  portraitArchetypeCode: String
   playable: Boolean! @default(value: true)
   active: Boolean! @default(value: true)
 }
@@ -135,6 +139,7 @@ type Fact @table(key: ["scenarioVersion", "externalId"]) {
   plotExternalId: String
   notebookCategory: String
   isPublic: Boolean! @default(value: false)
+  charmable: Boolean! @default(value: true)
   active: Boolean! @default(value: true)
 }
 
@@ -186,6 +191,22 @@ type MediaAsset @table(key: ["scenarioVersion", "externalId"]) {
   active: Boolean! @default(value: true)
 }
 
+# Reusable visual assets shared by every scenario in one organization.
+type OrganizationMediaAsset @table(key: ["organization", "externalId"]) {
+  organization: Organization!
+  externalId: String!
+  label: String!
+  category: String!
+  mediaType: String!
+  source: String!
+  altText: String
+  tags: String
+  skinId: String
+  active: Boolean! @default(value: true)
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
 type DocumentDefinition @table(key: ["scenarioVersion", "externalId"]) {
   scenarioVersion: ScenarioVersion!
   externalId: String!
@@ -202,6 +223,18 @@ type DocumentDefinition @table(key: ["scenarioVersion", "externalId"]) {
   propRequirementExternalId: String
   transferable: Boolean! @default(value: true)
   stealable: Boolean! @default(value: true)
+  active: Boolean! @default(value: true)
+}
+
+# A document can yield different private facts depending on the holder's skills.
+type DocumentAnalysisDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  targetType: String!
+  targetExternalId: String!
+  abilityExternalId: String
+  minLevel: Int! @default(value: 0)
+  factExternalId: String!
   active: Boolean! @default(value: true)
 }
 
@@ -224,6 +257,23 @@ type GameObject @table(key: ["scenarioVersion", "externalId"]) {
   identification1: String
   identification2: String
   identification3: String
+  mediaExternalId: String
+  visualArchetypeCode: String
+  bonusAbilityExternalId: String
+  bonusValue: Int! @default(value: 0)
+  active: Boolean! @default(value: true)
+}
+
+type SkinVisualDefinition @table(key: ["scenarioVersion", "externalId"]) {
+  scenarioVersion: ScenarioVersion!
+  externalId: String!
+  skinId: String!
+  visualType: String!
+  archetypeCode: String!
+  mediaExternalId: String!
+  displayName: String
+  description: String
+  variant: String
   active: Boolean! @default(value: true)
 }
 
@@ -408,10 +458,55 @@ type VoteOptionDefinition @table(key: ["scenarioVersion", "externalId"]) {
 }
 
 # ------------------------------------------------------------
+# Pre-casting / registrations before a session exists
+# ------------------------------------------------------------
+
+type PrecastCampaign @table {
+  organization: Organization!
+  scenario: Scenario!
+  name: String!
+  token: String! @unique
+  language: String! @default(value: "FR")
+  status: String! @default(value: "OPEN")
+  plannedAt: Timestamp
+  venueHint: String
+  publicNote: String
+  openCount: Int! @default(value: 0)
+  submissionCount: Int! @default(value: 0)
+  lastOpenedAt: Timestamp
+  closedAt: Timestamp
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type PrecastRegistration @table {
+  campaign: PrecastCampaign!
+  displayName: String!
+  email: String!
+  ageBracket: String!
+  genderPreference: String
+  desiredInvolvement: String!
+  notes: String
+  status: String! @default(value: "REGISTERED")
+  transferredSessionId: String
+  submittedAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+  active: Boolean! @default(value: true)
+}
+
+# ------------------------------------------------------------
 # Runtime anchor. Runtime tables will be expanded after importer.
 # ------------------------------------------------------------
 
 type GameSession @table {
+  # Client delegation is explicit; existing sessions remain administrator-only.
+  organizerEmail: String
+  organizerAccessEnabled: Boolean! @default(value: false)
+  selfServiceEnabled: Boolean! @default(value: false)
+  realSessionStartedAt: Timestamp
+  # Test runs use separate session IDs, player tokens and progress.
+  rehearsalOfId: String
+  activeRehearsalId: String
+
   organization: Organization!
   scenarioVersion: ScenarioVersion!
   name: String
@@ -457,6 +552,9 @@ type SessionParticipant @table {
   playerLastOpenedAt: Timestamp
   playerOpenCount: Int! @default(value: 0)
   briefingReadAt: Timestamp
+  # Private notebook: participant-owned, never included in scenario/GM exports.
+  privateNotesJson: String
+  privateNotesRevision: Int! @default(value: 0)
   source: String! @default(value: "MANUAL")
   precastSubmittedAt: Timestamp
   notes: String
@@ -477,6 +575,21 @@ type SessionCharacter @table(key: ["gameSession", "characterExternalId"]) {
   initializedAt: Timestamp! @default(expr: "request.time")
 }
 
+type SessionCasino @table(key: ["gameSession"]) {
+  gameSession: GameSession!
+  revision: Int! @default(value: 0)
+  # Server-only state includes private cards. Never expose via a public connector.
+  stateJson: String!
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+type SessionCasinoCommand @table(key: ["gameSession", "requestId"]) {
+  gameSession: GameSession!
+  requestId: String!
+  actor: String!
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
 type SessionResource @table(key: ["gameSession", "characterExternalId", "resourceExternalId"]) {
   gameSession: GameSession!
   characterExternalId: String!
@@ -485,6 +598,17 @@ type SessionResource @table(key: ["gameSession", "characterExternalId", "resourc
   currentValue: Int!
   maxValue: Int
   updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+# Idempotent receipt for a complete location search, scoped to its session.
+type SessionLocationSearchCommand @table(key: ["gameSession", "requestId"]) {
+  gameSession: GameSession!
+  requestId: String!
+  participantId: UUID!
+  characterExternalId: String!
+  locationExternalId: String!
+  resultJson: String!
+  createdAt: Timestamp! @default(expr: "request.time")
 }
 
 type SessionKnowledge @table(key: ["gameSession", "characterExternalId", "factExternalId"]) {
@@ -645,3 +769,4 @@ type SessionPlayerNotification @table {
   createdAt: Timestamp! @default(expr: "request.time")
   readAt: Timestamp
 }
+

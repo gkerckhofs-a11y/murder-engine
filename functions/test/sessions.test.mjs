@@ -62,18 +62,52 @@ test('participant defaults to active involvement and no casting', async () => {
   assert.equal(write.vars.data.active,true);
 });
 
-test('casting prevents the same character from being assigned twice', async () => {
-  await assert.rejects(() => assignCharacterToParticipant('S1','P2','CHAR_A',{
+test('casting can move an already assigned character to another participant', async () => {
+  let write;
+  const out=await assignCharacterToParticipant('S1','P2','CHAR_A',{
     reader: async () => ({ gameSession:{
       id:'S1',
-      scenarioVersion:{characters_on_scenarioVersion:[{externalId:'CHAR_A',playable:true,active:true}]},
+      scenarioVersion:{characters_on_scenarioVersion:[
+        {externalId:'CHAR_A',playable:true,active:true},
+        {externalId:'CHAR_B',playable:true,active:true},
+      ]},
       sessionParticipants_on_gameSession:[
         {id:'P1',displayName:'A',active:true,characterExternalId:'CHAR_A'},
         {id:'P2',displayName:'B',active:true,characterExternalId:null},
       ],
     }}),
-    executor: async()=>({}),
-  }), /CHARACTER_ALREADY_ASSIGNED/);
+    executor: async(op,vars)=>{write={op,vars};return {};},
+  });
+  assert.equal(out.reassigned,true);
+  assert.equal(out.characterExternalId,'CHAR_A');
+  assert.equal(out.previousHolderParticipantId,'P1');
+  assert.equal(out.previousHolderCharacterExternalId,null);
+  assert.match(write.op,/ReassignSessionCharacter/);
+  assert.equal(write.vars.conflictParticipantId,'P1');
+  assert.equal(write.vars.replacementCharacterExternalId,null);
+});
+
+test('casting swaps roles when both participants already have a character', async () => {
+  let write;
+  const out=await assignCharacterToParticipant('S1','P2','CHAR_A',{
+    reader: async () => ({ gameSession:{
+      id:'S1',
+      scenarioVersion:{characters_on_scenarioVersion:[
+        {externalId:'CHAR_A',playable:true,active:true},
+        {externalId:'CHAR_B',playable:true,active:true},
+      ]},
+      sessionParticipants_on_gameSession:[
+        {id:'P1',displayName:'A',active:true,characterExternalId:'CHAR_A'},
+        {id:'P2',displayName:'B',active:true,characterExternalId:'CHAR_B'},
+      ],
+    }}),
+    executor: async(op,vars)=>{write={op,vars};return {};},
+  });
+  assert.equal(out.reassigned,true);
+  assert.equal(out.previousHolderParticipantId,'P1');
+  assert.equal(out.previousHolderCharacterExternalId,'CHAR_B');
+  assert.equal(write.vars.replacementCharacterExternalId,'CHAR_B');
+  assert.equal(write.vars.replacementCastingLocked,true);
 });
 
 test('manual participant creation is locked after runtime initialization', async () => {
@@ -194,11 +228,17 @@ test('public precast rejects a missing age bracket', async () => {
   );
 });
 
-test('manual participant creation rejects a missing age bracket', async () => {
-  await assert.rejects(
-    addGameSessionParticipant('S1',{displayName:'Bob',email:'bob@example.com',desiredInvolvement:'ACTIF'}, {reader:async()=>({gameSession:{id:'S1',runtimeInitializedAt:null,scenarioVersion:{characters_on_scenarioVersion:[]},sessionParticipants_on_gameSession:[]}}),executor:async()=>({})}),
-    /AGE_BRACKET_REQUIRED/
-  );
+test('manual participant creation preserves an unknown age and rejects an invalid supplied age', async () => {
+  let saved;
+  const dependencies = {
+    reader: async()=>({gameSession:{id:'S1',runtimeInitializedAt:null,scenarioVersion:{characters_on_scenarioVersion:[]},sessionParticipants_on_gameSession:[]}}),
+    executor: async(op,vars)=>{saved=vars.data;return {};}
+  };
+  const input={displayName:'Bob',email:'bob@example.com',desiredInvolvement:'ACTIF'};
+  await addGameSessionParticipant('S1',input,dependencies);
+  assert.equal(saved.ageBracket,null);
+  assert.equal(saved.source,'MANUAL');
+  await assert.rejects(addGameSessionParticipant('S1',{...input,ageBracket:'unknown-value'},dependencies),/INVALID_AGE_BRACKET/);
 });
 
 
@@ -273,6 +313,7 @@ test('session date time venue and name can be edited before live', async () => {
     name:'Cosa Nostra — 12 octobre',
     scheduledAt:'2026-10-12T17:30:00.000Z',
     venue:'Western City',
+    language:'EN',
   }, {
     reader: async () => ({ gameSession:{ id:'S1', status:'CASTING', startedAt:null, pausedAt:null, finishedAt:null, scenarioVersion:{characters_on_scenarioVersion:[]}, sessionParticipants_on_gameSession:[] } }),
     executor: async (op,vars) => { write={op,vars}; return {}; },
@@ -280,7 +321,18 @@ test('session date time venue and name can be edited before live', async () => {
   assert.equal(result.name,'Cosa Nostra — 12 octobre');
   assert.equal(result.scheduledAt,'2026-10-12T17:30:00.000Z');
   assert.equal(write.vars.venue,'Western City');
+  assert.equal(write.vars.language,'EN');
+  assert.equal(result.language,'EN');
   assert.match(write.op,/gameSession_update/);
+});
+
+test('session language only accepts FR or EN', async () => {
+  await assert.rejects(() => updateGameSessionDetails('S1', {
+    name:'Test', scheduledAt:'2026-10-12T17:30:00Z', venue:'Liège', language:'DE'
+  }, {
+    reader: async () => ({ gameSession:{ id:'S1', language:'FR', status:'CASTING', startedAt:null, pausedAt:null, finishedAt:null, scenarioVersion:{characters_on_scenarioVersion:[]}, sessionParticipants_on_gameSession:[] } }),
+    executor: async () => ({}),
+  }), /INVALID_SESSION_LANGUAGE/);
 });
 
 test('session schedule editing is locked after live started', async () => {
@@ -348,6 +400,19 @@ test('V1.6 preparation assistant becomes ready when all participants are cast', 
   assert.equal(prep.progress,100);
 });
 
+test('manual casting can be ready without an age only after the organizer assigns every role', () => {
+  const session=assistantSession();
+  session.participants.forEach((p,index)=>Object.assign(p,{
+    ageBracket:null,source:'MANUAL',castingLocked:true,characterExternalId:`C${index+1}`
+  }));
+  assert.equal(buildSessionPreparation(session).canMarkReady,true);
+  session.participants[0].castingLocked=false;
+  assert.equal(buildSessionPreparation(session).canMarkReady,false);
+  session.participants[0].castingLocked=true;
+  session.participants[0].source='PRECAST';
+  assert.equal(buildSessionPreparation(session).canMarkReady,false);
+});
+
 test('V1.6 bulk casting validates all assignments before writing', async () => {
   const raw=assistantSession();
   const dbSession={
@@ -367,3 +432,4 @@ test('V1.6 bulk casting validates all assignments before writing', async () => {
   assert.equal(writes.length,2);
   assert.equal(writes[0].vars.castingLocked,true);
 });
+

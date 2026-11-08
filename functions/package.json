@@ -9,7 +9,9 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "validate:fixture": "node tools/validate-file.mjs ../fixtures/COSA_NOSTRA_V1_1_READY.xlsx"
+    "test:integration": "node integration/run.mjs",
+    "validate:fixture": "node tools/validate-file.mjs ../fixtures/COSA_NOSTRA_V1_1_READY.xlsx",
+    "test:integration:self-service": "node integration/run.mjs self-service"
   },
   "dependencies": {
     "firebase-functions": "^6.4.0",

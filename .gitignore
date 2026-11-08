@@ -94,3 +94,6 @@ dumps/
 
 # À examiner avant une éventuelle automatisation
 .github/workflows/
+
+# Local browser verification artifacts
+/web/test-results/

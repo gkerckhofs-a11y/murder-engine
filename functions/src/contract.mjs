@@ -18,6 +18,7 @@ export const SHEETS = {
   INDICES: { id: 'clue_id', required: ['clue_id','nom_interne','nom_joueur','type_indice','texte_joueur','interpretation_mj','support','partageable','transferable','consommable','majeur','presentation_mode','ajouter_au_carnet','actif'] },
   OBJETS: { id: 'object_id', required: ['object_id','nom','description','support','owner_initial_type','transferable','volable','consommable','critique','actif'] },
   DOCUMENTS: { id: 'document_id', required: ['document_id','titre','contenu_texte','support','reutilisable','consommable','owner_initial_type','actif'] },
+  ANALYSES: { id: 'analysis_id', required: ['analysis_id','target_type','target_id','fact_id','min_level','actif'] },
   LIEUX: { id: 'location_id', required: ['location_id','nom','description','permanent','actif'] },
   VERROUS: { id: 'lock_id', required: ['lock_id','target_type','target_id','lock_type','case_sensitive','success_text','failure_text','actif'] },
   CAPACITES: { id: 'ability_id', required: ['ability_id','nom','description','categorie','secrete','actif'] },
@@ -35,6 +36,7 @@ export const SHEETS = {
   VOTES: { id: 'vote_id', required: ['vote_id','titre','question','scope_type','choices_mode','secret','votes_par_electeur','pondere','abstention','modifiable','close_mode','result_visibility','actif'] },
   OPTIONS_VOTE: { id: 'vote_option_id', required: ['vote_option_id','vote_id','ordre','label','actif'] },
   MEDIA: { id: 'media_id', required: ['media_id','type_media','fichier_ou_url','actif'] },
+  VISUELS_SKIN: { id: 'visual_id', required: ['visual_id','skin_id','visual_type','archetype_code','media_id','actif'] },
   PROPS_REQUIS: { id: 'prop_requirement_id', required: ['prop_requirement_id','nom','type_prop','quantite_requise','actif'] },
   TRADUCTIONS: { id: 'translation_id', required: ['translation_id','entity_type','entity_id','field_name','langue','texte','actif'] }
 };

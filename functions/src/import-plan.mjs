@@ -88,6 +88,7 @@ export function buildImportPlan(workbook, {
     personalTimeline: textOrNull(r.chronologie_personnelle),
     motto: textOrNull(r.devise),
     portraitMediaId: textOrNull(r.portrait_media_id),
+    portraitArchetypeCode: textOrNull(r.portrait_archetype_code),
     playable: truthy(r.jouable, true),
     active: truthy(r.actif, true),
   }));
@@ -140,6 +141,7 @@ export function buildImportPlan(workbook, {
     plotExternalId: textOrNull(r.plot_id),
     notebookCategory: textOrNull(r.categorie_carnet),
     isPublic: truthy(r.public, false),
+    charmable: truthy(r.revelable_charme, true),
     active: truthy(r.actif, true),
   }));
 
@@ -165,6 +167,19 @@ export function buildImportPlan(workbook, {
     active: truthy(r.actif, true),
   }));
 
+  const skinVisualDefinitions = (workbook.sheets.VISUELS_SKIN ?? []).map(r => ({
+    scenarioVersionId,
+    externalId: String(r.visual_id),
+    skinId: String(r.skin_id),
+    visualType: String(r.visual_type ?? '').toUpperCase(),
+    archetypeCode: String(r.archetype_code ?? '').toUpperCase(),
+    mediaExternalId: String(r.media_id),
+    displayName: textOrNull(r.nom_affiche),
+    description: textOrNull(r.description),
+    variant: textOrNull(r.variant),
+    active: truthy(r.actif, true),
+  }));
+
   const documents = (workbook.sheets.DOCUMENTS ?? []).map(r => ({
     scenarioVersionId,
     externalId: String(r.document_id),
@@ -184,9 +199,30 @@ export function buildImportPlan(workbook, {
     active: truthy(r.actif, true),
   }));
 
-  const documentObjectId = documentExternalId => `DOC_OBJ_${documentExternalId}`;
+  const documentAnalyses = (workbook.sheets.ANALYSES ?? []).map(r => ({
+    scenarioVersionId,
+    externalId: String(r.analysis_id),
+    targetType: String(r.target_type).trim().toUpperCase(),
+    targetExternalId: String(r.target_id).trim(),
+    abilityExternalId: textOrNull(r.ability_id),
+    minLevel: intOrNull(r.min_level) ?? 0,
+    factExternalId: String(r.fact_id).trim(),
+    active: truthy(r.actif,true),
+  }));
 
-  const clues = (workbook.sheets.INDICES ?? []).map(r => ({
+  const documentObjectId = documentExternalId => `DOC_OBJ_${documentExternalId}`;
+  const documentById = new Map(documents.map(d=>[d.externalId,d]));
+  const documentCreatesObject = document => (
+    document &&
+    document.active !== false &&
+    String(document.support ?? '').trim().toUpperCase() !== 'DIGITAL'
+  );
+
+  const clues = (workbook.sheets.INDICES ?? []).map(r => {
+    const documentExternalId=textOrNull(r.document_id);
+    const linkedDocument=documentExternalId?documentById.get(documentExternalId):null;
+
+    return ({
     scenarioVersionId,
     externalId: String(r.clue_id),
     internalName: String(r.nom_interne),
@@ -197,8 +233,12 @@ export function buildImportPlan(workbook, {
     discoveryHook: textOrNull(r.accroche_decouverte),
     plotExternalId: textOrNull(r.plot_id),
     locationExternalId: textOrNull(r.location_id),
-    objectExternalId: textOrNull(r.object_id) ?? (textOrNull(r.document_id) ? documentObjectId(String(r.document_id)) : null),
-    documentExternalId: textOrNull(r.document_id),
+    objectExternalId:
+      textOrNull(r.object_id) ??
+      (documentCreatesObject(linkedDocument)
+        ? documentObjectId(documentExternalId)
+        : null),
+    documentExternalId,
     support: String(r.support),
     presentationMode: String(r.presentation_mode),
     shareable: truthy(r.partageable, true),
@@ -209,7 +249,8 @@ export function buildImportPlan(workbook, {
     mediaExternalId: textOrNull(r.media_id),
     addToNotebook: truthy(r.ajouter_au_carnet, true),
     active: truthy(r.actif, true),
-  }));
+  });
+  });
 
   const clueFacts = [];
   for (const r of workbook.sheets.INDICES ?? []) {
@@ -231,6 +272,7 @@ export function buildImportPlan(workbook, {
     propRequirementExternalId: textOrNull(r.prop_requirement_id),
     ownerInitialType: textOrNull(r.owner_initial_type),
     ownerInitialExternalId: textOrNull(r.owner_initial_id),
+    logisticsCode: textOrNull(r.code_logistique),
     transferable: truthy(r.transferable, true),
     stealable: truthy(r.volable, false),
     consumable: truthy(r.consommable, false),
@@ -240,17 +282,26 @@ export function buildImportPlan(workbook, {
     identification1: textOrNull(r.identification_1),
     identification2: textOrNull(r.identification_2),
     identification3: textOrNull(r.identification_3),
+    mediaExternalId: textOrNull(r.media_id),
+    visualArchetypeCode: textOrNull(r.visual_archetype_code),
+    bonusAbilityExternalId: textOrNull(r.bonus_ability_id),
+    bonusValue: intOrNull(r.bonus_valeur) ?? 0,
     active: truthy(r.actif, true),
   }));
   const explicitObjectIds = new Set(gameObjects.map(o=>o.externalId));
   for (const d of documents) {
     const externalId=documentObjectId(d.externalId);
-    if (explicitObjectIds.has(externalId) || d.active === false) continue;
+    if (
+      explicitObjectIds.has(externalId) ||
+      !documentCreatesObject(d)
+    ) continue;
     gameObjects.push({
       scenarioVersionId, externalId, name:d.title, description:d.textContent || d.title, support:'DOCUMENT',
       propRequirementExternalId:d.propRequirementExternalId, ownerInitialType:d.ownerInitialType, ownerInitialExternalId:d.ownerInitialExternalId,
+      logisticsCode:d.logisticsCode??null,
       transferable:d.transferable, stealable:d.stealable, consumable:d.consumable, initialCharges:1, critical:false,
-      identification0:d.title, identification1:null, identification2:null, identification3:null, active:true,
+      identification0:d.title, identification1:null, identification2:null, identification3:null,
+      mediaExternalId:null, visualArchetypeCode:'LETTER', active:true,
     });
   }
 
@@ -500,7 +551,9 @@ export function buildImportPlan(workbook, {
     clues,
     clueFacts,
     documents,
+    documentAnalyses,
     mediaAssets,
+    skinVisualDefinitions,
     gameObjects,
     resources,
     resourceAssignments,
@@ -527,7 +580,9 @@ export function importPlanCounts(plan) {
     clues: plan.clues.length,
     clueFacts: plan.clueFacts.length,
     documents: plan.documents.length,
+    documentAnalyses: plan.documentAnalyses.length,
     mediaAssets: plan.mediaAssets.length,
+    skinVisualDefinitions: plan.skinVisualDefinitions.length,
     gameObjects: plan.gameObjects.length,
     resources: plan.resources.length,
     resourceAssignments: plan.resourceAssignments.length,
