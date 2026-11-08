@@ -35,7 +35,7 @@ export function playerInfoFeed(portal:any):any[] {
   const linked=new Set(clues.flatMap(c=>(c.knownFacts??[]).map((f:any)=>f.externalId)));
   return [
     ...clues.map(clue=>({id:`info:clue:${clue.externalId}`,kind:'clue',at:clue.discoveredAt,title:clue.playerName,body:clueRecap(clue),clue})),
-    ...(portal.knowledge??[]).filter((k:any)=>k.fact&&k.fact.nature!=='RELATION'&&!linked.has(k.factExternalId)).map((k:any)=>({id:`info:fact:${k.factExternalId}`,kind:'fact',at:k.learnedAt,title:k.fact.title,body:k.fact.text,category:k.fact.notebookCategory})),
+    ...(portal.knowledge??[]).filter((k:any)=>k.fact&&!(k.fact.nature==='RELATION'&&String(k.fact.notebookCategory??'').startsWith('RELATION:'))&&!linked.has(k.factExternalId)).map((k:any)=>({id:`info:fact:${k.factExternalId}`,kind:'fact',at:k.learnedAt,title:k.fact.title,body:k.fact.text,category:k.fact.notebookCategory})),
     ...(portal.notifications??[]).map((n:any)=>({id:`info:notification:${n.id}`,kind:'notification',at:n.createdAt,title:n.title,body:n.body,notification:n})),
     ...(portal.voteResults??[]).map((vote:any)=>({id:`info:result:${vote.externalId}:${vote.round}`,kind:'result',at:vote.closedAt,title:vote.title,vote})),
   ].sort((a,b)=>dateValue(b.at)-dateValue(a.at)||a.id.localeCompare(b.id));

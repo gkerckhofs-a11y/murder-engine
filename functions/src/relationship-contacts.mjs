@@ -3,7 +3,7 @@
 export function relationshipContacts(source,actor,{portraitFor=()=>null}={}){
  const ids=new Set((source.initialKnowledges??[]).filter(k=>k.characterExternalId===actor).map(k=>k.factExternalId));
  const characters=new Map((source.characters??[]).filter(c=>c.active!==false).map(c=>[c.externalId,c]));
- return (source.facts??[]).filter(f=>f.active!==false&&f.nature==='RELATION'&&ids.has(f.externalId)).map(f=>{
+ return (source.facts??[]).filter(f=>f.active!==false&&f.nature==='RELATION'&&String(f.notebookCategory??'').startsWith('RELATION:')&&ids.has(f.externalId)).map(f=>{
   const category=String(f.notebookCategory??'');
   const id=category.startsWith('RELATION:')?category.slice(9):'';
   const other=id!=='REFERENCE'?characters.get(id):null;
