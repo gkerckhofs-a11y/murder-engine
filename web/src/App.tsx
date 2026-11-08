@@ -1,9 +1,17 @@
+import OrganizerGate from './OrganizerGate';
+import SessionLicensePanel, { type SessionAccess } from './SessionLicensePanel';
+import { organizerFetch } from './organizer-api';
 import { useEffect, useMemo, useState } from 'react';
 import PlayerPortal from './PlayerPortal';
+import {CasinoTable,CasinoAdmin} from './Casino';
 import LocationScan from './LocationScan';
 import GmPackView from './GmPackView';
 import { QRCodeSVG } from 'qrcode.react';
 import { SKIN_OPTIONS, type SkinId, asSkinId, skinOptionFor, defaultAccentForSkin } from './skin-registry';
+import { PrecastManager, PublicRegistrationView } from './PrecastManager';
+import MediaLibraryPanel from './MediaLibraryPanel';
+import NarrativeText from './NarrativeText';
+import { organizerToken } from './admin-auth';
 
 const GM_PACK_VERSION_ID = new URLSearchParams(window.location.search).get('gmPack');
 const GM_PACK_SESSION_ID = new URLSearchParams(window.location.search).get('gmPackSession');
@@ -23,13 +31,15 @@ type VersionSummary = {
   counts: { characters: number; playableCharacters: number; facts: number; clues: number; majorClues: number };
 };
 type ScenarioLibraryItem = { id: string; title: string; slug: string; archived: boolean; skinId?: string | null; accentColor?: string | null; organization?: { id: string; name: string; slug: string }; versions: VersionSummary[] };
-type CharacterSummary = { externalId: string; name: string; publicRole?: string | null; gender?: string | null; importance: string; intensity: string; playable: boolean; active: boolean };
+type CharacterSummary = { externalId: string; name: string; publicRole?: string | null; gender?: string | null; importance: string; intensity: string; portraitMediaId?:string|null; portraitArchetypeCode?:string|null; playable: boolean; active: boolean };
 type ScenarioVersionDetail = VersionSummary & {
   gmSummary: string; playerSummary: string; sourceHash?: string | null;
   scenario: { id: string; title: string; slug: string; organization?: { id: string; name: string; slug: string } };
   characters: CharacterSummary[];
   facts: Array<{ externalId: string; title: string; nature: string; importance: string; isPublic: boolean; active: boolean }>;
   clues: Array<{ externalId: string; playerName: string; clueType: string; support: string; major: boolean; active: boolean }>;
+  objects: Array<{ externalId:string; name:string; description?:string|null; support?:string|null; logisticsCode?:string|null; mediaExternalId?:string|null; visualArchetypeCode?:string|null; active:boolean }>;
+  mediaOverrides: Record<string,{assetExternalId?:string|null;label?:string|null;source?:string|null;altText?:string|null;mediaType?:string|null;category?:string|null;skinId?:string|null}>;
 };
 type CharacterDetail = {
   character: CharacterSummary & { dramaticFunction?: string | null; narrativeAge?: string | null; gender?: string | null; biography: string; secretIntro?: string | null; interpretationNotes?: string | null; appearanceNotes?: string | null; apparentMotive?: string | null; personalTimeline?: string | null; motto?: string | null };
@@ -83,6 +93,16 @@ type LiveDashboard = {
   session:{id:string;status:string;startedAt?:string|null;pausedAt?:string|null;finishedAt?:string|null;elapsedSeconds:number;currentPhaseExternalId?:string|null};
   phases:Array<{externalId:string;name:string;orderIndex:number;gmDescription:string}>;
   events:LiveEvent[]; characters:LiveCharacter[]; stateDefinitions:Array<{externalId:string;name:string;description:string;defaultDurationSeconds?:number|null}>;
+  businessDeals:Array<{
+    dealId:string;
+    actorCharacterExternalId:string;
+    actorName:string;
+    targetCharacterExternalId:string;
+    targetName:string;
+    terms:string;
+    status:'PROPOSED'|'ACCEPTED'|'DECLINED'|'OFFICIAL';
+    proposedAt:string;
+  }>;
   logs:Array<{id:string;actionType:string;characterExternalId?:string|null;refExternalId?:string|null;beforeValue?:string|null;afterValue?:string|null;deltaValue?:number|null;note?:string|null;createdAt:string}>;
   alerts:{overdueEvents:number;soonEvents:number;activeStates:number};
 };
@@ -112,7 +132,7 @@ type PublicPrecastSession = {
 };
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await organizerFetch(url, init);
   const contentType = response.headers.get('content-type') ?? '';
   const raw = await response.text();
   let json: any = null;
@@ -131,12 +151,35 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 const postJson = <T,>(url: string, body: unknown) => fetchJson<T>(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
+async function organizerPostJson<T=any>(url:string,body:unknown):Promise<T>{
+  const token=await organizerToken(true);
+  if(!token)throw new Error('Connexion organisateur requise.');
+
+  return fetchJson<T>(url,{
+    method:'POST',
+    headers:{
+      'content-type':'application/json',
+      'authorization':`Bearer ${token}`,
+    },
+    body:JSON.stringify(body),
+  });
+}
+
 function isValidEmail(value:string){ const v=value.trim(); return v.length>3 && v.length<=254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 
 function niceDate(value?: string | null) {
   if (!value) return '—';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('fr-BE', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+}
+function publicNiceDate(value?:string|null,language='FR'){
+  if(!value)return String(language).toUpperCase()==='EN'?'Date to be confirmed':'Date à confirmer';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return String(value);
+  return new Intl.DateTimeFormat(
+    String(language).toUpperCase()==='EN'?'en-GB':'fr-BE',
+    {dateStyle:'medium',timeStyle:'short'}
+  ).format(date);
 }
 function importanceLabel(value?: string | null) {
   const map: Record<string, string> = { STRUCTURAL: 'Structurel', MAIN: 'Principal', SECONDARY: 'Secondaire', SIDEKICK: 'Sidekick', CRITICAL: 'Critique', IMPORTANT: 'Important', FLAVOR: 'Ambiance' };
@@ -184,6 +227,11 @@ function characterGenderLabel(value?:string|null) {
   if(!v||['NEUTRE','ADAPTABLE','UNISEXE','LIBRE','ANY'].includes(v)) return 'Adapt.';
   return value||'—';
 }
+function safeDecodePathSegment(value:string|null){
+  if(!value)return null;
+  try{return decodeURIComponent(value)}catch{return value}
+}
+
 function versionCountCompatible(v:VersionSummary,count:number){const min=v.minPlayers??v.counts.playableCharacters;const max=v.maxPlayers??v.counts.playableCharacters;return count>=min&&count<=max;}
 function versionGenderCompatible(v:VersionSummary,count:number,women:number|null,men:number|null){
   if(women===null||men===null||women+men!==count)return true;
@@ -193,11 +241,23 @@ function versionGenderCompatible(v:VersionSummary,count:number,women:number|null
 
 export default function App() {
   const params = new URLSearchParams(window.location.search);
+  const publicView = params.has('casino') || params.has('player') || params.has('precast') || params.has('register') || window.location.pathname.startsWith('/scan/');
+  if (publicView) return <EngineApp isAdmin={false}/>;
+  return <OrganizerGate>{identity => <EngineApp isAdmin={identity.admin}/>}</OrganizerGate>;
+}
+
+function EngineApp({isAdmin}: {isAdmin: boolean}) {
+  const params = new URLSearchParams(window.location.search);
+  const organizerSessionId = params.get('organizer');
+  const scoped = Boolean(organizerSessionId) || !isAdmin;
+  const [license, setLicense] = useState<SessionAccess | null>(null);
   const publicPrecastToken = params.get('precast');
+  const publicRegistrationToken = params.get('register');
   const publicPlayerToken = params.get('player');
   const scanMatch = window.location.pathname.match(/^\/scan\/([^/]+)\/?$/);
-  const scanLocationExternalId = scanMatch ? decodeURIComponent(scanMatch[1]) : null;
-  const [view, setView] = useState<'library' | 'sessions' | 'import'>('library');
+  const scanLocationExternalId = scanMatch ? safeDecodePathSegment(scanMatch[1]) : null;
+  const [view, setView] = useState<'library' | 'registrations' | 'sessions' | 'import'>(scoped?'sessions':'library');
+  const [registrationScenarioId,setRegistrationScenarioId]=useState<string|null>(null);
   const [scenarios, setScenarios] = useState<ScenarioLibraryItem[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryError, setLibraryError] = useState('');
@@ -227,7 +287,16 @@ export default function App() {
   const [selectedAccentColor,setSelectedAccentColor]=useState('#49677A');
   const filtered = useMemo(() => data?.diagnostics.filter(d => filter === 'ALL' || d.severity === filter) ?? [], [data, filter]);
 
-  useEffect(() => { if (!publicPrecastToken && !publicPlayerToken && !scanLocationExternalId) { void loadLibrary(); void loadSessions(); } }, [publicPrecastToken, publicPlayerToken, scanLocationExternalId]);
+  useEffect(() => {
+    if (params.has('casino') || publicPrecastToken || publicRegistrationToken || publicPlayerToken || scanLocationExternalId || GM_PACK_SESSION_ID || GM_PACK_VERSION_ID) return;
+    if (!scoped) { void loadLibrary(); void loadSessions(); }
+    // The client panel resolves the currently active rehearsal before loading it.
+  }, [publicPrecastToken, publicRegistrationToken, publicPlayerToken, scanLocationExternalId, scoped]);
+
+  function openWorkingSession(access: SessionAccess) {
+    setLicense(access); setView('sessions'); void openSession(access.workingSessionId);
+  }
+
 
   async function loadLibrary() {
     setLibraryLoading(true); setLibraryError('');
@@ -271,6 +340,7 @@ export default function App() {
   }
 
   async function loadSessions() {
+    if (scoped) return;
     setSessionError('');
     try { const result = await fetchJson<{ok:boolean;sessions:SessionSummary[]}>('/api/sessions/list'); setSessions(result.sessions ?? []); }
     catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); }
@@ -324,7 +394,7 @@ export default function App() {
     try { await postJson('/api/sessions/status',{sessionId:session.id,status}); await openSession(session.id); await loadSessions(); }
     catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); }
   }
-  async function updateSessionDetails(input:{name:string;scheduledAt:string;venue:string}) {
+  async function updateSessionDetails(input:{name:string;scheduledAt:string;venue:string;language:string}) {
     if (!session) return;
     setSessionError('');
     try {
@@ -333,6 +403,7 @@ export default function App() {
         name: input.name,
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt).toISOString() : null,
         venue: input.venue,
+        language: input.language,
       });
       await openSession(session.id); await loadSessions();
     } catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); throw e; }
@@ -345,22 +416,6 @@ export default function App() {
       await loadSessions();
       if (archived) { setSession(null); setRuntime(null); } else { await openSession(session.id); }
     } catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); }
-  }
-  async function deleteCurrentSession() {
-    if (!session) return;
-    const confirmed = window.confirm(`Supprimer définitivement la session « ${session.name||'Session'} » ? Cette action est irréversible.`);
-    if (!confirmed) return;
-    setSessionError('');
-    try {
-      await postJson('/api/sessions/delete',{sessionId:session.id});
-      setSession(null); setRuntime(null); await loadSessions();
-    } catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); }
-  }
-  async function configurePrecast(enabled:boolean) {
-    if (!session) return;
-    setSessionError('');
-    try { await postJson('/api/sessions/precast/configure',{sessionId:session.id,enabled}); await openSession(session.id); await loadSessions(); }
-    catch (e) { setSessionError(e instanceof Error ? e.message : String(e)); }
   }
   async function initializeRuntime() {
     if (!session) return;
@@ -384,7 +439,7 @@ export default function App() {
   async function liveControl(action:string) {
     if(!session)return; setLiveLoading(true); setSessionError('');
     try { await postJson('/api/sessions/live/control',{sessionId:session.id,action}); await openSession(session.id); await loadSessions(); }
-    catch(e){ setSessionError(e instanceof Error?e.message:String(e)); } finally { setLiveLoading(false); }
+    catch(e){ const message=e instanceof Error?e.message:String(e); setSessionError(message.includes('SESSION_HAS_OPEN_VOTES')?'Des votes sont encore ouverts. Dans « Votes », dépouille ou annule chaque scrutin avant de terminer la partie.':message); } finally { setLiveLoading(false); }
   }
   async function liveResource(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET'='DELTA') {
     if(!session)return; setSessionError('');
@@ -401,11 +456,43 @@ export default function App() {
     try { await postJson('/api/sessions/live/event',{sessionId:session.id,eventExternalId,status}); await loadLive(session.id); }
     catch(e){ setSessionError(e instanceof Error?e.message:String(e)); }
   }
+  async function liveBusinessDeal(dealId:string) {
+    if(!session)return; setSessionError('');
+    try {
+      await organizerPostJson('/api/sessions/live/business-deal',{
+        sessionId:session.id,
+        dealId
+      });
+      await loadLive(session.id);
+    }
+    catch(e){ setSessionError(e instanceof Error?e.message:String(e)); }
+  }
   async function interactionMutation() {
     if(!session)return;
     await Promise.all([loadLive(session.id),loadRuntime(session.id)]);
   }
 
+
+  async function purgeScenario(scenarioId:string,title:string){
+    const typed=window.prompt(`Supprimer définitivement le scénario « ${title} » ?\n\nCela supprimera aussi ses variantes, inscriptions et sessions liées.\n\nTape SUPPRIMER pour confirmer.`);
+    if(typed!=='SUPPRIMER')return;
+    setLibraryError('');
+    try{
+      await organizerPostJson('/api/admin/purge/scenario',{scenarioId});
+      if(version?.scenario?.id===scenarioId){setVersion(null);setCharacter(null);}
+      await Promise.all([loadLibrary(),loadSessions()]);
+    }catch(e){setLibraryError(e instanceof Error?e.message:String(e));}
+  }
+
+  async function purgeSession(sessionId:string,name:string){
+    if(!window.confirm(`Supprimer définitivement la session « ${name||'Session'} » ?\n\nMode ménage : runtime, journaux, votes et données de test seront également supprimés.`))return;
+    setSessionError('');
+    try{
+      await organizerPostJson('/api/admin/purge/session',{sessionId});
+      if(session?.id===sessionId){setSession(null);setRuntime(null);setLive(null);}
+      await loadSessions();
+    }catch(e){setSessionError(e instanceof Error?e.message:String(e));}
+  }
 
   function choose(next: File | null) { setFile(next); setData(null); setCommit(null); setError(''); }
   async function validate() {
@@ -418,15 +505,38 @@ export default function App() {
     const expectedSourceId=importTargetScenario?.versions?.[0]?.sourceScenarioId;
     if(expectedSourceId&&String(data.summary.scenarioId??'')!==expectedSourceId){setError(`Ce fichier appartient au scénario ${String(data.summary.scenarioId||'inconnu')}, pas à ${expectedSourceId}. Corrige scenario_id pour l'ajouter à « ${importTargetScenario?.title} ».`);return;}
     const effectiveSkinId =
-      asSkinId(importTargetScenario?.skinId ?? selectedSkinId);
+      asSkinId(selectedSkinId);
 
     const effectiveAccentColor =
-      importTargetScenario?.accentColor ||
       selectedAccentColor ||
       defaultAccentForSkin(effectiveSkinId);
 
     setCommitting(true); setError(''); setCommit(null);
-    try { const result = await fetchJson<CommitResponse>('/api/import/commit',{ method:'POST', headers:{'content-type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','x-file-name':file.name,'x-organization-slug':'ludificateur','x-organization-name':'Le Ludificateur','x-skin-id':effectiveSkinId,'x-accent-color':effectiveAccentColor}, body:await file.arrayBuffer() }); setCommit(result); await loadLibrary(); }
+    try {
+      const result = await fetchJson<CommitResponse>('/api/import/commit',{
+        method:'POST',
+        headers:{
+          'content-type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'x-file-name':file.name,
+          'x-organization-slug':'ludificateur',
+          'x-organization-name':'Le Ludificateur',
+          'x-skin-id':effectiveSkinId,
+          'x-accent-color':effectiveAccentColor
+        },
+        body:await file.arrayBuffer()
+      });
+
+      if(importTargetScenario){
+        await postJson('/api/library/appearance',{
+          scenarioId:importTargetScenario.id,
+          skinId:effectiveSkinId,
+          accentColor:effectiveAccentColor,
+        });
+      }
+
+      setCommit(result);
+      await loadLibrary();
+    }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setCommitting(false); }
   }
 
@@ -436,30 +546,46 @@ export default function App() {
   if (GM_PACK_VERSION_ID)
     return <GmPackView versionId={GM_PACK_VERSION_ID}/>;
   if (scanLocationExternalId) return <LocationScan locationExternalId={scanLocationExternalId}/>;
+  if (publicRegistrationToken) return <PublicRegistrationView token={publicRegistrationToken}/>;
   if (publicPrecastToken) return <PublicPrecastView token={publicPrecastToken}/>;
+  if(params.get('casino'))return <CasinoTable token={publicPlayerToken} sessionId={params.get('casinoSession')||''} game={params.get('casino')||''}/>;
   if (publicPlayerToken) return <PlayerPortal token={publicPlayerToken}/>;
 
   return <main className="shell">
     <header className="topbar">
-      <div><p className="eyebrow">LUDIFICATEUR</p><h1>Murder Engine</h1><p className="subtitle">Scénarios, sessions & casting assisté — V1.6.1</p></div>
-      <nav className="mainnav" aria-label="Navigation principale">
+      <div><p className="eyebrow">LUDIFICATEUR</p><h1>Murder Engine</h1><p className="subtitle">{scoped?'Votre espace organisateur':'Scénarios, sessions & casting assisté'}</p></div>
+      {!scoped && <nav className="mainnav" aria-label="Navigation principale">
         <button className={view==='library'?'active':''} onClick={()=>setView('library')}>Scénarios</button>
+        <button className={view==='registrations'?'active':''} onClick={()=>{setRegistrationScenarioId(null);setView('registrations');}}>Inscriptions</button>
         <button className={view==='sessions'?'active':''} onClick={()=>{setView('sessions');void loadSessions();}}>Sessions</button>
         <button className={view==='import'?'active':''} onClick={()=>{setImportTargetScenario(null);choose(null);setView('import');}}>Importer</button>
-      </nav>
+      </nav>}
     </header>
 
+    {organizerSessionId && <SessionLicensePanel sessionId={organizerSessionId} admin={false} onState={next => {if(!license || license.workingSessionId!==next.workingSessionId)openWorkingSession(next);}} onChanged={openWorkingSession}/>}
+    {scoped && !organizerSessionId && <section className="card"><h2>Votre accès organisateur</h2><p>Ouvrez le lien de session qui vous a été transmis pour préparer et animer votre murder.</p></section>}
+    {!scoped && view === 'sessions' && session && <SessionLicensePanel key={`license:${session.id}`} sessionId={session.id} admin={isAdmin} onState={setLicense} onChanged={setLicense}/>}
+    {view==='sessions'&&session&&<CasinoAdmin key={`casino:${session.id}`} sessionId={session.id}/>}
     {view === 'library' && version && <div className="gmPackShortcut"><button onClick={()=>window.open(`/?gmPack=${encodeURIComponent(version.id)}`,'_blank')}>📦 Ouvrir le Pack MJ</button></div>}
 
-    {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{setImportTargetScenario(scenario);choose(null);setView('import');}} onOpenVersion={id=>void openVersion(id)} onArchiveVersion={(id,archived)=>void archiveScenarioVersion(id,archived)} onBack={()=>{setVersion(null);setCharacter(null);}} onOpenCharacter={id=>void openCharacter(id)} onCreateSession={createSession} />}
+    {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{
+      const id=asSkinId(scenario.skinId??'CONTEMPORARY_1980_2000');
+      setSelectedSkinId(id);
+      setSelectedAccentColor(scenario.accentColor||defaultAccentForSkin(id));
+      setImportTargetScenario(scenario);
+      choose(null);
+      setView('import');
+    }} onOpenVersion={id=>void openVersion(id)} onArchiveVersion={(id,archived)=>void archiveScenarioVersion(id,archived)} onBack={()=>{setVersion(null);setCharacter(null);}} onOpenCharacter={id=>void openCharacter(id)} onCreateSession={createSession} onRegistrations={scenarioId=>{setRegistrationScenarioId(scenarioId);setView('registrations');}} onDeleteScenario={(id,title)=>void purgeScenario(id,title)} />}
 
-    {view === 'sessions' && <SessionsView sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onDelete={()=>void deleteCurrentSession()} onPrecast={enabled=>void configurePrecast(enabled)} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onInteractionMutation={()=>void interactionMutation()} />}
+    {view === 'registrations' && <PrecastManager scenarios={scenarios} initialScenarioId={registrationScenarioId} onOpenSession={sessionId=>{setRegistrationScenarioId(null);setView('sessions');void loadSessions();void openSession(sessionId);}} />}
 
-    {view === 'import' && <ImportView targetScenario={importTargetScenario} skinId={asSkinId(importTargetScenario?.skinId??selectedSkinId)} accentColor={importTargetScenario?.accentColor||selectedAccentColor||defaultAccentForSkin(asSkinId(importTargetScenario?.skinId??selectedSkinId))} skinLocked={Boolean(importTargetScenario)} onSkinChange={(id,accent)=>{setSelectedSkinId(id);setSelectedAccentColor(accent);}} onAccentChange={setSelectedAccentColor} file={file} data={data} commit={commit} loading={loading} committing={committing} error={error} filter={filter} filtered={filtered} onChoose={choose} onValidate={()=>void validate()} onCommit={()=>void commitImport()} onFilter={setFilter} onOpenImported={()=>commit && void openVersion(commit.scenarioVersionId).then(()=>setView('library'))} />}
+    {view === 'sessions' && (!scoped || session) && <SessionsView delegated={scoped} mode={license?.selfServiceEnabled?license.mode:undefined} sessions={sessions} session={session} runtime={runtime} runtimeLoading={runtimeLoading} live={live} liveLoading={liveLoading} loading={sessionLoading} error={sessionError} onReload={()=>void loadSessions()} onOpen={id=>void openSession(id)} onBack={()=>{setSession(null);setRuntime(null);setLive(null);}} onAddParticipant={addParticipant} onCast={(p,c)=>void castParticipant(p,c)} onStatus={s=>void updateStatus(s)} onUpdateDetails={updateSessionDetails} onArchive={archived=>void archiveCurrentSession(archived)} onPurge={(id,name)=>void purgeSession(id,name)} onInitializeRuntime={()=>void initializeRuntime()} onPlayerAccess={enabled=>void configurePlayerLinks(enabled)} onPlayerMessage={sendPlayerMessage} onLiveControl={a=>void liveControl(a)} onLiveResource={(c,r,v,m)=>void liveResource(c,r,v,m)} onLiveState={(c,st,a)=>void liveState(c,st,a)} onLiveEvent={(e,st)=>void liveEvent(e,st)} onBusinessDeal={dealId=>void liveBusinessDeal(dealId)} onInteractionMutation={()=>void interactionMutation()} />}
+
+    {view === 'import' && <ImportView targetScenario={importTargetScenario} skinId={asSkinId(selectedSkinId)} accentColor={selectedAccentColor||defaultAccentForSkin(asSkinId(selectedSkinId))} skinLocked={false} onSkinChange={(id,accent)=>{setSelectedSkinId(id);setSelectedAccentColor(accent);}} onAccentChange={setSelectedAccentColor} file={file} data={data} commit={commit} loading={loading} committing={committing} error={error} filter={filter} filtered={filtered} onChoose={choose} onValidate={()=>void validate()} onCommit={()=>void commitImport()} onFilter={setFilter} onOpenImported={()=>commit && void openVersion(commit.scenarioVersionId).then(()=>setView('library'))} />}
   </main>;
 }
 
-function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;error:string;version:ScenarioVersionDetail|null;versionLoading:boolean;character:CharacterDetail|null;characterLoading:boolean;onReload:()=>void;onImport:()=>void;onImportVersion:(scenario:ScenarioLibraryItem)=>void;onOpenVersion:(id:string)=>void;onArchiveVersion:(id:string,archived:boolean)=>void;onBack:()=>void;onOpenCharacter:(id:string)=>void;onCreateSession:(input:{name:string;scheduledAt?:string;venue?:string;language?:string;notes?:string})=>Promise<void>}) {
+function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;error:string;version:ScenarioVersionDetail|null;versionLoading:boolean;character:CharacterDetail|null;characterLoading:boolean;onReload:()=>void;onImport:()=>void;onImportVersion:(scenario:ScenarioLibraryItem)=>void;onOpenVersion:(id:string)=>void;onArchiveVersion:(id:string,archived:boolean)=>void;onBack:()=>void;onOpenCharacter:(id:string)=>void;onCreateSession:(input:{name:string;scheduledAt?:string;venue?:string;language?:string;notes?:string})=>Promise<void>;onRegistrations:(scenarioId:string)=>void;onDeleteScenario:(scenarioId:string,title:string)=>void}) {
   const [pickerScenarioId,setPickerScenarioId]=useState<string|null>(null);
   const [showArchivedVariants,setShowArchivedVariants]=useState(false);
   const [playerCount,setPlayerCount]=useState(15);
@@ -467,91 +593,73 @@ function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;erro
   const [men,setMen]=useState<string>('');
   if (!props.version) return <section>
     {props.error && <p className="errorbox standalone">{props.error}</p>}
-    <div className="sectionhead"><div><p className="eyebrow">BIBLIOTHÈQUE</p><h2>Scénarios & variantes</h2><p>Un scénario regroupe plusieurs MASTER variants. Chaque variante est une configuration complète et prête à jouer.</p></div><div className="sessionListActions"><button onClick={props.onImport}>+ Nouveau scénario</button><button className="secondary" onClick={props.onReload}>{props.loading?'Actualisation…':'Actualiser'}</button></div></div>
+    <div className="sectionhead">
+      <div><p className="eyebrow">BIBLIOTHÈQUE</p><h2>Scénarios</h2><p>Une carte par univers. Ouvre seulement les variantes quand tu en as besoin.</p></div>
+      <div className="sessionListActions"><button onClick={props.onImport}>+ Nouveau scénario</button><button className="secondary" onClick={props.onReload}>{props.loading?'Actualisation…':'Actualiser'}</button></div>
+    </div>
     {props.loading && props.scenarios.length===0 && <section className="card emptyState">Chargement…</section>}
     {!props.loading && props.scenarios.length===0 && <section className="card emptyState"><strong>Aucun scénario importé.</strong><button onClick={props.onImport}>Importer un scénario</button></section>}
-    <div className="scenarioVersionGrid">{props.scenarios.map(s=>{
+    <div className="scenarioFamilyList">{props.scenarios.map(s=>{
       const pickerOpen=pickerScenarioId===s.id;
       const wc=women===''?null:Number(women), mc=men===''?null:Number(men);
       const activeVersions=s.versions.filter(v=>v.status!=='ARCHIVED');
       const archivedVersions=s.versions.filter(v=>v.status==='ARCHIVED');
       const visibleVersions=showArchivedVariants?s.versions:activeVersions;
       const candidates=activeVersions.filter(v=>versionCountCompatible(v,playerCount)&&versionGenderCompatible(v,playerCount,wc,mc));
-      return <article className="scenarioCard scenarioFamilyCard" key={s.id}>
-        <div className="scenarioTitleRow"><div><span className="micro">{s.organization?.name??'Organisation'}</span><h3>{s.title}</h3><small className="familyHint">scenario_id : {s.versions[0]?.sourceScenarioId||'—'}</small></div><span className="versionCount">{activeVersions.length} active{activeVersions.length>1?'s':''}{archivedVersions.length?` · ${archivedVersions.length} archivée${archivedVersions.length>1?'s':''}`:''}</span></div>
-        <div className="variantCatalog">
-          {visibleVersions.map(v=><article className={`variantCatalogCard ${v.status==='ARCHIVED'?'archived':''}`} key={v.id}>
-            <div className="variantCatalogHead">
-              <div>
-                <span className="micro">{v.status==='ARCHIVED'?'VARIANTE ARCHIVÉE':'VARIANTE JOUABLE'}</span>
-                <strong>{v.variantName||`${v.counts.playableCharacters} joueurs`}</strong>
+      const playableCounts=activeVersions.map(v=>v.counts.playableCharacters).filter(Number.isFinite);
+      const playerRange=playableCounts.length
+        ? (Math.min(...playableCounts)===Math.max(...playableCounts)?String(playableCounts[0]):`${Math.min(...playableCounts)}–${Math.max(...playableCounts)}`)
+        : '—';
+
+      return <article className="card scenarioFamilyCompact" key={s.id}>
+        <div className="scenarioCompactHead">
+          <div>
+            <span className="micro">{s.organization?.name??'Organisation'}</span>
+            <h3>{s.title}</h3>
+            <p>{activeVersions.length} variante{activeVersions.length>1?'s':''} active{activeVersions.length>1?'s':''} · {playerRange} joueurs</p>
+          </div>
+          <div className="scenarioCompactActions">
+            <button onClick={()=>props.onRegistrations(s.id)}>📝 Inscriptions</button>
+            <button className="secondary" onClick={()=>props.onImportVersion(s)}>+ Variante</button>
+            <button className="danger secondary" onClick={()=>props.onDeleteScenario(s.id,s.title)}>🗑 Supprimer</button>
+          </div>
+        </div>
+
+        <details className="scenarioVariantsDetails">
+          <summary>Voir les variantes <span>{s.versions.length}</span></summary>
+          <div className="compactVersionList">
+            {visibleVersions.map(v=><article className={`compactVersionRow ${v.status==='ARCHIVED'?'archived':''}`} key={v.id}>
+              <button className="compactVersionMain" onClick={()=>props.onOpenVersion(v.id)}>
+                <span><strong>{v.variantName||`${v.counts.playableCharacters} joueurs`}</strong><small>{v.subtitle||v.universe||`Révision V${v.versionLabel}`}</small></span>
+                <span><b>{v.counts.playableCharacters} PJ</b><small>{v.genderComposition.label}</small></span>
+                <span><b>V{v.versionLabel}</b><small>{v.language} · {v.status}</small></span>
+              </button>
+              <div className="compactVersionActions">
+                <button className="secondary" onClick={()=>window.open(`/?gmPack=${encodeURIComponent(v.id)}`,'_blank')}>📦 Pack MJ</button>
+                <button className={v.status==='ARCHIVED'?'secondary':'danger secondary'} onClick={()=>props.onArchiveVersion(v.id,v.status!=='ARCHIVED')}>{v.status==='ARCHIVED'?'Réactiver':'Archiver'}</button>
               </div>
-              <span className="variantPlayers">{v.counts.playableCharacters} PJ</span>
-            </div>
+            </article>)}
+          </div>
 
-            <div className="variantCatalogMeta">
-              <span>{v.genderComposition.label}</span>
-              {v.importedAt&&<span>Importée le {new Intl.DateTimeFormat('fr-BE',{dateStyle:'short'}).format(new Date(v.importedAt))}</span>}
-            </div>
+          <div className="familyTools">
+            <button className="secondary" onClick={()=>{
+              setPickerScenarioId(pickerOpen?null:s.id);
+              const first=s.versions[0];
+              setPlayerCount(first?.minPlayers??first?.counts.playableCharacters??1);
+              setWomen('');
+              setMen('');
+            }}>{pickerOpen?'Fermer le filtre':'Trouver une variante pour mon groupe'}</button>
+            {archivedVersions.length>0&&<button className="secondary" onClick={()=>setShowArchivedVariants(v=>!v)}>{showArchivedVariants?'Masquer les archivées':`Voir les archivées (${archivedVersions.length})`}</button>}
+          </div>
 
-            {v.variantNotes&&<p className="variantCatalogNotes">{v.variantNotes}</p>}
-
-            <div className="variantCatalogActions">
-              <button onClick={()=>props.onOpenVersion(v.id)}>
-                {v.status==='ARCHIVED'?'Consulter':'Ouvrir / créer une session'}
-              </button>
-              <button
-                className={v.status==='ARCHIVED'?'secondary':'danger secondary'}
-                onClick={()=>props.onArchiveVersion(v.id,v.status!=='ARCHIVED')}
-              >
-                {v.status==='ARCHIVED'?'Réactiver':'Archiver'}
-              </button>
-
-              <button
-                className="secondary"
-                onClick={()=>window.open(`/?gmPack=${encodeURIComponent(v.id)}`,'_blank')}
-              >
-                📦 Pack MJ
-              </button>
-            </div>
-
-            {v.sourceFilename&&<small className="variantSource">{v.sourceFilename}</small>}
-          </article>)}
-        </div>
-
-        <div className="familyActions">
-          <button onClick={()=>{
-            setPickerScenarioId(pickerOpen?null:s.id);
-            const first=s.versions[0];
-            setPlayerCount(first?.minPlayers??first?.counts.playableCharacters??1);
-            setWomen('');
-            setMen('');
-          }}>
-            Trouver une variante pour mon groupe
-          </button>
-          {archivedVersions.length>0&&
-            <button
-              className="secondary"
-              onClick={()=>setShowArchivedVariants(v=>!v)}
-            >
-              {showArchivedVariants
-                ? 'Masquer les variantes archivées'
-                : `Voir les archivées (${archivedVersions.length})`}
-            </button>
-          }
-
-          <button className="secondary" onClick={()=>props.onImportVersion(s)}>
-            + Importer un MASTER variant
-          </button>
-        </div>
-        {pickerOpen&&<section className="variantPicker">
-          <div><p className="eyebrow">COMPATIBILITÉ</p><h4>Quel groupe vas-tu accueillir ?</h4><p>Le nombre de joueurs filtre toujours. La composition F/H est facultative : laisse-la vide si elle ne doit pas contraindre le casting.</p></div>
-          <div className="variantPickerInputs"><label>Joueurs<input type="number" min="1" value={playerCount} onChange={e=>setPlayerCount(Math.max(1,Number(e.target.value)||1))}/></label><label>Femmes <span>(optionnel)</span><input type="number" min="0" value={women} onChange={e=>setWomen(e.target.value)}/></label><label>Hommes <span>(optionnel)</span><input type="number" min="0" value={men} onChange={e=>setMen(e.target.value)}/></label></div>
-          <div className="compatibilityList">{candidates.length===0?<p className="empty">Aucune variante compatible avec ces critères. Il faut créer une nouvelle version Excel.</p>:candidates.map(v=><button key={v.id} className="compatibilityRow" onClick={()=>props.onOpenVersion(v.id)}><span><strong>{v.variantName||`${v.counts.playableCharacters} joueurs`}</strong><small>{genderProfileLabel(v.genderProfile)} · {v.genderComposition.label}</small></span><span><small>Révision</small><b>V{v.versionLabel}</b></span></button>)}</div>
-        </section>}
-        <div className="variantTableHead"><span>Variante</span><span>Joueurs</span><span>Genre</span><span>Révision</span><span>État</span></div>
-        <div className="versionList">{visibleVersions.map(v=><button key={v.id} className="versionRow versionManagerRow" onClick={()=>props.onOpenVersion(v.id)}><span><strong>{v.variantName||`${v.counts.playableCharacters} joueurs`}</strong><small>{v.subtitle||v.universe||'Variante importée'}</small></span><span className="versionCell">{v.minPlayers===v.maxPlayers?(v.minPlayers??v.counts.playableCharacters):`${v.minPlayers??'—'}–${v.maxPlayers??'—'}`}</span><span className="versionCell"><b>{v.genderComposition.label}</b><small>{genderProfileLabel(v.genderProfile)}</small></span><span className="versionCell"><b>V{v.versionLabel}</b><small>{niceDate(v.importedAt)}</small></span><span className="versionCell"><b>{v.status}</b><small>{v.language}</small></span></button>)}</div>
-      </article>})}</div>
+          {pickerOpen&&<section className="variantPicker compactPicker">
+            <div><p className="eyebrow">COMPATIBILITÉ</p><h4>Quel groupe vas-tu accueillir ?</h4></div>
+            <div className="variantPickerInputs"><label>Joueurs<input type="number" min="1" value={playerCount} onChange={e=>setPlayerCount(Math.max(1,Number(e.target.value)||1))}/></label><label>Femmes <span>(optionnel)</span><input type="number" min="0" value={women} onChange={e=>setWomen(e.target.value)}/></label><label>Hommes <span>(optionnel)</span><input type="number" min="0" value={men} onChange={e=>setMen(e.target.value)}/></label></div>
+            <div className="compatibilityList">{candidates.length===0?<p className="empty">Aucune variante compatible.</p>:candidates.map(v=><button key={v.id} className="compatibilityRow" onClick={()=>props.onOpenVersion(v.id)}><span><strong>{v.variantName||`${v.counts.playableCharacters} joueurs`}</strong><small>{genderProfileLabel(v.genderProfile)} · {v.genderComposition.label}</small></span><span><small>Révision</small><b>V{v.versionLabel}</b></span></button>)}</div>
+          </section>}
+        </details>
+      </article>;
+    })}</div>
   </section>;
 
   const v=props.version;
@@ -579,30 +687,122 @@ function LibraryView(props:{scenarios:ScenarioLibraryItem[];loading:boolean;erro
         : <CreateSessionForm version={v} onCreate={props.onCreateSession}/>
       }
       <details className="gmSummary card"><summary>Résumé maître du jeu</summary><p>{v.gmSummary}</p></details>
-      <div className="workspace"><section className="characterPane card"><div className="paneHead"><div><p className="eyebrow">CASTING</p><h3>Personnages de cette variante</h3></div><span>{v.characters.filter(c=>c.active!==false).length}</span></div><div className="characterList">{v.characters.filter(c=>c.active!==false).map(c=><button className={`characterRow ${props.character?.character.externalId===c.externalId?'selected':''}`} key={c.externalId} onClick={()=>props.onOpenCharacter(c.externalId)}><span className="avatar">{c.name.slice(0,1).toUpperCase()}</span><span className="characterIdentity"><strong>{c.name}</strong><small>{c.publicRole||'Rôle non public'}</small></span><span className="characterTags"><em>{characterGenderLabel(c.gender)}</em><small>{importanceLabel(c.importance)}</small></span></button>)}</div></section><section className="detailPane">{!props.character&&!props.characterLoading&&<div className="card detailPlaceholder"><span className="bigGlyph">♠</span><h3>Choisis un personnage</h3><p>Sa fiche détaillée apparaîtra ici.</p></div>}{props.characterLoading&&<div className="card detailPlaceholder">Chargement…</div>}{props.character&&!props.characterLoading&&<CharacterSheet detail={props.character}/>}</section></div>
+      <MediaLibraryPanel version={v} onChanged={()=>props.onOpenVersion(v.id)}/>
+      <div className="workspace"><section className="characterPane card"><div className="paneHead"><div><p className="eyebrow">CASTING</p><h3>Personnages de cette variante</h3></div><span>{v.characters.filter(c=>c.active!==false).length}</span></div><div className="characterList">{v.characters.filter(c=>c.active!==false).map(c=><button className={`characterRow ${props.character?.character.externalId===c.externalId?'selected':''}`} key={c.externalId} onClick={()=>props.onOpenCharacter(c.externalId)}><span className="avatar">{v.mediaOverrides?.[`CHARACTER:${c.externalId}`]?.source?<img src={v.mediaOverrides[`CHARACTER:${c.externalId}`].source||''} alt={c.name}/>:c.name.slice(0,1).toUpperCase()}</span><span className="characterIdentity"><strong>{c.name}</strong><small>{c.publicRole||'Rôle non public'}</small></span><span className="characterTags"><em>{characterGenderLabel(c.gender)}</em><small>{importanceLabel(c.importance)}</small></span></button>)}</div></section><section className="detailPane">{!props.character&&!props.characterLoading&&<div className="card detailPlaceholder"><span className="bigGlyph">♠</span><h3>Choisis un personnage</h3><p>Sa fiche détaillée apparaîtra ici.</p></div>}{props.characterLoading&&<div className="card detailPlaceholder">Chargement…</div>}{props.character&&!props.characterLoading&&<CharacterSheet detail={props.character}/>}</section></div>
     </>}
   </section>;
 }
 
 function CreateSessionForm({version,onCreate}:{version:ScenarioVersionDetail;onCreate:(input:{name:string;scheduledAt?:string;venue?:string;language?:string;notes?:string})=>Promise<void>}) {
-  const [open,setOpen]=useState(false); const [name,setName]=useState(`${version.scenario.title} — session`); const [scheduledAt,setScheduledAt]=useState(''); const [venue,setVenue]=useState(''); const [busy,setBusy]=useState(false);
-  if(!open) return <section className="sessionCta card"><div><p className="eyebrow">EXPLOITATION</p><h3>Préparer une partie</h3><p>Crée une session indépendante de ce snapshot pour inscrire les joueurs et faire le casting.</p></div><button onClick={()=>setOpen(true)}>Créer une session</button></section>;
-  return <section className="sessionCta card sessionForm"><div><p className="eyebrow">NOUVELLE SESSION</p><h3>{version.scenario.title} · {version.variantName||`V${version.versionLabel}`}</h3><p>{version.genderComposition.label} · {genderProfileLabel(version.genderProfile)}</p></div><div className="formGrid"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label></div><div className="formActions"><button className="secondary" onClick={()=>setOpen(false)}>Annuler</button><button disabled={!name.trim()||busy} onClick={async()=>{setBusy(true);try{await onCreate({name,scheduledAt,venue,language:version.language});}finally{setBusy(false);}}}>{busy?'Création…':'Créer et ouvrir'}</button></div></section>;
+  const [open,setOpen]=useState(false); const [name,setName]=useState(`${version.scenario.title} — session`); const [scheduledAt,setScheduledAt]=useState(''); const [venue,setVenue]=useState(''); const [language,setLanguage]=useState(String(version.language||'FR').toUpperCase()==='EN'?'EN':'FR'); const [busy,setBusy]=useState(false);
+  if(!open) return <section className="sessionCta card"><div><p className="eyebrow">EXPLOITATION</p><h3>Préparer une partie</h3><p>Crée directement une session si ton groupe est déjà connu. Pour collecter les inscriptions d’abord, utilise l’onglet « Inscriptions » du scénario.</p></div><button onClick={()=>setOpen(true)}>Créer une session</button></section>;
+  return <section className="sessionCta card sessionForm"><div><p className="eyebrow">NOUVELLE SESSION</p><h3>{version.scenario.title} · {version.variantName||`V${version.versionLabel}`}</h3><p>{version.genderComposition.label} · {genderProfileLabel(version.genderProfile)}</p></div><div className="formGrid"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label><label>Langue joueurs<select value={language} onChange={e=>setLanguage(e.target.value)}><option value="FR">Français</option><option value="EN">English</option></select></label></div><div className="formActions"><button className="secondary" onClick={()=>setOpen(false)}>Annuler</button><button disabled={!name.trim()||busy} onClick={async()=>{setBusy(true);try{await onCreate({name,scheduledAt,venue,language});}finally{setBusy(false);}}}>{busy?'Création…':'Créer et ouvrir'}</button></div></section>;
 }
 
-function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onDelete:()=>void;onPrecast:(enabled:boolean)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
+
+function OrganizerFold({
+  sessionId,
+  id,
+  title,
+  subtitle,
+  defaultOpen=true,
+  children,
+}:{
+  sessionId:string;
+  id:string;
+  title:string;
+  subtitle?:string;
+  defaultOpen?:boolean;
+  children:any;
+}){
+  const storageKey=`murderOrgaFold:${sessionId}:${id}`;
+  const [open,setOpen]=useState(defaultOpen);
+
+  useEffect(()=>{
+    try{
+      const stored=window.localStorage.getItem(storageKey);
+      setOpen(stored==null?defaultOpen:stored==='1');
+    }catch{
+      setOpen(defaultOpen);
+    }
+  },[storageKey,defaultOpen]);
+
+  function toggle(){
+    const next=!open;
+    setOpen(next);
+    try{
+      window.localStorage.setItem(storageKey,next?'1':'0');
+    }catch{}
+  }
+
+  return <section className={`orgaFold ${open?'open':'closed'}`}>
+    <button
+      type="button"
+      className="orgaFoldToggle"
+      aria-expanded={open}
+      onClick={toggle}
+    >
+      <span className="orgaFoldTitle">
+        <strong>{title}</strong>
+        {subtitle&&<small>{subtitle}</small>}
+      </span>
+      <span className="orgaFoldAction">
+        {open?'Masquer':'Afficher'} <b aria-hidden="true">{open?'▴':'▾'}</b>
+      </span>
+    </button>
+    <div className="orgaFoldBody" hidden={!open}>
+      {children}
+    </div>
+  </section>;
+}
+
+function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onPurge:(sessionId:string,name:string)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onBusinessDeal:(dealId:string)=>void;onInteractionMutation:()=>void}) {
   const [showArchived,setShowArchived]=useState(false);
   const listedSessions=showArchived?props.sessions:props.sessions.filter(s=>s.status!=='ARCHIVED');
 
-  if(!props.session) return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}<div className="sectionhead"><div><p className="eyebrow">EXPLOITATION</p><h2>Sessions</h2><p>La date est mise en avant pour identifier rapidement chaque prestation.</p></div><div className="sessionListActions"><button className={showArchived?'active secondary':'secondary'} onClick={()=>setShowArchived(v=>!v)}>{showArchived?'Masquer les archivées':'Voir les archivées'}</button><button className="secondary" onClick={props.onReload}>Actualiser</button></div></div>{listedSessions.length===0?<section className="card emptyState"><strong>{showArchived?'Aucune session.':'Aucune session active.'}</strong><p>Crée-la depuis une version de scénario.</p></section>:<div className="scenarioGrid">{listedSessions.map(s=><article className={`scenarioCard sessionCard ${s.status==='ARCHIVED'?'archived':''}`} key={s.id}><div className="sessionCardDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="scenarioTitleRow"><div><span className="micro">{s.scenarioVersion?.scenario?.title??'Scénario'}</span><h3>{s.name||'Session'}</h3></div><span className={`sessionStatus ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></div><p className="sessionMeta">{s.venue||'Lieu à définir'}</p><div className="sessionProgress"><span>{s.counts.assigned}/{s.counts.participants} castés</span><progress max={Math.max(1,s.counts.participants)} value={s.counts.assigned}/></div><button className="wide secondary" onClick={()=>props.onOpen(s.id)}>Ouvrir la préparation</button></article>)}</div>}</section>;
+  if(!props.session) return <section>
+    {props.error&&<p className="errorbox standalone">{props.error}</p>}
+    <div className="sectionhead">
+      <div><p className="eyebrow">EXPLOITATION</p><h2>Sessions</h2><p>Une ligne par partie : date, scénario, état et casting.</p></div>
+      <div className="sessionListActions"><button className={showArchived?'active secondary':'secondary'} onClick={()=>setShowArchived(v=>!v)}>{showArchived?'Masquer les archivées':'Voir les archivées'}</button><button className="secondary" onClick={props.onReload}>Actualiser</button></div>
+    </div>
+    {listedSessions.length===0
+      ? <section className="card emptyState"><strong>{showArchived?'Aucune session.':'Aucune session active.'}</strong><p>Crée-la depuis les inscriptions ou directement depuis un scénario.</p></section>
+      : <div className="sessionCompactList">{listedSessions.map(s=><article className={`sessionCompactRow ${s.status==='ARCHIVED'?'archived':''}`} key={s.id}>
+          <div className="sessionCompactDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><small>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</small></div>
+          <div className="sessionCompactIdentity"><span>{s.scenarioVersion?.scenario?.title??'Scénario'}</span><strong>{s.name||'Session'}</strong><small>{s.venue||'Lieu à définir'} · {s.language}</small></div>
+          <div className="sessionCompactProgress"><span className={`sessionStatus ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span><small>{s.counts.assigned}/{s.counts.participants} castés</small></div>
+          <div className="sessionCompactActions"><button onClick={()=>props.onOpen(s.id)}>Ouvrir</button><button className="danger secondary" onClick={()=>props.onPurge(s.id,s.name||'Session')}>🗑</button></div>
+        </article>)}</div>
+    }
+  </section>;
 
-  const s=props.session; const archived=s.status==='ARCHIVED'; const assigned=new Map(s.participants.filter(p=>p.characterExternalId).map(p=>[p.characterExternalId!,p.id]));
-  const deleteLocked=Boolean(s.runtimeInitializedAt||s.startedAt||s.finishedAt);
-  return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}<button className="backlink" onClick={props.onBack}>← Sessions</button>{props.loading?<section className="card emptyState">Chargement…</section>:<>
+  const s=props.session;
+  const archived=s.status==='ARCHIVED';
+  const liveMode=['LIVE','PAUSED'].includes(s.status);
+  const assigned=new Map(s.participants.filter(p=>p.characterExternalId).map(p=>[p.characterExternalId!,p.id]));
+  return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}{!props.delegated&&<button className="backlink" onClick={props.onBack}>← Sessions</button>}{props.loading?<section className="card emptyState">Chargement…</section>:<>
     <section className={`sessionHero ${archived?'archived':''}`}><div className="sessionHeroDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="sessionHeroMain"><p className="eyebrow">{s.scenarioVersion.scenario?.title} · V{s.scenarioVersion.versionLabel}</p><h2>{s.name||'Session'}</h2><p>{s.venue||'Lieu à définir'} · {s.language}</p></div><span className={`sessionStatus large ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></section>
-    {!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
+    {(!props.delegated||props.mode==='PREPARATION')&&!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
     <section className="metaStrip"><div><span>Participants</span><strong>{s.counts.participants}</strong></div><div><span>Castés</span><strong>{s.counts.assigned}</strong></div><div><span>Rôles disponibles</span><strong>{s.counts.playableCharacters}</strong></div><div><span>Sans rôle</span><strong>{s.counts.unassignedParticipants}</strong></div><div><span>Rôles libres</span><strong>{s.counts.unassignedCharacters}</strong></div></section>
-    {!archived&&<SessionPreparationPanel session={s} onApplied={()=>props.onOpen(s.id)} onMarkReady={()=>props.onStatus('READY')}/>}
+    {(!props.delegated||props.mode==='PREPARATION')&&!archived&&<OrganizerFold
+      sessionId={s.id}
+      id="preparation"
+      title="Préparation de la session"
+      subtitle="Casting, vérifications et mise en état prête"
+      defaultOpen={!liveMode&&!s.runtimeInitializedAt}
+    >
+      <SessionPreparationPanel session={s} onApplied={()=>props.onOpen(s.id)} onMarkReady={()=>props.onStatus('READY')}/>
+    </OrganizerFold>}
+
+    {!props.delegated&&<>
+    <OrganizerFold
+      sessionId={s.id}
+      id="scenario-variant"
+      title="Variante de scénario"
+      subtitle="MASTER utilisé par cette session"
+      defaultOpen={false}
+    >
     <section className="card sessionVariantCard">
       <div>
         <p className="eyebrow">VARIANTE DE SCÉNARIO</p>
@@ -623,10 +823,52 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
         <strong>{s.scenarioVersion?.variantName || s.scenarioVersion?.versionLabel || '—'}</strong>
       </div>
     </section>
+    </OrganizerFold>
+    </>}
 
-    <section className="card sessionLifecycle"><div><p className="eyebrow">GESTION DE LA SESSION</p><h3>{archived?'Session archivée':'Conserver ou supprimer'}</h3><p>{archived?'Elle est masquée de la liste active. Tu peux la réactiver en brouillon.':'Archive-la pour la conserver sans l’encombrer dans la liste active. La suppression définitive est réservée aux sessions sans runtime.'}</p></div><div className="lifecycleButtons">{archived?<button className="secondary" onClick={()=>props.onArchive(false)}>Réactiver en brouillon</button>:<button className="secondary" onClick={()=>props.onArchive(true)}>Archiver la session</button>}<button className="danger" disabled={deleteLocked} title={deleteLocked?'Une session avec runtime ou historique de live doit être archivée, pas supprimée.':''} onClick={props.onDelete}>Supprimer définitivement</button></div></section>
-    {!archived&&['DRAFT','CASTING','READY'].includes(s.status)&&<><section className="card sessionState"><div><p className="eyebrow">ÉTAT PRÉ-LIVE</p><h3>{statusLabel(s.status)}</h3><p>DRAFT = préparation · CASTING = attribution en cours · READY = distribution verrouillée et prête pour le briefing.</p></div><div className="statusButtons">{['DRAFT','CASTING','READY'].map(st=><button key={st} disabled={Boolean(s.runtimeInitializedAt)&&st!=='READY'} className={s.status===st?'active':''} onClick={()=>props.onStatus(st)}>{statusLabel(st)}</button>)}</div></section>
-    <PrecastPanel session={s} onToggle={props.onPrecast}/></>}
+    {props.delegated&&props.mode==='PREPARATION'&&<section className="card"><h3>Fiches personnages</h3><p>Figez les fiches après avoir terminé le casting, puis commencez les essais.</p><button onClick={async()=>{try{await postJson('/api/sessions/incarnations/freeze',{sessionId:s.id});props.onOpen(s.id);}catch(e){window.alert(e instanceof Error?e.message:String(e));}}}>Figer les fiches</button></section>}
+    {!archived&&s.runtimeInitializedAt&&
+      <OrganizerFold
+        sessionId={s.id}
+        id="player-communication"
+        title="Communication joueurs"
+        subtitle="Messages MJ, liens joueurs et suivi des ouvertures"
+        defaultOpen={liveMode}
+      >
+      <PlayerAccessPanel
+        session={s}
+        onToggle={props.onPlayerAccess}
+        onMessage={props.onPlayerMessage}
+      />
+      </OrganizerFold>
+    }
+
+    {!props.delegated&&<>
+    <OrganizerFold
+      sessionId={s.id}
+      id="session-lifecycle"
+      title="Gestion de la session"
+      subtitle="Archivage et suppression"
+      defaultOpen={false}
+    >
+    <section className="card sessionLifecycle"><div><p className="eyebrow">GESTION DE LA SESSION</p><h3>{archived?'Session archivée':'Conserver ou supprimer'}</h3><p>{archived?'Elle est masquée de la liste active. Tu peux la réactiver en brouillon.':'Archive-la pour la conserver. En période de test, la suppression définitive efface aussi le runtime, les votes et les journaux.'}</p></div><div className="lifecycleButtons">{archived?<button className="secondary" onClick={()=>props.onArchive(false)}>Réactiver en brouillon</button>:<button className="secondary" onClick={()=>props.onArchive(true)}>Archiver la session</button>}<button className="danger" onClick={()=>props.onPurge(s.id,s.name||'Session')}>Supprimer définitivement (tests)</button></div></section>
+    </OrganizerFold>
+    </>}
+
+    {(!props.delegated||props.mode==='PREPARATION')&&!archived&&['DRAFT','CASTING','READY'].includes(s.status)&&<OrganizerFold
+      sessionId={s.id}
+      id="session-state"
+      title="État pré-live"
+      subtitle={statusLabel(s.status)}
+      defaultOpen={false}
+    ><section className="card sessionState"><div><p className="eyebrow">ÉTAT PRÉ-LIVE</p><h3>{statusLabel(s.status)}</h3><p>DRAFT = préparation · CASTING = attribution en cours · READY = distribution verrouillée et prête pour le briefing.</p></div><div className="statusButtons">{['DRAFT','CASTING','READY'].map(st=><button key={st} disabled={Boolean(s.runtimeInitializedAt)&&st!=='READY'} className={s.status===st?'active':''} onClick={()=>props.onStatus(st)}>{statusLabel(st)}</button>)}</div></section></OrganizerFold>}
+    <OrganizerFold
+      sessionId={s.id}
+      id="gm-pack"
+      title="Pack MJ de session"
+      subtitle="Fiches, enveloppes, QR et installation"
+      defaultOpen={false}
+    >
     <section className="sessionPackShortcut card">
       <div>
         <p className="eyebrow">
@@ -653,13 +895,78 @@ function SessionsView(props:{sessions:SessionSummary[];session:SessionDetail|nul
         📦 Ouvrir le Pack de session
       </button>
     </section>
+    </OrganizerFold>
 
-    <SessionIncarnationsPanel session={s}/>
-    <RuntimePanel session={s} runtime={props.runtime} loading={props.runtimeLoading} onInitialize={props.onInitializeRuntime}/>
-    {!archived&&s.runtimeInitializedAt&&<PlayerAccessPanel session={s} onToggle={props.onPlayerAccess} onMessage={props.onPlayerMessage}/>}
-    {!archived&&s.runtimeInitializedAt&&<LivePanel session={s} live={props.live} loading={props.liveLoading} onControl={props.onLiveControl} onResource={props.onLiveResource} onState={props.onLiveState} onEvent={props.onLiveEvent} onInteractionMutation={props.onInteractionMutation}/>}
-    {!archived&&!s.runtimeInitializedAt?<AddParticipantForm onAdd={props.onAddParticipant}/>:!archived?<section className="card lockNotice"><strong>Préparation verrouillée</strong><p>Le runtime est initialisé : participants et casting ne peuvent plus être modifiés dans cette version.</p></section>:null}
-    <section className="card castingBoard"><div className="paneHead"><div><p className="eyebrow">CASTING</p><h3>Participants & rôles</h3></div><span>{s.counts.assigned}/{s.counts.participants}</span></div>{s.participants.length===0?<p className="empty">Ajoute d’abord les participants.</p>:<div className="castingTable">{s.participants.map(p=><div className="castingRow" key={p.id}><div className="participantIdentity"><strong>{p.displayName}</strong><small>{p.email||'E-mail non renseigné'}{p.precastSubmittedAt?' · pré-casting ✓':''}</small><div className="participantBadges"><span className="ageBadge">{ageBracketLabel(p.ageBracket)}</span><span className="involvementBadge">{involvementLabel(p.desiredInvolvement)}</span></div></div><select disabled={Boolean(s.runtimeInitializedAt)||archived} value={p.characterExternalId??''} onChange={e=>props.onCast(p.id,e.target.value||null)}><option value="">— Aucun personnage —</option>{s.characters.map(c=><option key={c.externalId} value={c.externalId} disabled={assigned.has(c.externalId)&&assigned.get(c.externalId)!==p.id}>{c.name}{c.publicRole?` — ${c.publicRole}`:''}</option>)}</select><span className={`castDot ${p.characterExternalId?'done':''}`}>{p.characterExternalId?'✓':'…'}</span></div>)}</div>}</section>
+    {!props.delegated&&<>
+    <OrganizerFold
+      sessionId={s.id}
+      id="incarnations"
+      title="Incarnations de session"
+      subtitle="Personnages adaptés et fiches figées pour cette partie"
+      defaultOpen={!liveMode&&!s.runtimeInitializedAt}
+    >
+      <SessionIncarnationsPanel session={s}/>
+    </OrganizerFold>
+    </>}
+
+    {!props.delegated&&<>
+    <OrganizerFold
+      sessionId={s.id}
+      id="runtime"
+      title="Runtime de session"
+      subtitle="Ressources, objectifs, connaissances et objets"
+      defaultOpen={!liveMode&&!s.runtimeInitializedAt}
+    >
+      <RuntimePanel session={s} runtime={props.runtime} loading={props.runtimeLoading} onInitialize={props.onInitializeRuntime}/>
+    </OrganizerFold>
+    </>}
+
+    {!archived&&s.runtimeInitializedAt&&<LivePanel session={s} live={props.live} loading={props.liveLoading} onControl={props.onLiveControl} hideStart={props.mode==='PREPARATION'} rehearsal={props.mode==='REHEARSAL'} onResource={props.onLiveResource} onState={props.onLiveState} onEvent={props.onLiveEvent} onBusinessDeal={props.onBusinessDeal} onInteractionMutation={props.onInteractionMutation}/>}
+
+    {(!props.delegated||props.mode==='PREPARATION')&&!archived&&!s.runtimeInitializedAt?
+      <OrganizerFold sessionId={s.id} id="add-participant" title="Ajouter un participant" defaultOpen={!liveMode}>
+        <AddParticipantForm onAdd={props.onAddParticipant}/>
+      </OrganizerFold>
+      :!archived?<section className="card lockNotice"><strong>Préparation verrouillée</strong><p>{props.delegated?'La distribution des personnages est conservée. Pour recommencer les essais, utilisez le bouton en haut de page.':'Le runtime est initialisé : participants et casting ne peuvent plus être modifiés dans cette version.'}</p></section>:null}
+
+    <OrganizerFold
+      sessionId={s.id}
+      id="casting"
+      title="Participants & rôles"
+      subtitle={`${s.counts.assigned}/${s.counts.participants} castés`}
+      defaultOpen={!liveMode}
+    >
+    <section className="card castingBoard"><div className="paneHead"><div><p className="eyebrow">CASTING</p><h3>Participants & rôles</h3></div><span>{s.counts.assigned}/{s.counts.participants}</span></div>{s.participants.length===0?<p className="empty">Ajoute d’abord les participants.</p>:<div className="castingTable">{s.participants.map(p=><div className="castingRow" key={p.id}><div className="participantIdentity"><strong>{p.displayName}</strong><small>{p.email||'E-mail non renseigné'}{p.precastSubmittedAt?' · pré-casting ✓':''}</small><div className="participantBadges"><span className="ageBadge">{ageBracketLabel(p.ageBracket)}</span><span className="involvementBadge">{involvementLabel(p.desiredInvolvement)}</span></div></div><select
+    disabled={Boolean(s.runtimeInitializedAt)||archived||(props.delegated&&props.mode!=='PREPARATION')}
+    value={p.characterExternalId??''}
+    onChange={e=>{
+      const next=e.target.value||null;
+      if(next){
+        const holderId=assigned.get(next);
+        if(holderId&&holderId!==p.id){
+          const holderParticipant=s.participants.find(x=>x.id===holderId);
+          const currentRole=p.characterExternalId
+            ? s.characters.find(x=>x.externalId===p.characterExternalId)?.name||p.characterExternalId
+            : null;
+          const message=currentRole
+            ? `${s.characters.find(x=>x.externalId===next)?.name||next} est déjà attribué à ${holderParticipant?.displayName||'un autre joueur'}.\n\nContinuer échangera les rôles : ${holderParticipant?.displayName||'ce joueur'} recevra « ${currentRole} ».`
+            : `${s.characters.find(x=>x.externalId===next)?.name||next} est déjà attribué à ${holderParticipant?.displayName||'un autre joueur'}.\n\nContinuer déplacera ce rôle vers ${p.displayName} et laissera l’autre joueur sans rôle.`;
+          if(!window.confirm(message))return;
+        }
+      }
+      props.onCast(p.id,next);
+    }}
+  >
+    <option value="">— Aucun personnage —</option>
+    {s.characters.map(c=>{
+      const holderId=assigned.get(c.externalId);
+      const holder=holderId?s.participants.find(x=>x.id===holderId):null;
+      return <option key={c.externalId} value={c.externalId}>
+        {c.name}{c.publicRole?` — ${c.publicRole}`:''}{holder&&holder.id!==p.id?` · actuellement : ${holder.displayName}`:''}
+      </option>;
+    })}
+  </select><span className={`castDot ${p.characterExternalId?'done':''}`}>{p.characterExternalId?'✓':'…'}</span></div>)}</div>}</section>
+    </OrganizerFold>
   </>}</section>;
 }
 
@@ -670,26 +977,93 @@ function PlayerAccessPanel({session,onToggle,onMessage}:{session:SessionDetail;o
   const [copied,setCopied]=useState(''); const [target,setTarget]=useState(casted[0]?.characterExternalId||''); const [title,setTitle]=useState('Message du MJ'); const [body,setBody]=useState(''); const [busy,setBusy]=useState(false);
   useEffect(()=>{ if(!target || !casted.some(p=>p.characterExternalId===target)) setTarget(casted[0]?.characterExternalId||''); },[casted.map(p=>p.characterExternalId).join('|'),target]);
   const link=(p:SessionParticipant)=>p.playerAccessToken?`${window.location.origin}/?player=${encodeURIComponent(p.playerAccessToken)}`:'';
-  return <section className="card playerAccessPanel"><div className="precastHead"><div><p className="eyebrow">ACCÈS JOUEURS · V1.0</p><h3>{enabled?'Liens joueurs actifs':'Liens joueurs désactivés'}</h3><p>Chaque joueur reçoit un lien privé vers sa fiche mobile, ses ressources, son carnet, ses actions et ses votes.</p></div><button className={enabled?'danger secondary':''} onClick={()=>onToggle(!enabled)}>{enabled?'Désactiver les liens':'Activer les liens joueurs'}</button></div>
-    {enabled&&<div className="playerLinkRows">{casted.map(p=><div className="playerLinkRow" key={p.id}><div><strong>{p.displayName}</strong><small>{p.characterDisplayName||session.characters.find(c=>c.externalId===p.characterExternalId)?.name||p.characterExternalId}</small><div className="playerLinkStatus"><span>{p.briefingReadAt?'Fiche lue ✓':p.playerFirstOpenedAt?'Ouvert':'Jamais ouvert'}</span><span>{p.playerOpenCount||0} ouverture(s)</span></div></div><input readOnly value={link(p)}/><button className="secondary" disabled={!link(p)} onClick={async()=>{await navigator.clipboard.writeText(link(p));setCopied(p.id);setTimeout(()=>setCopied(''),1300);}}>{copied===p.id?'Copié ✓':'Copier'}</button></div>)}</div>}
-    {enabled&&casted.length>0&&<div className="playerMessageComposer"><p className="eyebrow">MESSAGE MJ</p><div className="formGrid"><label>Destinataire<select value={target} onChange={e=>setTarget(e.target.value)}>{casted.map(p=><option key={p.id} value={p.characterExternalId||''}>{session.characters.find(c=>c.externalId===p.characterExternalId)?.name||p.displayName}</option>)}</select></label><label>Titre<input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Information importante"/></label></div><label>Message <span>(obligatoire)</span><textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Votre message…"/></label><button disabled={busy||!target||!title.trim()||!body.trim()} onClick={async()=>{setBusy(true);try{await onMessage({characterExternalId:target,title,body});setTitle('');setBody('');}finally{setBusy(false);}}}>{busy?'Envoi…':'Envoyer au joueur'}</button></div>}
+  return <section className="card playerAccessPanel liveCommunicationPanel">
+    <div className="precastHead">
+      <div>
+        <p className="eyebrow">COMMUNICATION JOUEURS</p>
+        <h3>{enabled?'Messages & accès joueurs':'Accès joueurs désactivé'}</h3>
+        <p>En live, utilise ce bloc pour envoyer rapidement une information à un joueur.</p>
+      </div>
+      <button className={enabled?'danger secondary':''} onClick={()=>onToggle(!enabled)}>
+        {enabled?'Désactiver les liens':'Activer les liens joueurs'}
+      </button>
+    </div>
+
+    {enabled&&casted.length>0&&
+      <div className="playerMessageComposer liveMessageComposer">
+        <p className="eyebrow">MESSAGE MJ</p>
+        <div className="formGrid">
+          <label>Destinataire
+            <select value={target} onChange={e=>setTarget(e.target.value)}>
+              {casted.map(p=><option key={p.id} value={p.characterExternalId||''}>
+                {session.characters.find(c=>c.externalId===p.characterExternalId)?.name||p.displayName}
+              </option>)}
+            </select>
+          </label>
+          <label>Titre
+            <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Information importante"/>
+          </label>
+        </div>
+        <label>Message <span>(obligatoire)</span>
+          <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Votre message…"/>
+        </label>
+        <button disabled={busy||!target||!title.trim()||!body.trim()} onClick={async()=>{
+          setBusy(true);
+          try{
+            await onMessage({characterExternalId:target,title,body});
+            setTitle('Message du MJ');
+            setBody('');
+          }finally{
+            setBusy(false);
+          }
+        }}>{busy?'Envoi…':'Envoyer au joueur'}</button>
+      </div>
+    }
+
+    {enabled&&
+      <details className="playerAccessLinks">
+        <summary>
+          <span>Liens joueurs & suivi des ouvertures</span>
+          <b>{casted.length}</b>
+        </summary>
+        <div className="playerLinkRows">
+          {casted.map(p=><div className="playerLinkRow" key={p.id}>
+            <div>
+              <strong>{p.displayName}</strong>
+              <small>{p.characterDisplayName||session.characters.find(c=>c.externalId===p.characterExternalId)?.name||p.characterExternalId}</small>
+              <div className="playerLinkStatus">
+                <span>{p.briefingReadAt?'Fiche lue ✓':p.playerFirstOpenedAt?'Ouvert':'Jamais ouvert'}</span>
+                <span>{p.playerOpenCount||0} ouverture(s)</span>
+              </div>
+            </div>
+            <input readOnly value={link(p)}/>
+            <button className="secondary" disabled={!link(p)} onClick={async()=>{
+              await navigator.clipboard.writeText(link(p));
+              setCopied(p.id);
+              setTimeout(()=>setCopied(''),1300);
+            }}>{copied===p.id?'Copié ✓':'Copier'}</button>
+          </div>)}
+        </div>
+      </details>
+    }
   </section>;
 }
 
 
-function EditSessionPanel({session,onSave}:{session:SessionDetail;onSave:(input:{name:string;scheduledAt:string;venue:string})=>Promise<void>}) {
+function EditSessionPanel({session,onSave}:{session:SessionDetail;onSave:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>}) {
   const [open,setOpen]=useState(false);
   const [name,setName]=useState(session.name||'');
   const [scheduledAt,setScheduledAt]=useState(localDateTimeInput(session.scheduledAt));
   const [venue,setVenue]=useState(session.venue||'');
+  const [language,setLanguage]=useState(String(session.language||'FR').toUpperCase()==='EN'?'EN':'FR');
   const [busy,setBusy]=useState(false);
   const locked=Boolean(session.startedAt||session.pausedAt||session.finishedAt||['LIVE','PAUSED','FINISHED'].includes(session.status));
 
-  useEffect(()=>{ setName(session.name||''); setScheduledAt(localDateTimeInput(session.scheduledAt)); setVenue(session.venue||''); },[session.id,session.name,session.scheduledAt,session.venue]);
+  useEffect(()=>{ setName(session.name||''); setScheduledAt(localDateTimeInput(session.scheduledAt)); setVenue(session.venue||''); setLanguage(String(session.language||'FR').toUpperCase()==='EN'?'EN':'FR'); },[session.id,session.name,session.scheduledAt,session.venue,session.language]);
 
   if(!open) return <div className="sessionEditBar"><button className="secondary" disabled={locked} title={locked?'La date et l’heure sont verrouillées après le lancement du live.':''} onClick={()=>setOpen(true)}>Modifier la session</button>{locked&&<span>Date et heure verrouillées après lancement du live.</span>}</div>;
 
-  return <section className="card editSessionPanel"><div className="paneHead"><div><p className="eyebrow">PARAMÈTRES DE SESSION</p><h3>Modifier date, heure et lieu</h3></div></div><div className="formGrid editSessionFields"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label></div><div className="formActions"><button className="secondary" disabled={busy} onClick={()=>{setName(session.name||'');setScheduledAt(localDateTimeInput(session.scheduledAt));setVenue(session.venue||'');setOpen(false);}}>Annuler</button><button disabled={busy||!name.trim()} onClick={async()=>{setBusy(true);try{await onSave({name,scheduledAt,venue});setOpen(false);}finally{setBusy(false);}}}>{busy?'Enregistrement…':'Enregistrer les modifications'}</button></div></section>;
+  return <section className="card editSessionPanel"><div className="paneHead"><div><p className="eyebrow">PARAMÈTRES DE SESSION</p><h3>Modifier date, heure et lieu</h3></div></div><div className="formGrid editSessionFields"><label>Nom<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Date & heure<input type="datetime-local" value={scheduledAt} onChange={e=>setScheduledAt(e.target.value)}/></label><label>Lieu<input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Western City, client…"/></label><label>Langue joueurs<select value={language} onChange={e=>setLanguage(e.target.value)}><option value="FR">Français</option><option value="EN">English</option></select></label></div><div className="formActions"><button className="secondary" disabled={busy} onClick={()=>{setName(session.name||'');setScheduledAt(localDateTimeInput(session.scheduledAt));setVenue(session.venue||'');setLanguage(String(session.language||'FR').toUpperCase()==='EN'?'EN':'FR');setOpen(false);}}>Annuler</button><button disabled={busy||!name.trim()} onClick={async()=>{setBusy(true);try{await onSave({name,scheduledAt,venue,language});setOpen(false);}finally{setBusy(false);}}}>{busy?'Enregistrement…':'Enregistrer les modifications'}</button></div></section>;
 }
 
 
@@ -1328,7 +1702,7 @@ function formatElapsed(totalSeconds:number) {
   return h>0?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
 }
 
-function LivePanel({session,live,loading,onControl,onResource,onState,onEvent,onInteractionMutation}:{session:SessionDetail;live:LiveDashboard|null;loading:boolean;onControl:(action:string)=>void;onResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onInteractionMutation:()=>void}) {
+function LivePanel({session,live,loading,hideStart,rehearsal,onControl,onResource,onState,onEvent,onBusinessDeal,onInteractionMutation}:{session:SessionDetail;live:LiveDashboard|null;loading:boolean;hideStart?:boolean;rehearsal?:boolean;onControl:(action:string)=>void;onResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onBusinessDeal:(dealId:string)=>void;onInteractionMutation:()=>void}) {
   const [tick,setTick]=useState(Date.now());
   useEffect(()=>{ if(live?.session.status!=='LIVE')return; const id=window.setInterval(()=>setTick(Date.now()),1000); return()=>window.clearInterval(id); },[live?.session.status,live?.snapshotAt]);
   if(loading&&!live)return <section className="card livePanel">Chargement du poste MJ…</section>;
@@ -1336,9 +1710,9 @@ function LivePanel({session,live,loading,onControl,onResource,onState,onEvent,on
   const snapshotMs=new Date(live.snapshotAt).getTime();
   const elapsed=live.session.elapsedSeconds+(live.session.status==='LIVE'&&Number.isFinite(snapshotMs)?Math.max(0,Math.floor((tick-snapshotMs)/1000)):0);
   const running=['LIVE','PAUSED'].includes(live.session.status);
-  const controls=live.session.status==='READY'?<button disabled={!live.sourceReady||loading} onClick={()=>onControl('START')}>▶ Démarrer la partie</button>:live.session.status==='LIVE'?<><button className="secondary" onClick={()=>onControl('PAUSE')}>Ⅱ Pause</button><button className="danger secondary" onClick={()=>window.confirm('Terminer définitivement le live ?')&&onControl('FINISH')}>Terminer</button></>:live.session.status==='PAUSED'?<><button onClick={()=>onControl('RESUME')}>▶ Reprendre</button><button className="danger secondary" onClick={()=>window.confirm('Terminer définitivement le live ?')&&onControl('FINISH')}>Terminer</button></>:null;
+  const controls=live.session.status==='READY'?(hideStart?null:<button disabled={!live.sourceReady||loading} onClick={()=>onControl('START')}>{rehearsal?'▶ Lancer la répétition':'▶ Démarrer la partie'}</button>):live.session.status==='LIVE'?<><button className="secondary" onClick={()=>onControl('PAUSE')}>Ⅱ Pause</button><button className="danger secondary" onClick={()=>window.confirm(rehearsal?'Terminer cette répétition ?':'Terminer définitivement la partie ?')&&onControl('FINISH')}>Terminer</button></>:live.session.status==='PAUSED'?<><button onClick={()=>onControl('RESUME')}>▶ Reprendre</button><button className="danger secondary" onClick={()=>window.confirm(rehearsal?'Terminer cette répétition ?':'Terminer définitivement la partie ?')&&onControl('FINISH')}>Terminer</button></>:null;
   return <section className="liveDashboard">
-    <section className="card liveConsole"><div><p className="eyebrow">POSTE MJ · LIVE</p><h3>{statusLabel(live.session.status)}</h3><p className="liveClock">{formatElapsed(elapsed)}</p><p className="microNote">Temps de jeu effectif — les pauses ne comptent pas.</p></div><div className="liveControls">{controls}</div></section>
+    <section className="card liveConsole"><div><p className="eyebrow">{rehearsal?'POSTE MJ · RÉPÉTITION':'POSTE MJ · LIVE'}</p><h3>{statusLabel(live.session.status)}</h3><p className="liveClock">{formatElapsed(elapsed)}</p><p className="microNote">Temps de jeu effectif — les pauses ne comptent pas.</p></div><div className="liveControls">{controls}</div></section>
     {!live.sourceReady&&<section className="card runtimeWarning"><strong>Timeline V0.7 à enrichir</strong><p>Réimporte une fois le MASTER du scénario après cette mise à jour pour charger phases et événements avant de démarrer le live.</p></section>}
     <section className="liveAlertStrip">
       <div className={live.alerts.overdueEvents?'alert hot':'alert'}>
@@ -1361,11 +1735,80 @@ function LivePanel({session,live,loading,onControl,onResource,onState,onEvent,on
         <strong>{new Set((live.logs??[]).filter((l:any)=>l.actionType==='LOCATION_EMPTY').map((l:any)=>l.refExternalId)).size}</strong>
       </div>
     </section>
+
+    {(live.businessDeals??[]).length>0&&
+      <OrganizerFold
+        sessionId={session.id}
+        id="live-business-deals"
+        title="Accords commerciaux"
+        subtitle={`${(live.businessDeals??[]).filter(d=>d.status==='ACCEPTED').length} à valider · ${(live.businessDeals??[]).filter(d=>d.status==='OFFICIAL').length} officiels`}
+        defaultOpen={(live.businessDeals??[]).some(d=>d.status==='ACCEPTED')}
+      >
+        <section className="card businessDealsPanel">
+          <div className="paneHead">
+            <div>
+              <p className="eyebrow">BUSINESS DEAL</p>
+              <h3>Accords financiers formels</h3>
+              <p>Un accord n’est officiel qu’après acceptation des deux joueurs puis validation du MJ.</p>
+            </div>
+            <span>{live.businessDeals.length}</span>
+          </div>
+
+          <div className="businessDealList">
+            {live.businessDeals.map(deal=><article className={`businessDealRow ${deal.status.toLowerCase()}`} key={deal.dealId}>
+              <div className="businessDealMain">
+                <div className="businessDealPeople">
+                  <strong>{deal.actorName}</strong>
+                  <span>↔</span>
+                  <strong>{deal.targetName}</strong>
+                </div>
+                <p>{deal.terms}</p>
+                <small>Proposé {niceDate(deal.proposedAt)}</small>
+              </div>
+              <div className="businessDealActions">
+                <span className={`eventStatus ${deal.status.toLowerCase()}`}>
+                  {deal.status==='PROPOSED'
+                    ? 'En attente du joueur'
+                    : deal.status==='ACCEPTED'
+                      ? 'À valider par le MJ'
+                      : deal.status==='DECLINED'
+                        ? 'Refusé'
+                        : 'Officiel ✓'}
+                </span>
+                {deal.status==='ACCEPTED'&&
+                  <button
+                    onClick={()=>
+                      window.confirm(
+                        `Valider officiellement cet accord ?\n\n${deal.actorName} ↔ ${deal.targetName}\n${deal.terms}`
+                      )&&onBusinessDeal(deal.dealId)
+                    }
+                  >
+                    ✓ Valider l’accord
+                  </button>
+                }
+              </div>
+            </article>)}
+          </div>
+        </section>
+      </OrganizerFold>
+    }
+
+    <OrganizerFold sessionId={session.id} id="live-timeline" title="Timeline" subtitle="Événements de scénario" defaultOpen={true}>
     <section className="card liveTimeline"><div className="paneHead"><div><p className="eyebrow">TIMELINE</p><h3>Événements de scénario</h3></div><span>{live.events.filter(e=>e.status==='DONE').length}/{live.events.length}</span></div>{live.events.length===0?<p className="empty">Aucun événement structuré dans ce scénario.</p>:<div className="eventList">{live.events.map(e=>{const remain=e.dueElapsedSeconds==null?null:e.dueElapsedSeconds-elapsed;const urgent=e.status==='PENDING'&&remain!=null&&remain<=0;const soon=e.status==='PENDING'&&remain!=null&&remain>0&&remain<=600;return <article className={`eventRow ${e.status.toLowerCase()} ${urgent?'overdue':soon?'soon':''}`} key={e.externalId}><div className="eventWhen"><strong>{e.delayMinutes!=null?`+${e.delayMinutes} min`:'Manuel'}</strong>{remain!=null&&e.status==='PENDING'&&<small>{remain<=0?`retard ${formatElapsed(-remain)}`:`dans ${formatElapsed(remain)}`}</small>}</div><div className="eventBody"><strong>{e.title}</strong><p>{e.gmDescription}</p>{e.fallbackGm&&<small>Plan B : {e.fallbackGm}</small>}</div><div className="eventActions"><span className={`eventStatus ${e.status.toLowerCase()}`}>{e.status}</span>{running&&e.status==='PENDING'&&<><button onClick={()=>onEvent(e.externalId,'DONE')}>Fait ✓</button><button className="secondary" onClick={()=>onEvent(e.externalId,'SKIPPED')}>Ignorer</button></>}{running&&e.status!=='PENDING'&&<button className="secondary" onClick={()=>onEvent(e.externalId,'PENDING')}>Rouvrir</button>}</div></article>})}</div>}</section>
-    <InteractionPanel session={session} running={running} onMutated={onInteractionMutation}/>
-    <VotePanel session={session} running={running} onMutated={onInteractionMutation}/>
+    </OrganizerFold>
+
+    <OrganizerFold sessionId={session.id} id="live-actions" title="Actions, fouilles & objets" subtitle="Résolution et remises d’indices" defaultOpen={false}>
+      <InteractionPanel session={session} running={running} onMutated={onInteractionMutation}/>
+    </OrganizerFold>
+
+    <OrganizerFold sessionId={session.id} id="live-votes" title="Votes" subtitle="Scrutins & décisions collectives" defaultOpen={false}>
+      <VotePanel session={session} running={running} onMutated={onInteractionMutation}/>
+    </OrganizerFold>
+
+    <OrganizerFold sessionId={session.id} id="live-players" title="Joueurs live" subtitle="Ressources & états" defaultOpen={false}>
     <section className="card livePlayers"><div className="paneHead"><div><p className="eyebrow">JOUEURS LIVE</p><h3>Ressources & états</h3></div><span>{live.characters.length}</span></div><div className="livePlayerGrid">{live.characters.map(c=><article className="livePlayer" key={c.characterExternalId}><div className="livePlayerTitle"><div><strong>{c.characterName}</strong><small>{c.participantName?`Joueur : ${c.participantName}`:''}{c.participantName&&c.publicRole?' · ':''}{c.publicRole||''}</small></div>{c.states.length>0&&<span className="stateCount">{c.states.length} état{c.states.length>1?'s':''}</span>}</div><div className="liveResources">{c.resources.map(r=><div className="resourceControl" key={r.resourceExternalId}><span>{r.name}</span><div><button disabled={!running} className="mini" onClick={()=>onResource(c.characterExternalId,r.resourceExternalId,-1,'DELTA')}>−</button><strong>{r.currentValue}{r.maxValue!=null?`/${r.maxValue}`:''}</strong><button disabled={!running} className="mini" onClick={()=>onResource(c.characterExternalId,r.resourceExternalId,1,'DELTA')}>+</button></div></div>)}</div><StateControl character={c} definitions={live.stateDefinitions} disabled={!running} onState={onState}/></article>)}</div></section>
-    {live.logs.length>0&&<section className="card liveLog"><div className="paneHead"><div><p className="eyebrow">JOURNAL MJ</p><h3>Dernières actions</h3></div></div><div className="logList">{live.logs.slice(0,12).map(l=><div key={l.id}><time>{new Intl.DateTimeFormat('fr-BE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(l.createdAt))}</time><strong>{l.actionType.replaceAll('_',' ')}</strong><span>{l.characterExternalId||l.refExternalId||''}{l.beforeValue!=null||l.afterValue!=null?` · ${l.beforeValue??'—'} → ${l.afterValue??'—'}`:''}</span></div>)}</div></section>}
+    </OrganizerFold>
+    {live.logs.length>0&&<OrganizerFold sessionId={session.id} id="live-log" title="Journal MJ" subtitle="Dernières actions" defaultOpen={false}><section className="card liveLog"><div className="paneHead"><div><p className="eyebrow">JOURNAL MJ</p><h3>Dernières actions</h3></div></div><div className="logList">{live.logs.slice(0,12).map(l=><div key={l.id}><time>{new Intl.DateTimeFormat('fr-BE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(l.createdAt))}</time><strong>{l.actionType.replaceAll('_',' ')}</strong><span>{l.characterExternalId||l.refExternalId||''}{l.beforeValue!=null||l.afterValue!=null?` · ${l.beforeValue??'—'} → ${l.afterValue??'—'}`:''}</span></div>)}</div></section></OrganizerFold>}
   </section>;
 }
 
@@ -1401,7 +1844,27 @@ function InteractionPanel({session,running,onMutated}:{session:SessionDetail;run
 
   async function execute(){if(!interaction||!actor)return;setBusy(true);setError('');try{const r=await postJson<{ok:boolean;result:InteractionResult}>('/api/sessions/interactions/execute',{sessionId:session.id,actorCharacterExternalId:actorId,interactionExternalId:interaction.externalId,targetExternalId:targetId||null,gmOutcome:interaction.resolution==='GM'?gmOutcome:null,note});setResult(r.result);await load();onMutated();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);} }
   async function reveal(){if(!clueId||!actorId)return;setBusy(true);setError('');try{await postJson('/api/sessions/interactions/clue',{sessionId:session.id,characterExternalId:actorId,clueExternalId:clueId,sourceInteractionExternalId:result?.interactionExternalId??null,sourceRef:result?.targetExternalId??null});await load();onMutated();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);} }
-  async function transfer(){if(!objectId||!holder)return;const [holderType,...parts]=holder.split(':');const holderExternalId=parts.join(':')||null;setBusy(true);setError('');try{await postJson('/api/sessions/interactions/object',{sessionId:session.id,objectExternalId:objectId,holderType,holderExternalId});await load();onMutated();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);} }
+  async function transfer(){
+    if(!objectId||!holder)return;
+    const [holderType,...parts]=holder.split(':');
+    const holderExternalId=parts.join(':')||null;
+    setBusy(true);
+    setError('');
+    try{
+      await organizerPostJson('/api/sessions/interactions/object',{
+        sessionId:session.id,
+        objectExternalId:objectId,
+        holderType,
+        holderExternalId
+      });
+      await load();
+      onMutated();
+    }catch(e){
+      setError(e instanceof Error?e.message:String(e));
+    }finally{
+      setBusy(false);
+    }
+  }
 
   if(loading&&!dashboard)return <section className="card interactionPanel">Chargement des interactions…</section>;
   return <section className="card interactionPanel">
@@ -1442,17 +1905,38 @@ function VotePanel({session,running,onMutated}:{session:SessionDetail;running:bo
   const [dashboard,setDashboard]=useState<VoteDashboard|null>(null); const [loading,setLoading]=useState(true); const [busy,setBusy]=useState(false); const [error,setError]=useState('');
   async function load(){setLoading(true);setError('');try{const r=await fetchJson<{ok:boolean;votes:VoteDashboard}>(`/api/sessions/votes?sessionId=${encodeURIComponent(session.id)}`);setDashboard(r.votes);}catch(e){setError(e instanceof Error?e.message:String(e));setDashboard(null);}finally{setLoading(false);}}
   useEffect(()=>{void load()},[session.id]);
+  useEffect(()=>{
+    if(!running||busy)return;
+    let active=true;
+    const timer=window.setInterval(()=>{
+      void fetchJson<{ok:boolean;votes:VoteDashboard}>(`/api/sessions/votes?sessionId=${encodeURIComponent(session.id)}`)
+        .then(r=>{if(active)setDashboard(r.votes)})
+        .catch(()=>{});
+    },5000);
+    return()=>{active=false;window.clearInterval(timer)};
+  },[session.id,running,busy]);
   async function open(voteExternalId:string,secondRound=false){setBusy(true);setError('');try{await postJson('/api/sessions/votes/open',{sessionId:session.id,voteExternalId,secondRound});await load();onMutated();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
-  async function close(voteExternalId:string){if(!window.confirm('Fermer le vote et calculer le résultat ?'))return;setBusy(true);setError('');try{await postJson('/api/sessions/votes/close',{sessionId:session.id,voteExternalId});await load();onMutated();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
-  async function cast(voteExternalId:string,electorCharacterExternalId:string,optionId:string){setBusy(true);setError('');try{await postJson('/api/sessions/votes/cast',{sessionId:session.id,voteExternalId,electorCharacterExternalId,selectedOptionExternalIds:optionId?[optionId]:[]});await load();onMutated();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
+  async function close(voteExternalId:string,round:number,cancel=false){if(!window.confirm(cancel?'Annuler ce tour ? Les bulletins seront conservés, sans désigner de gagnant.':'Fermer le vote et calculer le résultat ?'))return;setBusy(true);setError('');try{await postJson('/api/sessions/votes/close',{sessionId:session.id,voteExternalId,round,cancel});await load();onMutated();}catch(e){const message=e instanceof Error?e.message:String(e);await load();setError(message.includes('VOTE_ROUND_CHANGED')?'Le tour a changé. Vérifie le scrutin actualisé.':message);}finally{setBusy(false);}}
+  async function cast(voteExternalId:string,round:number,electorCharacterExternalId:string,optionId:string){setBusy(true);setError('');try{await postJson('/api/sessions/votes/cast',{sessionId:session.id,voteExternalId,round,electorCharacterExternalId,selectedOptionExternalIds:optionId?[optionId]:[]});await load();onMutated();}catch(e){const message=e instanceof Error?e.message:String(e);await load();setError(message.includes('VOTE_ROUND_CHANGED')?'Le tour a changé. Vérifie le scrutin actualisé.':message);}finally{setBusy(false);}}
   if(loading&&!dashboard)return <section className="card votePanel">Chargement des votes…</section>;
   return <section className="card votePanel"><div className="paneHead"><div><p className="eyebrow">VOTES · V0.9</p><h3>Scrutins & décisions collectives</h3><p>Le MJ ouvre le scrutin, enregistre les bulletins et ferme le vote. Les résultats restent masqués jusqu’à la clôture quand le MASTER le prévoit.</p></div><span>{dashboard?.votes.length??0} vote(s)</span></div>
     {!dashboard?.sourceReady&&<div className="runtimeWarning"><strong>Données de vote à enrichir</strong><p>Réimporte une fois le MASTER après la V0.9 pour charger les votes et leurs options.</p></div>}
     {error&&<p className="errorbox">{error}</p>}
     {(dashboard?.votes.length??0)===0?<p className="empty">Aucun vote structuré dans ce scénario.</p>:<div className="voteList">{dashboard?.votes.map(v=><article className="voteCard" key={v.externalId}><div className="voteHead"><div><strong>{v.title}</strong><p>{v.question}</p></div><span>{v.secret?'Secret':'Public'}</span></div>
-      {!v.activeRound&&<button disabled={!running||busy||!dashboard.sourceReady} onClick={()=>void open(v.externalId,false)}>Ouvrir le vote</button>}
-      {v.activeRound?.status==='OPEN'&&<><div className="voteRound"><strong>Tour {v.activeRound.round}</strong><span>{v.voters.filter(x=>x.hasVoted).length}/{v.voters.length} bulletins</span></div><div className="voterList">{v.voters.map(e=><VoteVoterRow key={e.characterExternalId} vote={v} voter={e} disabled={!running||busy} onCast={(optionId)=>void cast(v.externalId,e.characterExternalId,optionId)}/>)}</div><button className="danger secondary" disabled={busy} onClick={()=>void close(v.externalId)}>Fermer et compter</button></>}
-      {v.activeRound?.status==='CLOSED'&&v.result&&<div className="voteResult"><div className="voteResultSummary"><strong>{v.result.majorityAbsolute&&v.result.winnerOptionExternalId?'Majorité obtenue':'Pas de majorité absolue'}</strong><span>{v.result.ballotsCast}/{v.result.electorateCount} bulletins · {v.result.abstentions} abstention(s)</span></div><div className="voteRanking">{v.result.ranked.map((r,i)=><div key={r.optionExternalId}><span>{i+1}. {r.label}</span><strong>{r.votes}</strong></div>)}</div>{v.result.suggestSecondRound&&<button disabled={!running||busy} onClick={()=>void open(v.externalId,true)}>Ouvrir le second tour · top 2</button>}</div>}
+      {!v.activeRound&&<>
+        {v.scopeType==='VOTE_WINNERS'&&v.electorate.length===0&&
+          <p className="voteWaiting">En attente des résultats des votes qui composent cet électorat.</p>}
+        <button
+          disabled={!running||busy||!dashboard.sourceReady||(v.scopeType==='VOTE_WINNERS'&&v.electorate.length===0)}
+          onClick={()=>void open(v.externalId,false)}
+        >
+          Ouvrir le vote
+        </button>
+      </>}
+      {v.activeRound?.status==='OPEN'&&<><div className="voteRound"><strong>Tour {v.activeRound.round}</strong><span>{v.voters.filter(x=>x.hasVoted).length}/{v.voters.length} bulletins</span></div><div className="voterList">{v.voters.map(e=><VoteVoterRow key={`${e.characterExternalId}:${v.activeRound!.round}`} vote={v} voter={e} disabled={!running||busy} onCast={(optionId)=>void cast(v.externalId,v.activeRound!.round,e.characterExternalId,optionId)}/>)}</div><button className="danger secondary" disabled={!running||busy} onClick={()=>void close(v.externalId,v.activeRound!.round)}>Fermer et compter</button><button className="secondary" disabled={!running||busy} onClick={()=>void close(v.externalId,v.activeRound!.round,true)}>Annuler ce tour</button></>}
+      {v.activeRound?.status==='CLOSING'&&<div className="voteWaiting"><p>Dépouillement en cours. Les bulletins sont verrouillés.</p><button disabled={!running||busy} onClick={()=>void close(v.externalId,v.activeRound!.round)}>Reprendre le dépouillement</button><button className="secondary" disabled={!running||busy} onClick={()=>void close(v.externalId,v.activeRound!.round,true)}>Annuler ce tour</button></div>}
+      {v.activeRound?.status==='CANCELLED'&&<div className="voteWaiting"><p>Tour {v.activeRound.round} annulé. Les bulletins sont conservés.</p><button disabled={!running||busy} onClick={()=>void open(v.externalId,false)}>Ouvrir un nouveau tour</button></div>}
+      {v.activeRound?.status==='CLOSED'&&v.result&&<div className="voteResult"><div className="voteResultSummary"><strong>{v.result.winnerOptionExternalId?'Résultat définitif':v.result.tieForLead?'Égalité en tête':'Aucun résultat définitif'}</strong><span>{v.result.ballotsCast}/{v.result.electorateCount} bulletins · {v.result.abstentions} abstention(s)</span></div><div className="voteRanking">{v.result.ranked.map((r,i)=><div key={r.optionExternalId}><span>{i+1}. {r.label}</span><strong>{r.votes}</strong></div>)}</div>{v.result.suggestSecondRound&&<button disabled={!running||busy} onClick={()=>void open(v.externalId,true)}>Ouvrir le second tour · départage</button>}</div>}
     </article>)}</div>}
   </section>;
 }
@@ -1469,26 +1953,192 @@ function StateControl({character,definitions,disabled,onState}:{character:LiveCh
   return <div className="stateControl"><div className="activeStates">{character.states.length===0?<small>Aucun état actif</small>:character.states.map(s=><span key={s.stateExternalId}>{s.name}<button disabled={disabled} title="Retirer" onClick={()=>onState(character.characterExternalId,s.stateExternalId,'REMOVE')}>×</button></span>)}</div><div className="stateApply"><select disabled={disabled||definitions.length===0} value={selected} onChange={e=>setSelected(e.target.value)}>{definitions.map(d=><option value={d.externalId} key={d.externalId}>{d.name}</option>)}</select><button className="secondary" disabled={disabled||!selected} onClick={()=>onState(character.characterExternalId,selected,'APPLY')}>Appliquer</button></div></div>;
 }
 
-function PrecastPanel({session,onToggle}:{session:SessionDetail;onToggle:(enabled:boolean)=>void}) {
-  const [copied,setCopied]=useState(false);
-  const link=session.precastToken?`${window.location.origin}/?precast=${encodeURIComponent(session.precastToken)}`:'';
-  const canEnable=session.status==='DRAFT'||session.status==='CASTING';
-  return <section className="card precastPanel"><div className="precastHead"><div><p className="eyebrow">PRÉ-CASTING PARTICIPANT</p><h3>{session.precastEnabled?'Lien ouvert':'Lien désactivé'}</h3><p>Les joueurs peuvent encoder eux-mêmes leurs préférences avant l’attribution des rôles.</p></div><button className={session.precastEnabled?'danger secondary':''} disabled={!session.precastEnabled&&!canEnable} onClick={()=>onToggle(!session.precastEnabled)}>{session.precastEnabled?'Désactiver':'Activer le lien'}</button></div><div className="precastStats"><div><span>Ouvertures</span><strong>{session.precastOpenCount??0}</strong></div><div><span>Formulaires reçus</span><strong>{session.precastSubmissionCount??0}</strong></div><div><span>Participants pré-castés</span><strong>{session.counts.precastParticipants??0}</strong></div></div>{session.precastEnabled&&link&&<div className="shareLink"><input readOnly value={link}/><button className="secondary" onClick={async()=>{await navigator.clipboard.writeText(link);setCopied(true);setTimeout(()=>setCopied(false),1600);}}>{copied?'Copié ✓':'Copier le lien'}</button><a className="buttonLink" href={link} target="_blank" rel="noreferrer">Tester</a></div>}{!canEnable&&!session.precastEnabled&&<p className="microNote">Le pré-casting est fermé dès que la session passe à « Prête ».</p>}</section>;
-}
-
 function PublicPrecastView({token}:{token:string}) {
-  const [session,setSession]=useState<PublicPrecastSession|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState(''); const [submitted,setSubmitted]=useState(false); const [busy,setBusy]=useState(false);
-  const [displayName,setDisplayName]=useState(''); const [email,setEmail]=useState(''); const [ageBracket,setAgeBracket]=useState(''); const [genderPreference,setGenderPreference]=useState('SANS_PREFERENCE'); const [desiredInvolvement,setDesiredInvolvement]=useState('ACTIF'); const [notes,setNotes]=useState('');
-  useEffect(()=>{(async()=>{try{const result=await fetchJson<{ok:boolean;session:PublicPrecastSession}>(`/api/public/precast/session?token=${encodeURIComponent(token)}`);setSession(result.session);}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setLoading(false);}})();},[token]);
-  if(loading)return <main className="publicShell"><section className="publicCard card">Chargement du pré-casting…</section></main>;
-  if(error||!session)return <main className="publicShell"><section className="publicCard card"><p className="eyebrow">MURDER ENGINE</p><h1>Lien indisponible</h1><p>Ce lien de pré-casting n’est plus actif ou n’est pas valide.</p></section></main>;
-  if(submitted)return <main className="publicShell"><section className="publicCard card successPublic"><span className="successGlyph">✓</span><p className="eyebrow">PRÉ-CASTING ENVOYÉ</p><h1>Merci {displayName} !</h1><p>Tes préférences ont bien été transmises à l’organisateur. Le rôle sera attribué séparément.</p></section></main>;
-  return <main className="publicShell"><section className="publicCard card"><p className="eyebrow">{session.scenario.title}</p><h1>{session.name||'Pré-casting'}</h1><p className="publicMeta">{niceDate(session.scheduledAt)}{session.venue?` · ${session.venue}`:''}</p>{session.scenario.playerSummary&&<p className="publicPitch">{session.scenario.playerSummary}</p>}<div className="privacyNote">Ces informations servent uniquement à aider l’organisateur à attribuer les rôles. Aucun choix ne garantit un personnage précis.</div><div className="publicForm"><label>Prénom / nom<input autoComplete="name" value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Ton prénom…"/></label><label>E-mail <span>(obligatoire)</span><input required autoComplete="email" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="ton@email.be"/></label><label>Tranche d’âge <span>(obligatoire)</span><select required value={ageBracket} onChange={e=>setAgeBracket(e.target.value)}><option value="" disabled>Choisis ta tranche d’âge</option><option value="MOINS_18">Moins de 18 ans</option><option value="18_25">18–25 ans</option><option value="26_40">26–40 ans</option><option value="41_60">41–60 ans</option><option value="60_PLUS">60 ans et +</option></select></label><label>Préférence de personnage<select value={genderPreference} onChange={e=>setGenderPreference(e.target.value)}><option value="SANS_PREFERENCE">Aucune préférence</option><option value="MASCULIN">Je préfère un personnage masculin</option><option value="FEMININ">Je préfère un personnage féminin</option><option value="A_DISCUTER">À discuter avec l’organisateur</option></select></label><label>Implication souhaitée<select value={desiredInvolvement} onChange={e=>setDesiredInvolvement(e.target.value)}><option value="TRANQUILLE">Tranquille — jouer sans trop de pression</option><option value="ACTIF">Actif — participer pleinement</option><option value="TRES_IMPLIQUE">Très impliqué — beaucoup de jeu</option><option value="PREMIER_ROLE">Premier rôle — j’aime être au centre de l’action</option></select></label><label>Envie particulière de jeu <span>(facultatif)</span><textarea maxLength={500} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex. : j’aime négocier, enquêter, jouer un personnage théâtral…"/></label><button disabled={busy||displayName.trim().length<2||!isValidEmail(email)||!ageBracket} onClick={async()=>{setBusy(true);setError('');try{await postJson('/api/public/precast/submit',{token,displayName,email,ageBracket,genderPreference,desiredInvolvement,notes});setSubmitted(true);}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}}>{busy?'Envoi…':'Envoyer mes préférences'}</button>{error&&<p className="errorbox">{error}</p>}</div></section></main>;
+  const [session,setSession]=useState<PublicPrecastSession|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState('');
+  const [submitted,setSubmitted]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const [displayName,setDisplayName]=useState('');
+  const [email,setEmail]=useState('');
+  const [ageBracket,setAgeBracket]=useState('');
+  const [genderPreference,setGenderPreference]=useState('SANS_PREFERENCE');
+  const [desiredInvolvement,setDesiredInvolvement]=useState('ACTIF');
+  const [notes,setNotes]=useState('');
+
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const result=await fetchJson<{ok:boolean;session:PublicPrecastSession}>(
+          `/api/public/precast/session?token=${encodeURIComponent(token)}`
+        );
+        setSession(result.session);
+      }catch(e){
+        setError(e instanceof Error?e.message:String(e));
+      }finally{
+        setLoading(false);
+      }
+    })();
+  },[token]);
+
+  const en=String(session?.language??'FR').toUpperCase()==='EN';
+  const t=(fr:string,enText:string)=>en?enText:fr;
+
+  if(loading)
+    return <main className="publicShell">
+      <section className="publicCard card">
+        {t('Chargement du pré-casting…','Loading pre-casting…')}
+      </section>
+    </main>;
+
+  if(error||!session)
+    return <main className="publicShell">
+      <section className="publicCard card">
+        <p className="eyebrow">MURDER ENGINE</p>
+        <h1>{t('Lien indisponible','Link unavailable')}</h1>
+        <p>{t(
+          'Ce lien de pré-casting n’est plus actif ou n’est pas valide.',
+          'This pre-casting link is no longer active or valid.'
+        )}</p>
+      </section>
+    </main>;
+
+  if(submitted)
+    return <main className="publicShell">
+      <section className="publicCard card successPublic">
+        <span className="successGlyph">✓</span>
+        <p className="eyebrow">{t('PRÉ-CASTING ENVOYÉ','PRE-CASTING SUBMITTED')}</p>
+        <h1>{t(`Merci ${displayName} !`,`Thank you, ${displayName}!`)}</h1>
+        <p>{t(
+          'Tes préférences ont bien été transmises à l’organisateur. Le rôle sera attribué séparément.',
+          'Your preferences have been sent to the organizer. Your role will be assigned separately.'
+        )}</p>
+      </section>
+    </main>;
+
+  return <main className="publicShell">
+    <section className="publicCard card">
+      <p className="eyebrow">{session.scenario.title}</p>
+      <h1>{session.name||t('Pré-casting','Pre-casting')}</h1>
+      <p className="publicMeta">
+        {publicNiceDate(session.scheduledAt,session.language)}
+        {session.venue?` · ${session.venue}`:''}
+      </p>
+
+      {session.scenario.playerSummary&&
+        <p className="publicPitch">{session.scenario.playerSummary}</p>
+      }
+
+      <div className="privacyNote">
+        {t(
+          'Ces informations servent uniquement à aider l’organisateur à attribuer les rôles. Aucun choix ne garantit un personnage précis.',
+          'This information is only used to help the organizer assign roles. No preference guarantees a specific character.'
+        )}
+      </div>
+
+      <div className="publicForm">
+        <label>
+          {t('Prénom / nom','Name')}
+          <input
+            autoComplete="name"
+            value={displayName}
+            onChange={e=>setDisplayName(e.target.value)}
+            placeholder={t('Ton prénom…','Your name…')}
+          />
+        </label>
+
+        <label>
+          {t('E-mail','Email')} <span>({t('obligatoire','required')})</span>
+          <input
+            required
+            autoComplete="email"
+            type="email"
+            value={email}
+            onChange={e=>setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </label>
+
+        <label>
+          {t('Tranche d’âge','Age range')} <span>({t('obligatoire','required')})</span>
+          <select required value={ageBracket} onChange={e=>setAgeBracket(e.target.value)}>
+            <option value="" disabled>{t('Choisis ta tranche d’âge','Choose your age range')}</option>
+            <option value="MOINS_18">{t('Moins de 18 ans','Under 18')}</option>
+            <option value="18_25">18–25</option>
+            <option value="26_40">26–40</option>
+            <option value="41_60">41–60</option>
+            <option value="60_PLUS">{t('60 ans et +','60+')}</option>
+          </select>
+        </label>
+
+        <label>
+          {t('Préférence de personnage','Character preference')}
+          <select value={genderPreference} onChange={e=>setGenderPreference(e.target.value)}>
+            <option value="SANS_PREFERENCE">{t('Aucune préférence','No preference')}</option>
+            <option value="MASCULIN">{t('Je préfère un personnage masculin','I prefer a male character')}</option>
+            <option value="FEMININ">{t('Je préfère un personnage féminin','I prefer a female character')}</option>
+            <option value="A_DISCUTER">{t('À discuter avec l’organisateur','Discuss with the organizer')}</option>
+          </select>
+        </label>
+
+        <label>
+          {t('Implication souhaitée','Desired involvement')}
+          <select value={desiredInvolvement} onChange={e=>setDesiredInvolvement(e.target.value)}>
+            <option value="TRANQUILLE">{t('Tranquille — jouer sans trop de pression','Relaxed — play without too much pressure')}</option>
+            <option value="ACTIF">{t('Actif — participer pleinement','Active — take a full part in the game')}</option>
+            <option value="TRES_IMPLIQUE">{t('Très impliqué — beaucoup de jeu','Highly involved — lots of interaction')}</option>
+            <option value="PREMIER_ROLE">{t('Premier rôle — j’aime être au centre de l’action','Leading role — I like being at the centre of the action')}</option>
+          </select>
+        </label>
+
+        <label>
+          {t('Envie particulière de jeu','Anything you especially enjoy')} <span>({t('facultatif','optional')})</span>
+          <textarea
+            maxLength={500}
+            value={notes}
+            onChange={e=>setNotes(e.target.value)}
+            placeholder={t(
+              'Ex. : j’aime négocier, enquêter, jouer un personnage théâtral…',
+              'E.g. I enjoy negotiating, investigating, playing theatrical characters…'
+            )}
+          />
+        </label>
+
+        <button
+          disabled={busy||displayName.trim().length<2||!isValidEmail(email)||!ageBracket}
+          onClick={async()=>{
+            setBusy(true);
+            setError('');
+            try{
+              await postJson('/api/public/precast/submit',{
+                token,
+                displayName,
+                email,
+                ageBracket,
+                genderPreference,
+                desiredInvolvement,
+                notes
+              });
+              setSubmitted(true);
+            }catch(e){
+              setError(e instanceof Error?e.message:String(e));
+            }finally{
+              setBusy(false);
+            }
+          }}
+        >
+          {busy?t('Envoi…','Sending…'):t('Envoyer mes préférences','Submit my preferences')}
+        </button>
+
+        {error&&<p className="errorbox">{error}</p>}
+      </div>
+    </section>
+  </main>;
 }
 
 function AddParticipantForm({onAdd}:{onAdd:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>}) {
   const [name,setName]=useState(''); const [email,setEmail]=useState(''); const [ageBracket,setAgeBracket]=useState(''); const [genderPreference,setGenderPreference]=useState('SANS_PREFERENCE'); const [level,setLevel]=useState('ACTIF'); const [busy,setBusy]=useState(false);
-  return <section className="card participantForm"><div><p className="eyebrow">PARTICIPANTS</p><h3>Ajouter un joueur</h3><p>Ces préférences alimentent la proposition de casting V1.6. Elles restent indicatives : le MJ garde la décision finale.</p></div><div className="formGrid participantFields"><label>Prénom / nom<input value={name} onChange={e=>setName(e.target.value)} placeholder="Gaël…"/></label><label>E-mail <span>(obligatoire)</span><input required type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Tranche d’âge <span>(obligatoire)</span><select required value={ageBracket} onChange={e=>setAgeBracket(e.target.value)}><option value="" disabled>Choisir…</option><option value="MOINS_18">Moins de 18 ans</option><option value="18_25">18–25 ans</option><option value="26_40">26–40 ans</option><option value="41_60">41–60 ans</option><option value="60_PLUS">60 ans et +</option></select></label><label>Préférence personnage<select value={genderPreference} onChange={e=>setGenderPreference(e.target.value)}><option value="SANS_PREFERENCE">Aucune préférence</option><option value="FEMININ">Plutôt féminin</option><option value="MASCULIN">Plutôt masculin</option><option value="A_DISCUTER">À discuter</option></select></label><label>Implication souhaitée<select value={level} onChange={e=>setLevel(e.target.value)}><option value="TRANQUILLE">Tranquille</option><option value="ACTIF">Actif</option><option value="TRES_IMPLIQUE">Très impliqué</option><option value="PREMIER_ROLE">Premier rôle</option></select></label></div><button disabled={!name.trim()||!isValidEmail(email)||!ageBracket||busy} onClick={async()=>{setBusy(true);try{await onAdd({displayName:name,email,ageBracket,genderPreference,desiredInvolvement:level});setName('');setEmail('');setAgeBracket('');setGenderPreference('SANS_PREFERENCE');}finally{setBusy(false);}}}>{busy?'Ajout…':'Ajouter'}</button></section>;
+  return <section className="card participantForm"><div><p className="eyebrow">PARTICIPANTS</p><h3>Ajouter un joueur</h3><p>Ces préférences alimentent la proposition de casting V1.6. Elles restent indicatives : le MJ garde la décision finale.</p></div><div className="formGrid participantFields"><label>Prénom / nom<input value={name} onChange={e=>setName(e.target.value)} placeholder="Gaël…"/></label><label>E-mail <span>(obligatoire)</span><input required type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Tranche d’âge <span>(facultatif)</span><select value={ageBracket} onChange={e=>setAgeBracket(e.target.value)}><option value="">Non renseigné</option><option value="MOINS_18">Moins de 18 ans</option><option value="18_25">18–25 ans</option><option value="26_40">26–40 ans</option><option value="41_60">41–60 ans</option><option value="60_PLUS">60 ans et +</option></select></label><label>Préférence personnage<select value={genderPreference} onChange={e=>setGenderPreference(e.target.value)}><option value="SANS_PREFERENCE">Aucune préférence</option><option value="FEMININ">Plutôt féminin</option><option value="MASCULIN">Plutôt masculin</option><option value="A_DISCUTER">À discuter</option></select></label><label>Implication souhaitée<select value={level} onChange={e=>setLevel(e.target.value)}><option value="TRANQUILLE">Tranquille</option><option value="ACTIF">Actif</option><option value="TRES_IMPLIQUE">Très impliqué</option><option value="PREMIER_ROLE">Premier rôle</option></select></label></div><button disabled={!name.trim()||!isValidEmail(email)||busy} onClick={async()=>{setBusy(true);try{await onAdd({displayName:name,email,ageBracket,genderPreference,desiredInvolvement:level});setName('');setEmail('');setAgeBracket('');setGenderPreference('SANS_PREFERENCE');}finally{setBusy(false);}}}>{busy?'Ajout…':'Ajouter'}</button></section>;
 }
 
 function SessionPreparationPanel({session,onApplied,onMarkReady}:{session:SessionDetail;onApplied:()=>void;onMarkReady:()=>void}) {
@@ -1504,16 +2154,16 @@ function SessionPreparationPanel({session,onApplied,onMarkReady}:{session:Sessio
     </>}</section>;
 }
 
-function CharacterSheet({detail}:{detail:CharacterDetail}) { const c=detail.character; return <div className="characterSheet"><section className="card identityCard"><div className="identityTop"><div><p className="eyebrow">{c.externalId}</p><h3>{c.name}</h3><p className="roleLine">{c.publicRole||'Sans rôle public'}{c.narrativeAge?` · ${c.narrativeAge} ans`:''}</p></div><div className="statusPills"><span>{importanceLabel(c.importance)}</span><span>{c.intensity}</span></div></div>{c.motto&&<blockquote>« {c.motto} »</blockquote>}<div className="prose"><h4>Biographie</h4><p>{c.biography}</p></div>{c.secretIntro&&<div className="secretBox"><h4>Secret d’introduction</h4><p>{c.secretIntro}</p></div>}{c.apparentMotive&&<div className="prose"><h4>Mobile apparent</h4><p>{c.apparentMotive}</p></div>}{c.personalTimeline&&<div className="prose"><h4>Chronologie personnelle</h4><p>{c.personalTimeline}</p></div>}</section><section className="card detailSection"><div className="detailTitle"><h4>Objectifs</h4><span>{detail.objectives.length}</span></div>{detail.objectives.length===0?<p className="empty">Aucun objectif importé.</p>:<div className="stack">{detail.objectives.map(o=><article className="objective" key={o.externalId}><div><strong>{o.title}</strong><span>{o.objectiveType}{o.secret?' · SECRET':''}</span></div><p>{o.description}</p></article>)}</div>}</section><section className="card detailSection"><div className="detailTitle"><h4>Connaissances initiales</h4><span>{detail.knowledge.length}</span></div>{detail.knowledge.length===0?<p className="empty">Aucune connaissance initiale structurée.</p>:<div className="stack">{detail.knowledge.map(k=><article className="knowledge" key={k.factExternalId}><div><strong>{k.fact.title}</strong><span>{k.fact.nature} · {importanceLabel(k.fact.importance)}</span></div><p>{k.fact.text}</p></article>)}</div>}</section><section className="card detailSection"><div className="detailTitle"><h4>Relations</h4><span>{detail.relationships.length}</span></div>{detail.relationships.length===0?<p className="empty">Aucune relation structurée.</p>:<div className="relationGrid">{detail.relationships.map(r=><article className="relation" key={r.externalId}><strong>{r.otherName}</strong><small>{r.otherPublicRole||r.relationType||'Relation'}</small><p>{r.text}</p><em>{r.visibility}</em></article>)}</div>}</section>
+function CharacterSheet({detail}:{detail:CharacterDetail}) { const c=detail.character; return <div className="characterSheet"><section className="card identityCard"><div className="identityTop"><div><p className="eyebrow">{c.externalId}</p><h3>{c.name}</h3><p className="roleLine">{c.publicRole||'Sans rôle public'}{c.narrativeAge?` · ${c.narrativeAge} ans`:''}</p></div><div className="statusPills"><span>{importanceLabel(c.importance)}</span><span>{c.intensity}</span></div></div>{c.motto&&<blockquote>« {c.motto} »</blockquote>}<div className="prose"><h4>Biographie</h4><NarrativeText text={c.biography}/></div>{c.secretIntro&&<div className="secretBox"><h4>Secret d’introduction</h4><NarrativeText text={c.secretIntro} className="compact"/></div>}{c.apparentMotive&&<div className="prose"><h4>Mobile apparent</h4><NarrativeText text={c.apparentMotive} className="compact"/></div>}{c.personalTimeline&&<div className="prose"><h4>Chronologie personnelle</h4><NarrativeText text={c.personalTimeline}/></div>}</section><section className="card detailSection"><div className="detailTitle"><h4>Objectifs</h4><span>{detail.objectives.length}</span></div>{detail.objectives.length===0?<p className="empty">Aucun objectif importé.</p>:<div className="stack">{detail.objectives.map(o=><article className="objective" key={o.externalId}><div><strong>{o.title}</strong><span>{o.objectiveType}{o.secret?' · SECRET':''}</span></div><p>{o.description}</p></article>)}</div>}</section><section className="card detailSection"><div className="detailTitle"><h4>Connaissances initiales</h4><span>{detail.knowledge.length}</span></div>{detail.knowledge.length===0?<p className="empty">Aucune connaissance initiale structurée.</p>:<div className="stack">{detail.knowledge.map(k=><article className="knowledge" key={k.factExternalId}><div><strong>{k.fact.title}</strong><span>{k.fact.nature} · {importanceLabel(k.fact.importance)}</span></div><p>{k.fact.text}</p></article>)}</div>}</section><section className="card detailSection"><div className="detailTitle"><h4>Relations</h4><span>{detail.relationships.length}</span></div>{detail.relationships.length===0?<p className="empty">Aucune relation structurée.</p>:<div className="relationGrid">{detail.relationships.map(r=><article className="relation" key={r.externalId}><strong>{r.otherName}</strong><small>{r.otherPublicRole||r.relationType||'Relation'}</small><p>{r.text}</p><em>{r.visibility}</em></article>)}</div>}</section>
 <section className="card detailSection characterPlayHelp">
   <div className="prose">
     <h4>Comment me la jouer</h4>
-    <p>{c.interpretationNotes||'Aucun conseil de jeu renseigné dans ce MASTER.'}</p>
+    <NarrativeText text={c.interpretationNotes||'Aucun conseil de jeu renseigné dans ce MASTER.'}/>
   </div>
 
   <div className="prose">
     <h4>Mon apparence</h4>
-    <p>{c.appearanceNotes||'Aucune indication de costume ou d’apparence renseignée dans ce MASTER.'}</p>
+    <NarrativeText text={c.appearanceNotes||'Aucune indication de costume ou d’apparence renseignée dans ce MASTER.'}/>
   </div>
 </section></div>; }
 
@@ -1582,8 +2232,10 @@ function SkinPicker(props:{
 
         <p>
           {props.locked
-            ? `Cette variante hérite de l’apparence de « ${props.scenarioName||'ce scénario'} ».`
-            : 'La skin détermine l’ambiance des fiches joueurs, scans QR et du Pack MJ.'}
+            ? `L’apparence est commune à « ${props.scenarioName||'ce scénario'} ».`
+            : props.scenarioName
+              ? `Changer cette skin mettra à jour toutes les variantes de « ${props.scenarioName} ».`
+              : 'La skin détermine l’ambiance des fiches joueurs, scans QR et du Pack MJ.'}
         </p>
       </div>
 
@@ -1696,3 +2348,5 @@ function SkinPicker(props:{
 
 type ImportViewProps={file:File|null;data:ImportResponse|null;commit:CommitResponse|null;loading:boolean;committing:boolean;error:string;filter:'ALL'|Severity;filtered:Diagnostic[];skinId:SkinId;accentColor:string;skinLocked:boolean;onSkinChange:(id:SkinId,accent:string)=>void;onAccentChange:(value:string)=>void;onChoose:(file:File|null)=>void;onValidate:()=>void;onCommit:()=>void;onFilter:(filter:'ALL'|Severity)=>void;onOpenImported:()=>void};
 function ImportView(props:ImportViewProps & {targetScenario?:ScenarioLibraryItem|null}){return <section><div className="sectionhead"><div><p className="eyebrow">MASTER SCENARIO</p><h2>{props.targetScenario?`Nouvelle variante · ${props.targetScenario.title}`:'Importer'}</h2><p>{props.targetScenario?'Le scenario_id doit rester identique ; le MASTER définit entièrement cette nouvelle variante jouable.':'Valide le MASTER puis crée une variante immuable dans Murder Engine.'}</p></div></div><section className="card upload"><label className="drop"><input type="file" accept=".xlsx" onChange={e=>props.onChoose(e.target.files?.[0]??null)}/><strong>{props.file?props.file.name:'Choisir un fichier .xlsx'}</strong><span>Template Murder Engine V1.0 / V1.1 / V1.2</span></label><button onClick={props.onValidate} disabled={!props.file||props.loading}>{props.loading?'Analyse…':'Analyser le scénario'}</button>{props.error&&<p className="errorbox">{props.error}</p>}</section>{props.data&&<><section className={`status ${props.data.blocking?'bad':'good'}`}><div><span className="label">Statut</span><strong>{props.data.blocking?'Import bloqué':'Import autorisé'}</strong></div><div><span className="label">Scénario</span><strong>{String(props.data.summary.scenario)}</strong></div><div><span className="label">Variante</span><strong>{String(props.data.summary.variantName||`${props.data.summary.minPlayers||'?'}–${props.data.summary.maxPlayers||'?'} joueurs`)}</strong></div><div><span className="label">Genre</span><strong>{String(props.data.summary.genderComposition||props.data.summary.genderProfile||'—')}</strong></div><div><span className="label">Template</span><strong>V{String(props.data.summary.templateVersion)}</strong></div></section><section className="metrics">{['characters','objectives','facts','clues','objects','documents','interactions','events','votes'].map(k=><article key={k}><span>{k}</span><strong>{String(props.data?.summary[k]??0)}</strong></article>)}</section>{!props.data.blocking&&<SkinPicker skinId={props.skinId} accentColor={props.accentColor} locked={props.skinLocked} scenarioName={props.targetScenario?.title} onSkinChange={props.onSkinChange} onAccentChange={props.onAccentChange}/>} {!props.data.blocking&&<section className="card commitcard"><div><p className="eyebrow">MASTER VARIANT</p><h3>Le scénario est valide</h3><p>L’import crée ou enrichit la variante correspondant exactement à ce MASTER.</p></div><button onClick={props.onCommit} disabled={props.committing}>{props.committing?'Import en cours…':'Importer dans Murder Engine'}</button></section>}{props.commit&&<section className="commitSuccess"><strong>Variante enregistrée ✓</strong><span>{props.commit.scenarioVersionId}</span><small>Hash source : {props.commit.sourceHash.slice(0,16)}…</small><button onClick={props.onOpenImported}>Ouvrir dans la bibliothèque</button></section>}<section className="card"><div className="diaghead"><div><h3>Diagnostic</h3><p>{props.data.counts.ERROR} erreur(s) · {props.data.counts.WARNING} avertissement(s) · {props.data.counts.INFO} info(s)</p></div><div className="filters">{(['ALL','ERROR','WARNING','INFO'] as const).map(v=><button key={v} className={props.filter===v?'active':''} onClick={()=>props.onFilter(v)}>{v}</button>)}</div></div><div className="diagnostics">{props.filtered.length===0&&<p className="empty">Aucun diagnostic dans ce filtre.</p>}{props.filtered.map((d,i)=><article className={`diag ${d.severity.toLowerCase()}`} key={`${d.ruleId}-${d.entityId}-${i}`}><div className="pill">{d.severity}</div><div><strong>{d.entityType}{d.entityId?` · ${d.entityId}`:''}</strong><p>{d.message}</p>{d.detail&&<small>{d.detail}</small>}</div></article>)}</div></section></>}</section>}
+
+

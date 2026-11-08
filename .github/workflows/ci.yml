@@ -1,0 +1,63 @@
+name: Murder Engine CI
+
+on:
+  push:
+    branches:
+      - main
+      - media-library-v2
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - precasting-before-session-v1
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            functions/package-lock.json
+            web/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Run Functions tests
+        working-directory: functions
+        run: npm test
+
+      - name: Install pinned Firebase CLI
+        run: npm install --global firebase-tools@15.34.0
+
+      - name: Test voting against local SQL Connect
+        working-directory: functions
+        run: npm run test:integration
+
+      - name: Test casino, organizer access and player actions against local SQL Connect
+        working-directory: functions
+        run: |
+          node integration/run.mjs casino
+          node integration/run.mjs self-service
+          node integration/run.mjs nid
+
+      - name: Install Web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Test player navigation and boot recovery
+        working-directory: web
+        run: node --experimental-strip-types --test test/boot.test.mjs test/player-navigation.test.ts
+
+      - name: Build Web
+        working-directory: web
+        run: npm run build

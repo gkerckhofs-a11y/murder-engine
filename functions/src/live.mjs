@@ -1,3 +1,5 @@
+import { readAllPages } from './pagination.mjs';
+import { SESSION_LOCK } from './vote-storage.mjs';
 import {
   resolveSessionCharacter
 } from './session-character-resolver.mjs';
@@ -19,38 +21,79 @@ query LiveSession($sessionId: UUID!) {
 `;
 
 const LIVE_SOURCE_QUERY = `
-query LiveSource($versionId: UUID!) {
-  gamePhaseDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+query LiveSource($versionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
+  gamePhaseDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name orderIndex gmDescription triggerType triggerRef manualConfirm active
   }
-  gameEventDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+  gameEventDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId title gmDescription triggerType triggerRef delayMinutes absoluteTime phaseExternalId
     validation notificationExternalId priority mandatory repeatable fallbackGm manualFallbackAllowed active
   }
-  resources(where: {scenarioVersionId: {eq: $versionId}}) {
+  resources(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name unit maxValue active
   }
-  gameStateDefinitions(where: {scenarioVersionId: {eq: $versionId}}) {
+  gameStateDefinitions(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name description defaultDurationSeconds visibleToHolder visiblePublic active
   }
-  characters(where: {scenarioVersionId: {eq: $versionId}}) {
+  characters(where: {scenarioVersionId: {eq: $versionId}}, orderBy: {externalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     externalId name publicRole active
   }
 }
 `;
 
 const LIVE_RUNTIME_QUERY = `
-query LiveRuntime($sessionId: UUID!) {
-  sessionResources(where: {gameSessionId: {eq: $sessionId}}) {
+query LiveRuntime($sessionId: UUID!, $pageLimit: Int!, $pageOffset: Int!) {
+  sessionVotes(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{voteExternalId: ASC}, {round: ASC}], limit: $pageLimit, offset: $pageOffset) { voteExternalId round status }
+  sessionResources(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {resourceExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     characterExternalId resourceExternalId initialValue currentValue maxValue updatedAt
   }
-  sessionCharacterStates(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionCharacterStates(where: {gameSessionId: {eq: $sessionId}}, orderBy: [{characterExternalId: ASC}, {stateExternalId: ASC}], limit: $pageLimit, offset: $pageOffset) {
     characterExternalId stateExternalId active appliedAt expiresAt sourceRef
   }
-  sessionEvents(where: {gameSessionId: {eq: $sessionId}}) {
+  sessionEvents(where: {gameSessionId: {eq: $sessionId}}, orderBy: {eventExternalId: ASC}, limit: $pageLimit, offset: $pageOffset) {
     eventExternalId status firedAt acknowledgedAt skippedAt notes updatedAt
   }
   sessionActionLogs(where: {gameSessionId: {eq: $sessionId}}, orderBy: {createdAt: DESC}, limit: 30) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
+  businessDealProposals: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_PROPOSED"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
+  businessDealAccepted: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_ACCEPTED"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
+  businessDealDeclined: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_DECLINED"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
+    id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
+  }
+  businessDealOfficial: sessionActionLogs(
+    where: {
+      gameSessionId: {eq: $sessionId}
+      actionType: {eq: "BUSINESS_DEAL_OFFICIAL"}
+    }
+    orderBy: {createdAt: DESC}
+    limit: 100
+  ) {
     id actionType characterExternalId refExternalId beforeValue afterValue deltaValue note createdAt
   }
 }
@@ -59,8 +102,15 @@ query LiveRuntime($sessionId: UUID!) {
 const UPDATE_LIVE_SESSION_MUTATION = `
 mutation UpdateLiveSession(
   $sessionId: UUID!, $status: String!, $startedAt: Timestamp, $pausedAt: Timestamp, $finishedAt: Timestamp,
-  $liveClockStartedAt: Timestamp, $liveElapsedSeconds: Int!, $currentPhaseExternalId: String
-) {
+  $liveClockStartedAt: Timestamp, $liveElapsedSeconds: Int!, $currentPhaseExternalId: String, $expectedStatus: String!
+) @transaction {
+  ${SESSION_LOCK}
+  state: query @check(expr: "response.state.gameSession != null && response.state.gameSession.status == vars.expectedStatus", message: "SESSION_STATE_CHANGED") @redact {
+    gameSession(id: $sessionId) { status }
+  }
+  outstanding: query @check(expr: "vars.status != 'FINISHED' || response.outstanding.sessionVotes.size() == 0", message: "SESSION_HAS_OPEN_VOTES") @redact {
+    sessionVotes(where: {gameSessionId: {eq: $sessionId}, status: {in: ["OPEN", "CLOSING"]}}, limit: 1) { voteExternalId }
+  }
   gameSession_update(id: $sessionId, data: {
     status: $status, startedAt: $startedAt, pausedAt: $pausedAt, finishedAt: $finishedAt,
     liveClockStartedAt: $liveClockStartedAt, liveElapsedSeconds: $liveElapsedSeconds,
@@ -86,7 +136,11 @@ mutation UpdateSessionEvent(
 `;
 
 const UPDATE_SESSION_RESOURCE_MUTATION = `
-mutation UpdateSessionResource($sessionId: UUID!, $characterExternalId: String!, $resourceExternalId: String!, $currentValue: Int!, $updatedAt: Timestamp!) {
+mutation UpdateSessionResource($sessionId: UUID!, $characterExternalId: String!, $resourceExternalId: String!, $currentValue: Int!, $expectedValue: Int!, $updatedAt: Timestamp!) @transaction {
+  ${SESSION_LOCK}
+  resourceGuard: query @check(expr: "response.resourceGuard.sessionResource.currentValue == vars.expectedValue", message: "RESOURCE_BALANCE_CHANGED") @redact {
+    sessionResource(key:{gameSessionId:$sessionId,characterExternalId:$characterExternalId,resourceExternalId:$resourceExternalId}) {currentValue}
+  }
   sessionResource_update(
     key: {gameSessionId: $sessionId, characterExternalId: $characterExternalId, resourceExternalId: $resourceExternalId}
     data: {currentValue: $currentValue, updatedAt: $updatedAt}
@@ -191,6 +245,51 @@ export function shapeLiveDashboard(session, source, runtime, now = new Date()) {
     
     }));
 
+  function parseDealNote(value) {
+    try { return JSON.parse(String(value??'')) ?? {}; }
+    catch { return {}; }
+  }
+
+  const acceptedDealIds=new Set(
+    (runtime?.businessDealAccepted??[])
+      .map(x=>x.refExternalId)
+      .filter(Boolean)
+  );
+  const declinedDealIds=new Set(
+    (runtime?.businessDealDeclined??[])
+      .map(x=>x.refExternalId)
+      .filter(Boolean)
+  );
+  const officialDealIds=new Set(
+    (runtime?.businessDealOfficial??[])
+      .map(x=>x.refExternalId)
+      .filter(Boolean)
+  );
+
+  const businessDeals=(runtime?.businessDealProposals??[])
+    .map(proposal=>{
+      const data=parseDealNote(proposal.note);
+      const dealId=proposal.refExternalId;
+      const status=officialDealIds.has(dealId)
+        ? 'OFFICIAL'
+        : declinedDealIds.has(dealId)
+          ? 'DECLINED'
+          : acceptedDealIds.has(dealId)
+            ? 'ACCEPTED'
+            : 'PROPOSED';
+      return {
+        dealId,
+        actorCharacterExternalId:proposal.characterExternalId,
+        actorName:data.actorName??characterDefs.get(proposal.characterExternalId)?.name??proposal.characterExternalId,
+        targetCharacterExternalId:proposal.afterValue,
+        targetName:data.targetName??characterDefs.get(proposal.afterValue)?.name??proposal.afterValue,
+        terms:data.terms??proposal.beforeValue??'',
+        status,
+        proposedAt:proposal.createdAt,
+      };
+    })
+    .filter(deal=>Boolean(deal.dealId));
+
   const phases = (source?.gamePhaseDefinitions ?? []).filter(x=>x.active!==false).sort((a,b)=>(a.orderIndex??0)-(b.orderIndex??0));
   const events = (source?.gameEventDefinitions ?? []).filter(x=>x.active!==false).map(def => {
     const state = eventState.get(def.externalId) ?? {status:'PENDING'};
@@ -204,7 +303,7 @@ export function shapeLiveDashboard(session, source, runtime, now = new Date()) {
       elapsedSeconds, currentPhaseExternalId: session.currentPhaseExternalId ?? null,
     },
     sourceReady: ['0.7','0.8','0.9'].includes(session.scenarioVersion?.runtimeDataVersion),
-    phases, events, characters,
+    phases, events, characters, businessDeals,
     stateDefinitions: (source?.gameStateDefinitions ?? []).filter(x=>x.active!==false),
     logs: runtime?.sessionActionLogs ?? [],
     alerts: {
@@ -221,7 +320,7 @@ async function loadLive(sessionId, reader) {
   if (!session) throw new Error('SESSION_NOT_FOUND');
   const versionId = session.scenarioVersion?.id;
   const [source, runtime] = await Promise.all([
-    reader(LIVE_SOURCE_QUERY, {versionId}), reader(LIVE_RUNTIME_QUERY, {sessionId}),
+    readAllPages(reader,LIVE_SOURCE_QUERY,{versionId},['gamePhaseDefinitions', 'gameEventDefinitions', 'resources', 'gameStateDefinitions', 'characters']), readAllPages(reader,LIVE_RUNTIME_QUERY,{sessionId},['sessionVotes', 'sessionResources', 'sessionCharacterStates', 'sessionEvents']),
   ]);
   return {session, source:source??{}, runtime:runtime??{}};
 }
@@ -267,11 +366,58 @@ export async function controlLiveSession(sessionId, action, {reader=defaultReade
     next={status:'LIVE',startedAt:session.startedAt,pausedAt:null,finishedAt:null,liveClockStartedAt:iso,liveElapsedSeconds:Number(session.liveElapsedSeconds??0),currentPhaseExternalId:session.currentPhaseExternalId??null};
   } else if (normalized==='FINISH') {
     if (!['LIVE','PAUSED'].includes(session.status)) throw new Error('SESSION_NOT_RUNNING');
+    const outstanding=(runtime.sessionVotes??[]).filter(v=>['OPEN','CLOSING'].includes(v.status));
+    if(outstanding.length){
+      const error=new Error('SESSION_HAS_OPEN_VOTES');
+      error.details={votes:outstanding.map(v=>({voteExternalId:v.voteExternalId,round:v.round,status:v.status}))};
+      throw error;
+    }
     next={status:'FINISHED',startedAt:session.startedAt,pausedAt:null,finishedAt:iso,liveClockStartedAt:null,liveElapsedSeconds:computeLiveElapsedSeconds(session,now),currentPhaseExternalId:session.currentPhaseExternalId??null};
   } else throw new Error('INVALID_LIVE_ACTION');
-  await executor(UPDATE_LIVE_SESSION_MUTATION,{sessionId,...next});
+  await executor(UPDATE_LIVE_SESSION_MUTATION,{sessionId,expectedStatus:session.status,...next});
   await logAction(executor,{gameSessionId:sessionId,actionType:`LIVE_${normalized}`,beforeValue:session.status,afterValue:next.status,note:null});
   return {sessionId,...next};
+}
+
+
+export async function validateBusinessDeal(sessionId,input,{reader=defaultReader,executor=defaultExecutor,now=new Date()}={}) {
+  if(!sessionId) throw new Error('SESSION_ID_REQUIRED');
+  const dealId=String(input?.dealId??'').trim();
+  if(!dealId) throw new Error('BUSINESS_DEAL_ID_REQUIRED');
+
+  const {session,runtime}=await loadLive(sessionId,reader);
+  if(!['LIVE','PAUSED','FINISHED'].includes(session.status))
+    throw new Error('SESSION_NOT_ACTIVE');
+
+  const proposal=(runtime.businessDealProposals??[])
+    .find(x=>x.refExternalId===dealId);
+  if(!proposal) throw new Error('BUSINESS_DEAL_NOT_FOUND');
+
+  const accepted=(runtime.businessDealAccepted??[])
+    .some(x=>x.refExternalId===dealId);
+  if(!accepted) throw new Error('BUSINESS_DEAL_NOT_ACCEPTED');
+
+  const declined=(runtime.businessDealDeclined??[])
+    .some(x=>x.refExternalId===dealId);
+  if(declined) throw new Error('BUSINESS_DEAL_DECLINED');
+
+  const official=(runtime.businessDealOfficial??[])
+    .some(x=>x.refExternalId===dealId);
+  if(official) return {dealId,status:'OFFICIAL',alreadyOfficial:true};
+
+  await logAction(executor,{
+    gameSessionId:sessionId,
+    actionType:'BUSINESS_DEAL_OFFICIAL',
+    characterExternalId:proposal.characterExternalId,
+    refExternalId:dealId,
+    beforeValue:proposal.afterValue,
+    afterValue:'OFFICIAL',
+    deltaValue:null,
+    note:proposal.note,
+    createdAt:now.toISOString(),
+  });
+
+  return {dealId,status:'OFFICIAL',alreadyOfficial:false};
 }
 
 export async function changeLiveResource(sessionId,input,{reader=defaultReader,executor=defaultExecutor,now=new Date()}={}) {
@@ -288,7 +434,7 @@ export async function changeLiveResource(sessionId,input,{reader=defaultReader,e
   let after=mode==='SET'?amount:before+amount;
   if (row.maxValue!=null) after=Math.min(after,Number(row.maxValue));
   const updatedAt=now.toISOString();
-  await executor(UPDATE_SESSION_RESOURCE_MUTATION,{sessionId,characterExternalId,resourceExternalId,currentValue:after,updatedAt});
+  await executor(UPDATE_SESSION_RESOURCE_MUTATION,{sessionId,characterExternalId,resourceExternalId,currentValue:after,expectedValue:before,updatedAt});
   await logAction(executor,{gameSessionId:sessionId,actionType:'RESOURCE_CHANGE',characterExternalId,refExternalId:resourceExternalId,beforeValue:String(before),afterValue:String(after),deltaValue:after-before,note:String(input?.note??'').trim()||null});
   return {characterExternalId,resourceExternalId,before,after};
 }
@@ -325,3 +471,4 @@ export async function setLiveEventStatus(sessionId,input,{reader=defaultReader,e
 }
 
 export const __liveOps={LIVE_SESSION_QUERY,LIVE_SOURCE_QUERY,LIVE_RUNTIME_QUERY,UPDATE_LIVE_SESSION_MUTATION,INSERT_SESSION_EVENT_MUTATION,UPDATE_SESSION_EVENT_MUTATION,UPDATE_SESSION_RESOURCE_MUTATION,INSERT_CHARACTER_STATE_MUTATION,UPDATE_CHARACTER_STATE_MUTATION,INSERT_ACTION_LOG_MUTATION};
+

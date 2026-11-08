@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 const LIST_SESSIONS_QUERY = `
 query SessionLibrary {
-  gameSessions(orderBy: {createdAt: DESC}) {
+  gameSessions(where: {rehearsalOfId: {isNull: true}}, orderBy: {createdAt: DESC}) {
     id
     name
     scheduledAt
@@ -209,6 +209,31 @@ mutation AssignSessionCharacter($participantId: UUID!, $characterExternalId: Str
 }
 `;
 
+const REASSIGN_CHARACTER_MUTATION = `
+mutation ReassignSessionCharacter(
+  $participantId: UUID!
+  $targetCharacterExternalId: String!
+  $conflictParticipantId: UUID!
+  $replacementCharacterExternalId: String
+  $replacementCastingLocked: Boolean!
+) @transaction {
+  previousHolder: sessionParticipant_update(
+    id: $conflictParticipantId
+    data: {
+      characterExternalId: $replacementCharacterExternalId
+      castingLocked: $replacementCastingLocked
+    }
+  )
+  targetHolder: sessionParticipant_update(
+    id: $participantId
+    data: {
+      characterExternalId: $targetCharacterExternalId
+      castingLocked: true
+    }
+  )
+}
+`;
+
 const UPDATE_SESSION_STATUS_MUTATION = `
 mutation UpdateSessionStatus($sessionId: UUID!, $status: String!) {
   gameSession_update(id: $sessionId, data: { status: $status })
@@ -216,10 +241,10 @@ mutation UpdateSessionStatus($sessionId: UUID!, $status: String!) {
 `;
 
 const UPDATE_SESSION_DETAILS_MUTATION = `
-mutation UpdateSessionDetails($sessionId: UUID!, $name: String!, $scheduledAt: Timestamp, $venue: String) {
+mutation UpdateSessionDetails($sessionId: UUID!, $name: String!, $scheduledAt: Timestamp, $venue: String, $language: String!) {
   gameSession_update(
     id: $sessionId
-    data: { name: $name, scheduledAt: $scheduledAt, venue: $venue }
+    data: { name: $name, scheduledAt: $scheduledAt, venue: $venue, language: $language }
   )
 }
 `;
@@ -495,7 +520,10 @@ export function buildSessionPreparation(session) {
   const minPlayers = Number(session.scenarioVersion?.minPlayers ?? characters.length ?? 0);
   const maxPlayers = Number(session.scenarioVersion?.maxPlayers ?? characters.length ?? 0);
   const countCompatible = participants.length > 0 && participants.length >= minPlayers && participants.length <= maxPlayers;
-  const profilesComplete = participants.length > 0 && participants.every(p => Boolean(p.email && p.ageBracket && p.desiredInvolvement));
+  const profilesComplete = participants.length > 0 && participants.every(p => Boolean(
+    p.email && p.desiredInvolvement && (p.ageBracket || (p.source === 'MANUAL' && p.castingLocked && p.characterExternalId))
+  ));
+  const manuallyAssignedWithoutAge = profilesComplete && participants.some(p => !p.ageBracket);
   const assigned = participants.filter(p => Boolean(p.characterExternalId));
   const uniqueAssignments = new Set(assigned.map(p => p.characterExternalId)).size === assigned.length;
   const allAssigned = participants.length > 0 && assigned.length === participants.length && uniqueAssignments;
@@ -504,7 +532,7 @@ export function buildSessionPreparation(session) {
   const steps = [
     { id:'VARIANT', label:'Variante sélectionnée', ready:Boolean(session.scenarioVersion?.id), detail:session.scenarioVersion?.variantName || `V${session.scenarioVersion?.versionLabel ?? ''}` },
     { id:'GROUP', label:'Groupe compatible', ready:countCompatible, detail:`${participants.length} participant(s) · attendu ${minPlayers === maxPlayers ? minPlayers : `${minPlayers}–${maxPlayers}`}` },
-    { id:'PROFILES', label:'Profils participants', ready:profilesComplete, detail:profilesComplete ? 'Préférences exploitables' : 'E-mail, âge ou implication à compléter' },
+    { id:'PROFILES', label:'Profils participants', ready:profilesComplete, detail:profilesComplete ? (manuallyAssignedWithoutAge ? 'Attribution manuelle validée · âge facultatif' : 'Préférences exploitables') : 'Profil ou attribution manuelle à compléter' },
     { id:'CASTING', label:'Casting complet', ready:allAssigned && assignedKnown, detail:`${assigned.length}/${participants.length} rôle(s) attribué(s)` },
     { id:'READY', label:'Session marquée prête', ready:session.status === 'READY', detail:session.status === 'READY' ? 'Prête pour initialisation' : 'À valider par le MJ' },
     { id:'RUNTIME', label:'Runtime initialisé', ready:Boolean(session.runtimeInitializedAt), detail:session.runtimeInitializedAt ? 'État joueur créé' : 'Après validation du casting' },
@@ -590,7 +618,8 @@ export async function createGameSession(input, { reader = defaultReader, executo
   const id = randomUUID();
   const scheduledAt = input?.scheduledAt ? String(input.scheduledAt) : null;
   const name = String(input?.name ?? '').trim() || `${version.scenario.title} — ${version.versionLabel}`;
-  const language = String(input?.language ?? version.language ?? 'FR').trim() || 'FR';
+  const language = String(input?.language ?? version.language ?? 'FR').trim().toUpperCase() || 'FR';
+  if (!['FR','EN'].includes(language)) throw new Error('INVALID_SESSION_LANGUAGE');
 
   await executor(CREATE_SESSION_MUTATION, {
     data: {
@@ -630,8 +659,9 @@ export async function addGameSessionParticipant(sessionId, input, { reader = def
   if (!email.includes('@') || email.length > 254) throw new Error('INVALID_EMAIL');
 
   const ageBracket = String(input?.ageBracket ?? '').trim().toUpperCase();
-  if (!ageBracket) throw new Error('AGE_BRACKET_REQUIRED');
-  if (!ALLOWED_AGE_BRACKETS.has(ageBracket)) throw new Error('INVALID_AGE_BRACKET');
+  // Manual casting can be supplied without demographic information. Keep an
+  // unknown age unknown; public registration still validates its required age.
+  if (ageBracket && !ALLOWED_AGE_BRACKETS.has(ageBracket)) throw new Error('INVALID_AGE_BRACKET');
 
   const id = randomUUID();
   await executor(ADD_PARTICIPANT_MUTATION, {
@@ -640,7 +670,7 @@ export async function addGameSessionParticipant(sessionId, input, { reader = def
       gameSessionId: sessionId,
       displayName,
       email,
-      ageBracket,
+      ageBracket: ageBracket || null,
       genderPreference: String(input?.genderPreference ?? '').trim() || null,
       desiredInvolvement: involvement,
       characterExternalId: null,
@@ -649,8 +679,8 @@ export async function addGameSessionParticipant(sessionId, input, { reader = def
       playerAccessEnabled: false,
       playerAccessToken: null,
       playerOpenCount: 0,
-      source: 'MANUAL',
-      precastSubmittedAt: null,
+      source: String(input?.source ?? 'MANUAL').trim().toUpperCase() || 'MANUAL',
+      precastSubmittedAt: input?.precastSubmittedAt ? String(input.precastSubmittedAt) : null,
       notes: String(input?.notes ?? '').trim() || null,
       active: true,
     },
@@ -666,14 +696,37 @@ export async function assignCharacterToParticipant(sessionId, participantId, cha
 
   if (detail.runtimeInitializedAt) throw new Error('RUNTIME_ALREADY_INITIALIZED');
   if (detail.status === 'ARCHIVED') throw new Error('SESSION_ARCHIVED');
+
   const participant = detail.participants.find(p => p.id === participantId);
   if (!participant) throw new Error('PARTICIPANT_NOT_FOUND');
 
   if (targetCharacter) {
     const character = detail.characters.find(c => c.externalId === targetCharacter);
     if (!character) throw new Error('CHARACTER_NOT_AVAILABLE');
-    const conflict = detail.participants.find(p => p.id !== participantId && p.characterExternalId === targetCharacter);
-    if (conflict) throw new Error('CHARACTER_ALREADY_ASSIGNED');
+
+    const conflict = detail.participants.find(
+      p => p.id !== participantId && p.characterExternalId === targetCharacter
+    );
+
+    if (conflict) {
+      const replacementCharacterExternalId = participant.characterExternalId || null;
+
+      await executor(REASSIGN_CHARACTER_MUTATION, {
+        participantId,
+        targetCharacterExternalId: targetCharacter,
+        conflictParticipantId: conflict.id,
+        replacementCharacterExternalId,
+        replacementCastingLocked: Boolean(replacementCharacterExternalId),
+      });
+
+      return {
+        participantId,
+        characterExternalId: targetCharacter,
+        reassigned: true,
+        previousHolderParticipantId: conflict.id,
+        previousHolderCharacterExternalId: replacementCharacterExternalId,
+      };
+    }
   }
 
   await executor(ASSIGN_CHARACTER_MUTATION, {
@@ -681,7 +734,12 @@ export async function assignCharacterToParticipant(sessionId, participantId, cha
     characterExternalId: targetCharacter,
     castingLocked: Boolean(targetCharacter),
   });
-  return { participantId, characterExternalId: targetCharacter };
+
+  return {
+    participantId,
+    characterExternalId: targetCharacter,
+    reassigned: false,
+  };
 }
 
 export async function updateGameSessionDetails(sessionId, input, { reader = defaultReader, executor = defaultExecutor } = {}) {
@@ -696,6 +754,8 @@ export async function updateGameSessionDetails(sessionId, input, { reader = defa
   const name = cleanText(input?.name, 120);
   if (!name) throw new Error('SESSION_NAME_REQUIRED');
   const venue = cleanText(input?.venue, 180) || null;
+  const language = String(input?.language ?? detail.language ?? 'FR').trim().toUpperCase() || 'FR';
+  if (!['FR','EN'].includes(language)) throw new Error('INVALID_SESSION_LANGUAGE');
 
   let scheduledAt = null;
   if (input?.scheduledAt) {
@@ -704,8 +764,8 @@ export async function updateGameSessionDetails(sessionId, input, { reader = defa
     scheduledAt = date.toISOString();
   }
 
-  await executor(UPDATE_SESSION_DETAILS_MUTATION, { sessionId, name, scheduledAt, venue });
-  return { sessionId, name, scheduledAt, venue };
+  await executor(UPDATE_SESSION_DETAILS_MUTATION, { sessionId, name, scheduledAt, venue, language });
+  return { sessionId, name, scheduledAt, venue, language };
 }
 
 export async function setGameSessionStatus(sessionId, status, { reader = defaultReader, executor = defaultExecutor } = {}) {
@@ -835,6 +895,7 @@ export const __sessionOps = {
   ADD_PARTICIPANT_MUTATION,
   UPDATE_PRECAST_PARTICIPANT_MUTATION,
   ASSIGN_CHARACTER_MUTATION,
+  REASSIGN_CHARACTER_MUTATION,
   UPDATE_SESSION_STATUS_MUTATION,
   SET_SESSION_ARCHIVED_MUTATION,
   DELETE_SESSION_MUTATION,
@@ -842,3 +903,4 @@ export const __sessionOps = {
   TRACK_PRECAST_OPEN_MUTATION,
   TRACK_PRECAST_SUBMISSION_MUTATION,
 };
+

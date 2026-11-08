@@ -7,6 +7,8 @@ import {
   INSERT_ORGANIZATION_MUTATION,
   INSERT_SCENARIO_MUTATION,
   INSERT_SCENARIO_SNAPSHOT_MUTATION,
+  INSERT_CLUES_BATCH_MUTATION,
+  INSERT_CLUE_FACTS_BATCH_MUTATION,
   INSERT_OBJECTIVE_MUTATION,
   INSERT_RELATIONSHIP_MUTATION,
   INSERT_GAME_OBJECT_MUTATION,
@@ -33,7 +35,7 @@ const workbook = () => ({
     INTRIGUES: [{ plot_id:'PLOT_1', titre:'Meurtre', type_intrigue:'MAIN', importance:'CRITICAL', resume_mj:'x', actif:'TRUE' }],
     OBJECTIFS: [{ objective_id:'OBJ_1', owner_type:'CHARACTER', owner_id:'CHAR_A', titre:'Comprendre', description:'Découvrir la vérité', type_objectif:'PERSONAL', secret:'TRUE', statut_initial:'ACTIVE', importance:'MAIN', actif:'TRUE' }],
     RELATIONS: [{ relation_id:'REL_1', character_a_id:'CHAR_A', character_b_id:'CHAR_B', type_relation:'ALLY', texte_a:'Je lui fais confiance.', texte_b:'Elle me protège.', visibilite:'PRIVATE', plot_id:'PLOT_1', actif:'TRUE' }],
-    OBJETS: [{ object_id:'ITEM_1', nom:'Clé', description:'Une clé', support:'PHYSICAL', owner_initial_type:'CHARACTER', owner_initial_id:'CHAR_A', transferable:'TRUE', volable:'TRUE', consommable:'FALSE', charges_initiales:1, critique:'FALSE', actif:'TRUE' }],
+    OBJETS: [{ object_id:'ITEM_1', nom:'Clé', description:'Une clé', support:'PHYSICAL', owner_initial_type:'CHARACTER', owner_initial_id:'CHAR_A', code_logistique:'SB-OBJ-005', transferable:'TRUE', volable:'TRUE', consommable:'FALSE', charges_initiales:1, critique:'FALSE', actif:'TRUE' }],
     RESSOURCES: [{ resource_id:'RES_PA', nom:'Points d’action', scope_type:'PLAYER', unite:'PA', valeur_defaut:5, valeur_max:5, mode_physique:'HYBRID', public:'TRUE', actif:'TRUE' }],
     ATTRIB_RESSOURCES: [{ resource_assignment_id:'RA_1', owner_type:'CHARACTER', owner_id:'CHAR_A', resource_id:'RES_PA', initial_value:6, max_override:6, notes:'test' }],
     ETATS: [{ state_id:'STATE_BLESSE', nom:'Blessé', description:'Blessure', duree_defaut_secondes:600, visible_porteur:'TRUE', visible_public:'FALSE', actif:'TRUE' }],
@@ -76,6 +78,7 @@ test('buildImportPlan maps narrative entities and relationships', () => {
   assert.equal(plan.clues.length,1);
   assert.equal(plan.clueFacts.length,1);
   assert.equal(plan.gameObjects[0].ownerInitialExternalId,'CHAR_A');
+  assert.equal(plan.gameObjects[0].logisticsCode,'SB-OBJ-005');
   assert.equal(plan.resources[0].defaultValue,5);
   assert.equal(plan.resourceAssignments[0].initialValue,6);
   assert.equal(plan.stateDefinitions[0].externalId,'STATE_BLESSE');
@@ -88,7 +91,7 @@ test('buildImportPlan maps narrative entities and relationships', () => {
   assert.equal(plan.eventDefinitions[0].delayMinutes,40);
   assert.equal(plan.voteDefinitions[0].externalId,'VOTE_1');
   assert.equal(plan.voteOptionDefinitions[0].voteExternalId,'VOTE_1');
-  assert.deepEqual(importPlanCounts(plan), { characters:1, plots:1, objectives:1, relationships:1, facts:2, initialKnowledge:2, clues:1, clueFacts:1, documents:0, mediaAssets:0, gameObjects:1, resources:1, resourceAssignments:1, abilities:1, abilityAssignments:1, interactions:1, locations:1, stateDefinitions:1, phaseDefinitions:1, eventDefinitions:1, voteDefinitions:1, voteOptionDefinitions:1 });
+  assert.deepEqual(importPlanCounts(plan), { characters:1, plots:1, objectives:1, relationships:1, facts:2, initialKnowledge:2, clues:1, clueFacts:1, documents:0, documentAnalyses:0, mediaAssets:0, skinVisualDefinitions:0, gameObjects:1, resources:1, resourceAssignments:1, abilities:1, abilityAssignments:1, interactions:1, locations:1, stateDefinitions:1, phaseDefinitions:1, eventDefinitions:1, voteDefinitions:1, voteOptionDefinitions:1 });
 });
 
 test('same workbook bytes create same ScenarioVersion id', () => {
@@ -103,11 +106,15 @@ test('snapshot import uses inserts, never upserts', () => {
   assert.match(INSERT_SCENARIO_SNAPSHOT_MUTATION,/mutation InsertScenarioSnapshot/);
   assert.match(INSERT_SCENARIO_SNAPSHOT_MUTATION,/@transaction/);
   assert.match(INSERT_SCENARIO_SNAPSHOT_MUTATION,/character_insertMany/);
-  assert.match(INSERT_SCENARIO_SNAPSHOT_MUTATION,/clueFact_insertMany/);
+  assert.doesNotMatch(INSERT_SCENARIO_SNAPSHOT_MUTATION,/clue_insertMany/);
+  assert.match(INSERT_CLUES_BATCH_MUTATION,/clue_insertMany/);
+  assert.match(INSERT_CLUE_FACTS_BATCH_MUTATION,/clueFact_insertMany/);
   for (const operation of [
     INSERT_ORGANIZATION_MUTATION,
     INSERT_SCENARIO_MUTATION,
     INSERT_SCENARIO_SNAPSHOT_MUTATION,
+    INSERT_CLUES_BATCH_MUTATION,
+    INSERT_CLUE_FACTS_BATCH_MUTATION,
     INSERT_OBJECTIVE_MUTATION,
     INSERT_RELATIONSHIP_MUTATION,
     INSERT_GAME_OBJECT_MUTATION,
@@ -135,7 +142,7 @@ test('first import inserts parents, snapshot and enrichment', async () => {
     reader: async (operation) => {
       reads += 1;
       if (operation === IMPORT_PREFLIGHT_QUERY) return { data:{ organization:null, scenario:null, scenarioVersion:null } };
-      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[] } };
+      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[], clues:[], clueFacts:[] } };
       assert.fail('Unexpected read operation');
     },
     executor: async (operation, variables) => {
@@ -144,28 +151,30 @@ test('first import inserts parents, snapshot and enrichment', async () => {
     },
   });
   assert.equal(reads,2);
-  assert.equal(writes.length,18);
+  assert.equal(writes.length,20);
   assert.equal(writes[0].operation, INSERT_ORGANIZATION_MUTATION);
   assert.equal(writes[1].operation, INSERT_SCENARIO_MUTATION);
   assert.equal(writes[2].operation, INSERT_SCENARIO_SNAPSHOT_MUTATION);
   assert.equal(JSON.parse(writes[2].variables.scenarioVersion.importReportJson).counts.ERROR,0);
-  assert.equal(writes[3].operation, INSERT_OBJECTIVE_MUTATION);
-  assert.equal(writes[4].operation, INSERT_RELATIONSHIP_MUTATION);
-  assert.equal(writes[5].operation, INSERT_GAME_OBJECT_MUTATION);
-  assert.equal(writes[6].operation, INSERT_RESOURCE_MUTATION);
-  assert.equal(writes[7].operation, INSERT_RESOURCE_ASSIGNMENT_MUTATION);
-  assert.equal(writes[8].operation, INSERT_STATE_DEFINITION_MUTATION);
-  assert.equal(writes[9].operation, INSERT_ABILITY_MUTATION);
-  assert.equal(writes[10].operation, INSERT_ABILITY_ASSIGNMENT_MUTATION);
-  assert.equal(writes[11].operation, INSERT_INTERACTION_MUTATION);
-  assert.equal(writes[12].operation, INSERT_LOCATION_MUTATION);
-  assert.equal(writes[13].operation, INSERT_PHASE_DEFINITION_MUTATION);
-  assert.equal(writes[14].operation, INSERT_EVENT_DEFINITION_MUTATION);
-  assert.equal(writes[15].operation, INSERT_VOTE_DEFINITION_MUTATION);
-  assert.equal(writes[16].operation, INSERT_VOTE_OPTION_DEFINITION_MUTATION);
-  assert.equal(writes[17].operation, MARK_RUNTIME_SOURCE_MUTATION);
+  assert.equal(writes[3].operation, INSERT_CLUES_BATCH_MUTATION);
+  assert.equal(writes[4].operation, INSERT_CLUE_FACTS_BATCH_MUTATION);
+  assert.equal(writes[5].operation, INSERT_OBJECTIVE_MUTATION);
+  assert.equal(writes[6].operation, INSERT_RELATIONSHIP_MUTATION);
+  assert.equal(writes[7].operation, INSERT_GAME_OBJECT_MUTATION);
+  assert.equal(writes[8].operation, INSERT_RESOURCE_MUTATION);
+  assert.equal(writes[9].operation, INSERT_RESOURCE_ASSIGNMENT_MUTATION);
+  assert.equal(writes[10].operation, INSERT_STATE_DEFINITION_MUTATION);
+  assert.equal(writes[11].operation, INSERT_ABILITY_MUTATION);
+  assert.equal(writes[12].operation, INSERT_ABILITY_ASSIGNMENT_MUTATION);
+  assert.equal(writes[13].operation, INSERT_INTERACTION_MUTATION);
+  assert.equal(writes[14].operation, INSERT_LOCATION_MUTATION);
+  assert.equal(writes[15].operation, INSERT_PHASE_DEFINITION_MUTATION);
+  assert.equal(writes[16].operation, INSERT_EVENT_DEFINITION_MUTATION);
+  assert.equal(writes[17].operation, INSERT_VOTE_DEFINITION_MUTATION);
+  assert.equal(writes[18].operation, INSERT_VOTE_OPTION_DEFINITION_MUTATION);
+  assert.equal(writes[19].operation, MARK_RUNTIME_SOURCE_MUTATION);
   assert.equal(result.baseInserted,true);
-  assert.deepEqual(result.imported,{ objectives:1, relationships:1, documents:0, mediaAssets:0, gameObjects:1, resources:1, resourceAssignments:1, stateDefinitions:1, abilities:1, abilityAssignments:1, interactions:1, locations:1, phaseDefinitions:1, eventDefinitions:1, voteDefinitions:1, voteOptionDefinitions:1 });
+  assert.deepEqual(result.imported,{ clues:1, clueFacts:1, objectives:1, relationships:1, documents:0, documentAnalyses:0, mediaAssets:0, skinVisualDefinitions:0, gameObjects:1, resources:1, resourceAssignments:1, stateDefinitions:1, abilities:1, abilityAssignments:1, interactions:1, locations:1, phaseDefinitions:1, eventDefinitions:1, voteDefinitions:1, voteOptionDefinitions:1 });
 });
 
 test('re-import of same immutable version skips base and only inserts missing enrichment', async () => {
@@ -174,7 +183,7 @@ test('re-import of same immutable version skips base and only inserts missing en
   const result = await persistImportPlan(plan, {}, {
     reader: async (operation) => {
       if (operation === IMPORT_PREFLIGHT_QUERY) return { data:{ organization:{id:plan.ids.organizationId}, scenario:{id:plan.ids.scenarioId}, scenarioVersion:{id:plan.ids.scenarioVersionId} } };
-      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[] } };
+      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[], relationships:[], gameObjects:[], resources:[], resourceAssignments:[], gameStateDefinitions:[], abilities:[], abilityAssignments:[], interactions:[], gameLocations:[], gamePhaseDefinitions:[], gameEventDefinitions:[], voteDefinitions:[], voteOptionDefinitions:[], clues:[{externalId:'CLUE_1'}], clueFacts:[{clueExternalId:'CLUE_1',factExternalId:'FACT_1'}] } };
       assert.fail('Unexpected read operation');
     },
     executor: async (operation, variables) => {
@@ -195,17 +204,79 @@ test('fully imported immutable version becomes a safe no-op', async () => {
   const result = await persistImportPlan(plan, {}, {
     reader: async (operation) => {
       if (operation === IMPORT_PREFLIGHT_QUERY) return { data:{ organization:{id:'o'}, scenario:{id:'s'}, scenarioVersion:{id:'v',runtimeDataVersion:'0.9',skinId:'CONTEMPORARY_1980_2000',accentColor:null,logoMediaExternalId:null,backgroundMediaExternalId:null} } };
-      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[{externalId:'OBJ_1'}], relationships:[{externalId:'REL_1'}], gameObjects:[{externalId:'ITEM_1'}], resources:[{externalId:'RES_PA'}], resourceAssignments:[{externalId:'RA_1'}], gameStateDefinitions:[{externalId:'STATE_BLESSE'}], abilities:[{externalId:'ABILITY_FOUILLE'}], abilityAssignments:[{externalId:'ASSIGN_A_FOUILLE'}], interactions:[{externalId:'ACT_FOUILLE'}], gameLocations:[{externalId:'LOC_BUREAU'}], gamePhaseDefinitions:[{externalId:'PHASE_1'}], gameEventDefinitions:[{externalId:'EVENT_1'}], voteDefinitions:[{externalId:'VOTE_1'}], voteOptionDefinitions:[{externalId:'OPT_1'}] } };
+      if (operation === EXISTING_ENRICHMENT_QUERY) return { data:{ objectives:[{externalId:'OBJ_1'}], relationships:[{externalId:'REL_1'}], gameObjects:[{externalId:'ITEM_1'}], resources:[{externalId:'RES_PA'}], resourceAssignments:[{externalId:'RA_1'}], gameStateDefinitions:[{externalId:'STATE_BLESSE'}], abilities:[{externalId:'ABILITY_FOUILLE'}], abilityAssignments:[{externalId:'ASSIGN_A_FOUILLE'}], interactions:[{externalId:'ACT_FOUILLE'}], gameLocations:[{externalId:'LOC_BUREAU'}], gamePhaseDefinitions:[{externalId:'PHASE_1'}], gameEventDefinitions:[{externalId:'EVENT_1'}], voteDefinitions:[{externalId:'VOTE_1'}], voteOptionDefinitions:[{externalId:'OPT_1'}], clues:[{externalId:'CLUE_1'}], clueFacts:[{clueExternalId:'CLUE_1',factExternalId:'FACT_1'}] } };
       assert.fail('Unexpected read operation');
     },
     executor: async () => { writes += 1; return { data:{} }; },
   });
   assert.equal(writes,0);
   assert.equal(result.baseInserted,false);
-  assert.deepEqual(result.imported,{ objectives:0, relationships:0, documents:0, mediaAssets:0, gameObjects:0, resources:0, resourceAssignments:0, stateDefinitions:0, abilities:0, abilityAssignments:0, interactions:0, locations:0, phaseDefinitions:0, eventDefinitions:0, voteDefinitions:0, voteOptionDefinitions:0 });
+  assert.deepEqual(result.imported,{ clues:0, clueFacts:0, objectives:0, relationships:0, documents:0, documentAnalyses:0, mediaAssets:0, skinVisualDefinitions:0, gameObjects:0, resources:0, resourceAssignments:0, stateDefinitions:0, abilities:0, abilityAssignments:0, interactions:0, locations:0, phaseDefinitions:0, eventDefinitions:0, voteDefinitions:0, voteOptionDefinitions:0 });
 });
 
-test('immersive documents import media and synthesize a transferable object', () => {
+test('clue imports are split into Data Connect batches of at most 100 rows', async () => {
+  const plan = buildImportPlan(workbook(), { sourceBuffer:Buffer.from('large-clues') });
+  const baseClue = plan.clues[0];
+  plan.clues = Array.from({length:136},(_,i)=>({...baseClue,externalId:`CLUE_${String(i+1).padStart(3,'0')}`}));
+  plan.clueFacts = plan.clues.map(clue=>({
+    scenarioVersionId:plan.ids.scenarioVersionId,
+    clueExternalId:clue.externalId,
+    factExternalId:'FACT_1',
+  }));
+
+  const calls=[];
+  const result=await persistImportPlan(plan,{},{
+    reader:async operation=>{
+      if(operation===IMPORT_PREFLIGHT_QUERY)return {data:{
+        organization:{id:plan.ids.organizationId},
+        scenario:{id:plan.ids.scenarioId},
+        scenarioVersion:{
+          id:plan.ids.scenarioVersionId,
+          runtimeDataVersion:'0.9',
+          skinId:plan.scenarioVersion.skinId,
+          accentColor:plan.scenarioVersion.accentColor,
+          logoMediaExternalId:plan.scenarioVersion.logoMediaExternalId,
+          backgroundMediaExternalId:plan.scenarioVersion.backgroundMediaExternalId,
+        },
+      }};
+      if(operation===EXISTING_ENRICHMENT_QUERY)return {data:{
+        objectives:plan.objectives.map(x=>({externalId:x.externalId})),
+        relationships:plan.relationships.map(x=>({externalId:x.externalId})),
+        documentDefinitions:[],
+        mediaAssets:[],
+        skinVisualDefinitions:[],
+        gameObjects:plan.gameObjects.map(x=>({externalId:x.externalId})),
+        resources:plan.resources.map(x=>({externalId:x.externalId})),
+        resourceAssignments:plan.resourceAssignments.map(x=>({externalId:x.externalId})),
+        gameStateDefinitions:plan.stateDefinitions.map(x=>({externalId:x.externalId})),
+        abilities:plan.abilities.map(x=>({externalId:x.externalId})),
+        abilityAssignments:plan.abilityAssignments.map(x=>({externalId:x.externalId})),
+        interactions:plan.interactions.map(x=>({externalId:x.externalId})),
+        gameLocations:plan.locations.map(x=>({externalId:x.externalId})),
+        gamePhaseDefinitions:plan.phaseDefinitions.map(x=>({externalId:x.externalId})),
+        gameEventDefinitions:plan.eventDefinitions.map(x=>({externalId:x.externalId})),
+        voteDefinitions:plan.voteDefinitions.map(x=>({externalId:x.externalId})),
+        voteOptionDefinitions:plan.voteOptionDefinitions.map(x=>({externalId:x.externalId})),
+        clues:[],
+        clueFacts:[],
+      }};
+      assert.fail('Unexpected read operation');
+    },
+    executor:async(operation,variables)=>{
+      calls.push({operation,variables});
+      return {data:{}};
+    },
+  });
+
+  const clueCalls=calls.filter(x=>x.operation===INSERT_CLUES_BATCH_MUTATION);
+  const clueFactCalls=calls.filter(x=>x.operation===INSERT_CLUE_FACTS_BATCH_MUTATION);
+  assert.deepEqual(clueCalls.map(x=>x.variables.data.length),[100,36]);
+  assert.deepEqual(clueFactCalls.map(x=>x.variables.data.length),[100,36]);
+  assert.equal(result.imported.clues,136);
+  assert.equal(result.imported.clueFacts,136);
+});
+
+test('digital documents remain native documents and do not synthesize GameObjects', () => {
   const wb = workbook();
   wb.sheets.MEDIA = [{ media_id:'MEDIA_LETTER', type_media:'IMAGE', fichier_ou_url:'/immersive/test/letter.png', alt_text:'Lettre manuscrite', notes:'test', actif:'TRUE' }];
   wb.sheets.DOCUMENTS = [{ document_id:'DOC_LETTER', titre:'Lettre secrète', contenu_texte:'Cher ami...', support:'DIGITAL', media_id:'MEDIA_LETTER', reutilisable:'TRUE', consommable:'FALSE', owner_initial_type:'CHARACTER', owner_initial_id:'CHAR_A', clue_ids:'CLUE_1', code_logistique:'D-01', actif:'TRUE', transferable:'TRUE', volable:'TRUE' }];
@@ -216,12 +287,43 @@ test('immersive documents import media and synthesize a transferable object', ()
   assert.equal(plan.mediaAssets.length,1);
   assert.equal(plan.documents[0].mediaExternalIds,'MEDIA_LETTER');
   assert.equal(plan.mediaAssets[0].source,'/immersive/test/letter.png');
-  assert.equal(plan.clues[0].objectExternalId,'DOC_OBJ_DOC_LETTER');
-  const object=plan.gameObjects.find(o=>o.externalId==='DOC_OBJ_DOC_LETTER');
+  assert.equal(plan.clues[0].objectExternalId,null);
+  assert.equal(plan.gameObjects.some(o=>o.externalId==='DOC_OBJ_DOC_LETTER'),false);
+});
+
+test('physical documents may still synthesize transferable GameObjects', () => {
+  const wb = workbook();
+  wb.sheets.DOCUMENTS = [{ document_id:'DOC_PHYSICAL', titre:'Dossier papier', contenu_texte:'Contenu', support:'PHYSICAL', reutilisable:'TRUE', consommable:'FALSE', owner_initial_type:'CHARACTER', owner_initial_id:'CHAR_A', clue_ids:'CLUE_1', code_logistique:'D-02', actif:'TRUE', transferable:'TRUE', volable:'TRUE' }];
+  wb.sheets.INDICES[0].document_id='DOC_PHYSICAL';
+  const plan=buildImportPlan(wb,{sourceBuffer:Buffer.from('physical-doc')});
+  assert.equal(plan.clues[0].objectExternalId,'DOC_OBJ_DOC_PHYSICAL');
+  const object=plan.gameObjects.find(o=>o.externalId==='DOC_OBJ_DOC_PHYSICAL');
   assert.ok(object);
   assert.equal(object.ownerInitialExternalId,'CHAR_A');
+  assert.equal(object.logisticsCode,'D-02');
   assert.equal(object.transferable,true);
   assert.equal(object.stealable,true);
+});
+
+test('Visual V2 imports skin archetypes', () => {
+  const wb=workbook();
+  wb.sheets.THEME=[{theme_id:'THEME_1',skin_id:'RETRO_1900_1930'}];
+  wb.sheets.PERSONNAGES[0].portrait_archetype_code='HENCHMAN';
+  wb.sheets.OBJETS[0].media_id='MEDIA_KEY';
+  wb.sheets.OBJETS[0].visual_archetype_code='KEY';
+  wb.sheets.MEDIA=[
+    {media_id:'MEDIA_HENCHMAN',type_media:'IMAGE',fichier_ou_url:'/visual/henchman.webp',actif:'TRUE'},
+    {media_id:'MEDIA_KEY',type_media:'IMAGE',fichier_ou_url:'/visual/key.webp',actif:'TRUE'}
+  ];
+  wb.sheets.VISUELS_SKIN=[{
+    visual_id:'VIS_HENCHMAN',skin_id:'RETRO_1900_1930',visual_type:'CHARACTER',
+    archetype_code:'HENCHMAN',media_id:'MEDIA_HENCHMAN',variant:'DEFAULT',actif:'TRUE'
+  }];
+  const plan=buildImportPlan(wb,{sourceBuffer:Buffer.from('visual-v2')});
+  assert.equal(plan.characters[0].portraitArchetypeCode,'HENCHMAN');
+  assert.equal(plan.gameObjects[0].mediaExternalId,'MEDIA_KEY');
+  assert.equal(plan.gameObjects[0].visualArchetypeCode,'KEY');
+  assert.equal(plan.skinVisualDefinitions[0].mediaExternalId,'MEDIA_HENCHMAN');
 });
 
 test('scenario version metadata comes from Excel and gender profile can be inferred', () => {

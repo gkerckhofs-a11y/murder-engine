@@ -12,6 +12,69 @@
     ],
     "rewrites": [
       {
+        "source": "/api/player/casino/table",
+        "function": {
+          "functionId": "getPublicPlayerCasinoTable",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/casino/action",
+        "function": {
+          "functionId": "executePublicPlayerCasinoAction",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/sessions/casino",
+        "function": {
+          "functionId": "manageSessionCasinoView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/organizer/real/start",
+        "function": {
+          "functionId": "startRealSessionView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/organizer/rehearsal/reset",
+        "function": {
+          "functionId": "resetSessionRehearsalView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/organizer/access/configure",
+        "function": {
+          "functionId": "configureSessionAccessView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/organizer/access",
+        "function": {
+          "functionId": "getSessionAccessView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/organizer/identity",
+        "function": {
+          "functionId": "getOrganizerIdentity",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/notes",
+        "function": {
+          "functionId": "managePublicPlayerNotes",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/sessions/gm-pack",
         "function": {
           "functionId": "getSessionGmPackView",
@@ -78,6 +141,69 @@
         "source": "/api/library/character",
         "function": {
           "functionId": "getCharacter",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/admin/purge/session",
+        "function": {
+          "functionId": "purgeSessionView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/admin/purge/scenario",
+        "function": {
+          "functionId": "purgeScenarioView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/precast/list",
+        "function": {
+          "functionId": "listPrecastCampaignsView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/precast/detail",
+        "function": {
+          "functionId": "getPrecastCampaignView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/precast/create",
+        "function": {
+          "functionId": "createPrecastCampaignView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/precast/status",
+        "function": {
+          "functionId": "updatePrecastCampaignStatusView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/precast/create-session",
+        "function": {
+          "functionId": "createSessionFromPrecastView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/public/registration/campaign",
+        "function": {
+          "functionId": "getPublicPrecastCampaignView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/public/registration/submit",
+        "function": {
+          "functionId": "submitPublicPrecastRegistrationView",
           "region": "europe-west1"
         }
       },
@@ -229,6 +355,13 @@
         }
       },
       {
+        "source": "/api/sessions/live/business-deal",
+        "function": {
+          "functionId": "validateLiveBusinessDeal",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/sessions/interactions",
         "function": {
           "functionId": "getInteractionState",
@@ -299,6 +432,13 @@
         }
       },
       {
+        "source": "/api/player/document/examine",
+        "function": {
+          "functionId": "examinePublicPlayerDocument",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/player/portal",
         "function": {
           "functionId": "getPublicPlayerPortal",
@@ -355,9 +495,23 @@
         }
       },
       {
+        "source": "/api/player/clue/share",
+        "function": {
+          "functionId": "sharePublicPlayerClue",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/api/player/object",
         "function": {
           "functionId": "transferPublicPlayerObject",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/player/cash",
+        "function": {
+          "functionId": "transferPublicPlayerCash",
           "region": "europe-west1"
         }
       },
@@ -383,8 +537,76 @@
         }
       },
       {
+        "source": "/api/media/library",
+        "function": {
+          "functionId": "getMediaLibraryView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/media/upload",
+        "function": {
+          "functionId": "uploadMediaLibraryAssetView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/media/assign",
+        "function": {
+          "functionId": "setScenarioMediaOverrideView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/api/media/delete",
+        "function": {
+          "functionId": "deleteMediaLibraryAssetView",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/scan/**",
+        "destination": "/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "/scan/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          },
+          {
+            "key": "Pragma",
+            "value": "no-cache"
+          },
+          {
+            "key": "Expires",
+            "value": "0"
+          }
+        ]
+      },
+      {
+        "source": "/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          },
+          {
+            "key": "Pragma",
+            "value": "no-cache"
+          },
+          {
+            "key": "Expires",
+            "value": "0"
+          }
+        ]
       }
     ]
   },

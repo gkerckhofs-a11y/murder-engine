@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computeLiveElapsedSeconds, shapeLiveDashboard, controlLiveSession, changeLiveResource, setLiveCharacterState, setLiveEventStatus, __liveOps } from '../src/live.mjs';
+import { computeLiveElapsedSeconds, shapeLiveDashboard, controlLiveSession, changeLiveResource, setLiveCharacterState, setLiveEventStatus, validateBusinessDeal, __liveOps } from '../src/live.mjs';
 
 const session=(overrides={})=>({
   id:'S1',status:'READY',runtimeInitializedAt:'2026-09-21T10:00:00.000Z',runtimeVersion:'0.7',startedAt:null,pausedAt:null,finishedAt:null,
@@ -32,6 +32,93 @@ test('live elapsed clock accumulates only while LIVE',()=>{
   const now=new Date('2026-09-21T10:10:00.000Z');
   assert.equal(computeLiveElapsedSeconds(session({status:'LIVE',liveClockStartedAt:'2026-09-21T10:05:00.000Z',liveElapsedSeconds:120}),now),420);
   assert.equal(computeLiveElapsedSeconds(session({status:'PAUSED',liveClockStartedAt:null,liveElapsedSeconds:420}),now),420);
+});
+
+test('live dashboard exposes Business Deals and only accepted deals await GM validation',()=>{
+  const rt=runtime();
+  rt.businessDealProposals=[
+    {
+      id:'D1',
+      actionType:'BUSINESS_DEAL_PROPOSED',
+      characterExternalId:'CHAR_A',
+      refExternalId:'DEAL_1',
+      afterValue:'CHAR_B',
+      note:JSON.stringify({
+        terms:'Finance 500 $ contre 10 % des bénéfices.',
+        actorName:'Alice Capello',
+        targetName:'Bob'
+      }),
+      createdAt:'2026-09-21T10:05:00Z'
+    },
+    {
+      id:'D2',
+      actionType:'BUSINESS_DEAL_PROPOSED',
+      characterExternalId:'CHAR_A',
+      refExternalId:'DEAL_2',
+      afterValue:'CHAR_B',
+      note:JSON.stringify({
+        terms:'Prêt de 200 $.',
+        actorName:'Alice Capello',
+        targetName:'Bob'
+      }),
+      createdAt:'2026-09-21T10:06:00Z'
+    }
+  ];
+  rt.businessDealAccepted=[
+    {id:'A1',refExternalId:'DEAL_1'}
+  ];
+  rt.businessDealDeclined=[
+    {id:'R1',refExternalId:'DEAL_2'}
+  ];
+  rt.businessDealOfficial=[];
+
+  const out=shapeLiveDashboard(
+    session({status:'LIVE'}),
+    source(),
+    rt,
+    new Date('2026-09-21T10:10:00Z')
+  );
+
+  assert.equal(out.businessDeals.length,2);
+  assert.equal(out.businessDeals.find(x=>x.dealId==='DEAL_1').status,'ACCEPTED');
+  assert.equal(out.businessDeals.find(x=>x.dealId==='DEAL_2').status,'DECLINED');
+});
+
+test('GM can make an accepted Business Deal official',async()=>{
+  const sess=session({status:'LIVE'});
+  const rt=runtime();
+  rt.businessDealProposals=[{
+    id:'D1',
+    actionType:'BUSINESS_DEAL_PROPOSED',
+    characterExternalId:'CHAR_A',
+    refExternalId:'DEAL_1',
+    afterValue:'CHAR_B',
+    note:JSON.stringify({
+      terms:'Finance 500 $ contre 10 % des bénéfices.',
+      actorName:'Alice Capello',
+      targetName:'Bob'
+    }),
+    createdAt:'2026-09-21T10:05:00Z'
+  }];
+  rt.businessDealAccepted=[{id:'A1',refExternalId:'DEAL_1'}];
+  rt.businessDealDeclined=[];
+  rt.businessDealOfficial=[];
+
+  let write=null;
+  const out=await validateBusinessDeal(
+    'S1',
+    {dealId:'DEAL_1'},
+    {
+      reader:readerFor(sess,source(),rt),
+      executor:async(op,vars)=>{write={op,vars};return{};},
+      now:new Date('2026-09-21T10:10:00Z')
+    }
+  );
+
+  assert.equal(out.status,'OFFICIAL');
+  assert.equal(write.op,__liveOps.INSERT_ACTION_LOG_MUTATION);
+  assert.equal(write.vars.data.actionType,'BUSINESS_DEAL_OFFICIAL');
+  assert.equal(write.vars.data.refExternalId,'DEAL_1');
 });
 
 test('live dashboard flags overdue timed events and labels resources',()=>{
