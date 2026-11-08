@@ -1,0 +1,22 @@
+name: Prepare Mirador update
+on:
+  push:
+    branches: [ops/nid-character-context]
+permissions:
+  contents: read
+jobs:
+  public-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Derive public encryption key
+        env:
+          PROJECT_CREDENTIAL: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+        run: |
+          node --input-type=module <<'NODE'
+          import {createPublicKey} from 'node:crypto';
+          const credential = JSON.parse(process.env.PROJECT_CREDENTIAL);
+          if (credential.project_id !== 'murder-engine-ludificateur') throw Error('Unexpected project');
+          const publicKey = createPublicKey(credential.private_key);
+          const encoded = publicKey.export({type:'spki', format:'der'}).toString('base64');
+          console.log('NID_PUBLIC_SPKI ' + encoded);
+          NODE
