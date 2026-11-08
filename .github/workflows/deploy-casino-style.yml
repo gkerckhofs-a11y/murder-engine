@@ -1,0 +1,44 @@
+name: Publish casino table design
+on:
+  push:
+    branches: [fix/casino-style]
+permissions:
+  contents: read
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix functions
+      - run: npm ci --prefix web
+      - run: npm run build --prefix web
+      - name: Verify three tables and money preservation
+        run: |
+          npm install --prefix web --no-save --package-lock=false playwright@1.58.2
+          cd web
+          npx playwright install --with-deps chromium
+          npm run dev -- --host 127.0.0.1 --port 4175 > /tmp/casino-vite.log 2>&1 &
+          for attempt in $(seq 1 30); do curl --silent --fail http://127.0.0.1:4175/ > /dev/null && break; sleep 1; done
+          node test/browser-casino.cjs
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - name: Publish hosting
+        env:
+          REVISION: ${{ github.sha }}
+        run: |
+          npm install --global firebase-tools@15.34.0
+          node -e "require('fs').writeFileSync('web/dist/deployment-version.json',JSON.stringify({revision:process.env.REVISION,feature:'casino-table-design'}))"
+          firebase deploy --project murder-engine-ludificateur --only hosting --non-interactive
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: casino-style-evidence
+          path: web/test-results/casino/
