@@ -28,8 +28,10 @@ const same=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
 const normalize=s=>String(s??'').trim();
 const mismatches=[];
 for(const [group,rows] of Object.entries(patch.groups))for(const row of rows){
- const current=source[group].find(x=>x.externalId===row.externalId);assert.ok(current,`${group}:${row.externalId}:missing`);
- for(const [field,value] of Object.entries(row.data))if(!same(current[field],row.expected[field])&&!same(current[field],value))mismatches.push(`${group}:${row.externalId}:${field}`);
+ const current=source[group].find(x=>x.externalId===row.externalId);
+ if(!row.expected&&!current)continue;
+ assert.ok(current,`${group}:${row.externalId}:missing`);
+ for(const [field,value] of Object.entries(row.data))if(!same(current[field],row.expected?.[field])&&!same(current[field],value))mismatches.push(`${group}:${row.externalId}:${field}`);
 }
 const fingerprint=async s=>read(`query Runtime($s:UUID!){
  sessionResources(where:{gameSessionId:{eq:$s}},limit:1000,orderBy:[{characterExternalId:ASC},{resourceExternalId:ASC}]){characterExternalId resourceExternalId currentValue}
@@ -66,11 +68,13 @@ function update(type,field,key,data,current){
 }
 for(const [group,rows] of Object.entries(patch.groups))for(const row of rows){
  const current=source[group].find(x=>x.externalId===row.externalId);
+ if(!current&&!row.expected){const [type,field]=models[group],arg='new'+n++;decl.push(`$${arg}:${type}_Data!`);vars[arg]={...row.data,scenarioVersionId:v,externalId:row.externalId};body+=`${arg}:${field}_insert(data:$${arg})\n`;continue;}
  if(Object.entries(row.data).every(([k,val])=>same(current[k],val)))continue;
  const [type,field]=models[group];
  update(type,field,`key:{scenarioVersionId:$v,externalId:${JSON.stringify(row.externalId)}}`,row.data,Object.fromEntries(Object.keys(row.data).map(k=>[k,current[k]])));
 }
 let snapshots=0,retired=0;
+let moved=0;
 for(const session of source.sessions){
  const sid='s'+n++;decl.push(`$${sid}:UUID!`);vars[sid]=session.id;
  body+=`lock${sid}:gameSession_update(id:$${sid},data:{liveElapsedSeconds_update:{inc:0}})\nstatus${sid}:query @check(expr:"response.status${sid}.gameSession.status != 'LIVE'",message:"NID_SESSION_RUNNING") @redact{gameSession(id:$${sid}){status}}\n`;
@@ -98,12 +102,21 @@ for(const session of source.sessions){
  for(const obj of session.runtime.sessionObjects.filter(o=>patch.removedObjects.includes(o.objectExternalId)&&o.inPlay!==false)){
   update('SessionObject','sessionObject',`key:{gameSessionId:$${sid},objectExternalId:${JSON.stringify(obj.objectExternalId)}}`,{inPlay:false},{inPlay:obj.inPlay,holderType:obj.holderType,holderExternalId:obj.holderExternalId});retired++;
  }
+ for(const move of patch.roomMoves??[]){
+  const obj=session.runtime.sessionObjects.find(o=>o.objectExternalId===move.objectExternalId);
+  assert.ok(obj?.inPlay,'ROOM_OBJECT_MISSING');
+  if(obj.holderType===move.toType&&obj.holderExternalId===move.toExternalId)continue;
+  assert.equal(obj.holderType,move.fromType,'ROOM_OBJECT_ALREADY_MOVED');
+  assert.equal(obj.holderExternalId,move.fromExternalId,'ROOM_OBJECT_ALREADY_MOVED');
+  update('SessionObject','sessionObject',`key:{gameSessionId:$${sid},objectExternalId:${JSON.stringify(obj.objectExternalId)}}`,{holderType:move.toType,holderExternalId:move.toExternalId},{inPlay:obj.inPlay,holderType:obj.holderType,holderExternalId:obj.holderExternalId});moved++;
+ }
 }
 await execute(`mutation ApplyNidEditorial(${decl.join(',')}) @transaction{${body}}`,vars);
 for(const session of source.sessions){
  const after=await fingerprint(session.id),expected=structuredClone(session.runtime);
  for(const obj of expected.sessionObjects)if(patch.removedObjects.includes(obj.objectExternalId))obj.inPlay=false;
- assert.deepEqual(after,expected,'ONLY_DUPLICATE_OBJECTS_MAY_CHANGE');
+ for(const move of patch.roomMoves??[]){const obj=expected.sessionObjects.find(o=>o.objectExternalId===move.objectExternalId);obj.holderType=move.toType;obj.holderExternalId=move.toExternalId;}
+ assert.deepEqual(after,expected,'UNEXPECTED_RUNTIME_CHANGE');
 }
 const after=await read(`query Verify($v:UUID!){scenarioVersion(id:$v){mediaOverridesJson} ${selections}}`,{v});
 assert.equal(after.scenarioVersion.mediaOverridesJson,source.scenarioVersion.mediaOverridesJson);
@@ -116,5 +129,20 @@ for(const session of source.sessions){
   if(person.characterSnapshotJson){const snap=JSON.parse(person.characterSnapshotJson);const fix=patch.groups.characters.find(c=>c.externalId===person.characterExternalId);for(const [k,val] of Object.entries(fix?.data??{}))assert.deepEqual(snap.character[k]??null,val??null);}
  }
 }
-const result={applied:true,versionId:v,counts:Object.fromEntries(Object.entries(patch.groups).map(([k,rows])=>[k,rows.length])),snapshotsUpdated:snapshots,duplicateDefinitionsRetired:patch.removedObjects.length,runtimeDuplicatesRetired:retired,resourcesCasinoCastingLinksMediaPreserved:true,patchSha256:createHash('sha256').update(JSON.stringify(patch)).digest('hex')};
+const result={applied:true,versionId:v,counts:Object.fromEntries(Object.entries(patch.groups).map(([k,rows])=>[k,rows.length])),snapshotsUpdated:snapshots,duplicateDefinitionsRetired:patch.removedObjects.length,runtimeDuplicatesRetired:retired,objectsMovedToRooms:moved,resourcesCasinoCastingLinksMediaPreserved:true,patchSha256:createHash('sha256').update(JSON.stringify(patch)).digest('hex')};
+if(!fixture){
+ const {getPlayerPortal}=await import('../src/player.mjs');
+ const rows=await read('query PlayerCheck($s:UUID!){sessionParticipants(where:{gameSessionId:{eq:$s}},limit:100){characterExternalId playerAccessToken playerAccessEnabled active}}',{s:targetSession});
+ const checks=[];
+ for(const person of rows.sessionParticipants.filter(p=>p.active!==false)){
+  assert.ok(person.playerAccessEnabled&&person.playerAccessToken,'PLAYER_LINK_DISABLED');
+  const portal=await getPlayerPortal(person.playerAccessToken,{trackOpen:false});
+  assert.ok(portal.character.personalTimeline);assert.doesNotMatch(portal.character.biography,/Règles de partie|Je garde ici|La partie dure 3 heures|Je commence avec 5 PA/);
+  assert.doesNotMatch(portal.character.motto,/^[«“"]|[»”"]$/);
+  assert.ok(portal.discoverableAboutMe.length>=4);
+  assert.ok(portal.inventory.every(o=>!patch.removedObjects.includes(o.objectExternalId)));
+  checks.push({characterExternalId:person.characterExternalId,timeline:true,motto:true,roomDiscoveries:portal.discoverableAboutMe.length,inventory:portal.inventory.map(o=>o.objectExternalId)});
+ }
+ assert.equal(checks.length,16);result.playerPortals=checks;
+}
 writeFileSync('nid-editorial-evidence/result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));

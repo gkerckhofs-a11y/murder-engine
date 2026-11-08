@@ -1,0 +1,1453 @@
+{
+  "characters": [
+    {
+      "externalId": "P01",
+      "name": "Edward Forster",
+      "active": true
+    },
+    {
+      "externalId": "P02",
+      "name": "Matteo Ferri",
+      "active": true
+    },
+    {
+      "externalId": "P03",
+      "name": "Markus Keller",
+      "active": true
+    },
+    {
+      "externalId": "P04",
+      "name": "François Delorme",
+      "active": true
+    },
+    {
+      "externalId": "P05",
+      "name": "Margaret Greaves",
+      "active": true
+    },
+    {
+      "externalId": "P06",
+      "name": "Catherine van Dijk",
+      "active": true
+    },
+    {
+      "externalId": "P07",
+      "name": "William Hayes",
+      "active": true
+    },
+    {
+      "externalId": "P08",
+      "name": "Isabelle Moreau",
+      "active": true
+    },
+    {
+      "externalId": "P09",
+      "name": "Dr Erik Lind",
+      "active": true
+    },
+    {
+      "externalId": "P10",
+      "name": "Isabel Valera",
+      "active": true
+    },
+    {
+      "externalId": "P11",
+      "name": "Bianca Moretti",
+      "active": true
+    },
+    {
+      "externalId": "P12",
+      "name": "Victor Lenoir",
+      "active": true
+    },
+    {
+      "externalId": "P13",
+      "name": "Dorothy Palmer",
+      "active": true
+    },
+    {
+      "externalId": "P14",
+      "name": "Alice Lambert",
+      "active": true
+    },
+    {
+      "externalId": "P15",
+      "name": "Antoine de Mirecourt",
+      "active": true
+    },
+    {
+      "externalId": "P16",
+      "name": "Charles Valmont",
+      "active": true
+    }
+  ],
+  "gameLocations": [
+    {
+      "externalId": "LOC_201",
+      "name": "Chambre virtuelle 201 — Edward Forster",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_202",
+      "name": "Chambre virtuelle 202 — Matteo Ferri",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_203",
+      "name": "Chambre virtuelle 203 — Markus Keller",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_204",
+      "name": "Chambre virtuelle 204 — François Delorme",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_205",
+      "name": "Chambre virtuelle 205 — Margaret Greaves",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_206",
+      "name": "Chambre virtuelle 206 — Catherine van Dijk",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_207",
+      "name": "Chambre virtuelle 207 — William Hayes",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_208",
+      "name": "Chambre virtuelle 208 — Isabelle Moreau",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_209",
+      "name": "Chambre virtuelle 209 — Dr Erik Lind",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_210",
+      "name": "Chambre virtuelle 210 — Isabel Valera",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_211",
+      "name": "Chambre virtuelle 211 — Bianca Moretti",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_212",
+      "name": "Chambre virtuelle 212 — Victor Lenoir",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_213",
+      "name": "Chambre virtuelle 213 — Dorothy Palmer",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_214",
+      "name": "Chambre virtuelle 214 — Alice Lambert",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_215",
+      "name": "Chambre virtuelle 215 — Antoine de Mirecourt",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_216",
+      "name": "Chambre virtuelle 216 — Charles Valmont",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    },
+    {
+      "externalId": "LOC_217",
+      "name": "Suite du professeur Tesla",
+      "description": "Lieu narratif représenté par un QR code. Aucune pièce réelle obligatoire.",
+      "active": true
+    }
+  ],
+  "gameObjects": [
+    {
+      "externalId": "OBJ_NE_203_03",
+      "name": "Photographie allemande de 1942",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_203",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_NE_206_05",
+      "name": "Carte à double face glissée dans un échantillon de papier",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_206",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_NE_212_02",
+      "name": "Veste de sécurité à doublure déchirée",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_212",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_NE_212_05",
+      "name": "Ticket de bagagerie annoté d’un dialogue absurde",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_212",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_NE_215_02",
+      "name": "Cachet viennois à étoile fendue",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_215",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_NE_217_01",
+      "name": "Photographie d’une inconnue — Londres, 1984",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_217",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_NE_217_02",
+      "name": "Fragment de doublure gris foncé",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_217",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_PISTOLET_P04",
+      "name": "Pistolet de poche",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_204",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": "AB_INTIMIDATION",
+      "bonusValue": 3
+    },
+    {
+      "externalId": "OBJ_PISTOLET_P07",
+      "name": "Pistolet de service",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_207",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": "AB_INTIMIDATION",
+      "bonusValue": 3
+    },
+    {
+      "externalId": "OBJ_PISTOLET_P16",
+      "name": "Pistolet dissimulé",
+      "ownerInitialType": "CHARACTER",
+      "ownerInitialExternalId": "P16",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": "AB_INTIMIDATION",
+      "bonusValue": 3
+    },
+    {
+      "externalId": "OBJ_MALLETTE_P01",
+      "name": "Mallette de billets — 100 000 $",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_201",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_MALLETTE_P04",
+      "name": "Mallette de billets — 100 000 $",
+      "ownerInitialType": "CHARACTER",
+      "ownerInitialExternalId": "P04",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_MALLETTE_P07",
+      "name": "Mallette de billets — 100 000 $",
+      "ownerInitialType": "CHARACTER",
+      "ownerInitialExternalId": "P07",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_MALLETTE_P13",
+      "name": "Mallette de billets — 100 000 $",
+      "ownerInitialType": "LOCATION",
+      "ownerInitialExternalId": "LOC_213",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_GARANTIE_MI6",
+      "name": "Garantie financière",
+      "ownerInitialType": "CHARACTER",
+      "ownerInitialExternalId": "P10",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_CHRONOS_COPIE",
+      "name": "Dossier Chronos — feuillets de travail",
+      "ownerInitialType": "CHARACTER",
+      "ownerInitialExternalId": "P15",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_PASSE_P12",
+      "name": "Passe de service",
+      "ownerInitialType": "CHARACTER",
+      "ownerInitialExternalId": "P12",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "OBJ_PAPIER_P04",
+      "name": "Offre d’achat",
+      "ownerInitialType": "CHARACTER",
+      "ownerInitialExternalId": "P04",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": 0
+    },
+    {
+      "externalId": "DOC_OBJ_DOC_NE_A",
+      "name": "Dossier A — feuillets techniques",
+      "ownerInitialType": "CHARACTER",
+      "ownerInitialExternalId": "P03",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": null
+    },
+    {
+      "externalId": "DOC_OBJ_DOC_NE_B",
+      "name": "Dossier B — équations non classées",
+      "ownerInitialType": "CHARACTER",
+      "ownerInitialExternalId": "P14",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": null
+    },
+    {
+      "externalId": "DOC_OBJ_DOC_NE_C",
+      "name": "Dossier C — tables de correspondance",
+      "ownerInitialType": "CHARACTER",
+      "ownerInitialExternalId": "P11",
+      "active": true,
+      "transferable": true,
+      "stealable": true,
+      "bonusAbilityExternalId": null,
+      "bonusValue": null
+    }
+  ],
+  "clues": [
+    {
+      "externalId": "CL_NE_201_01",
+      "playerName": "Brouillon de protocole de tutelle française",
+      "playerText": "PROJET — Circulation restreinte, 1958.\n« Les résultats scientifiques présentés au Mirador devront faire l’objet d’un dépôt commun sous garantie internationale. Aucun signataire ne pourra disposer seul des pièces originales ni autoriser une reproduction sans l’accord des autres. »\n\nUne correction manuscrite apparaît dans la marge : « Une présidence provisoire par le représentant désigné de la France permettrait de gagner du temps. Ne pas présenter cela comme une exigence nationale. » Sous la dernière page, trois emplacements sont réservés à des signatures étrangères. Aucun n’est rempli.\nLe texte porte une initiale discrète : H.B.",
+      "locationExternalId": "LOC_201",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_201_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_201_02",
+      "playerName": "Note de service Pamplemousse expurgée",
+      "playerText": "DIRECTION DES OPÉRATIONS — extrait, Vienne, octobre 1953.\nObjet : opération PAMPLEMOUSSE ; récupération de documentation technique.\n« Les pièces ont été saisies avant leur transfert prévu. Les scellés ont été posés conformément aux instructions. Un incident impliquant le gardien du dépôt ne nécessite pas de mention dans le rapport diplomatique. »\n\nDeux noms et la cause précise de l’« incident » sont noircis. Dans la marge, quelqu’un a écrit au crayon : « L’archiviste était un homme, pas un colis. » La mention « version corrigée pour transmission » est soulignée deux fois.",
+      "locationExternalId": "LOC_201",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_201_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_201_03",
+      "playerName": "Deux devis d’Hélios Conseil",
+      "playerText": "HÉLIOS CONSEIL — estimation confidentielle.\n« Prestation : représentation exclusive du déposant au bénéfice d’un acquéreur désigné. Honoraires de conseil : selon l’accord final. Acompte payable avant validation des folios. »\n\nAu dos figure la copie d’une seconde estimation portant exactement le même numéro de référence. Cette fois, la formule devient : « représentation non exclusive auprès de plusieurs acheteurs éventuels ». Les deux exemplaires sont tamponnés par le même bureau et datés à vingt-quatre heures d’intervalle.\nUne annotation ironique résume l’affaire : « Le prix de l’exclusivité dépend donc de celui qui demande. »",
+      "locationExternalId": "LOC_201",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_201_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_201_04",
+      "playerName": "Carte de rendez-vous pour une mécène espagnole",
+      "playerText": "Carte crème, écriture à l’encre bleu foncé :\n« Madame Isabel Valera — entretien privé avant l’ouverture du sommet. Proposition de garde internationale à soumettre, puis discussion de notre vieille affaire. »\n\nAu verso, une phrase moins diplomatique a été ajoutée : « Vienne. Tu n’avais pas besoin de disparaître sans un mot. » La dernière ligne est barrée, sans avoir été rendue illisible.\nLa carte n’indique pas si elle a effectivement été remise à sa destinataire.",
+      "locationExternalId": "LOC_201",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_201_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_202_01",
+      "playerName": "Ordre confidentiel d’audit français",
+      "playerText": "MISSION COMPLÉMENTAIRE — exemplaire de travail, 1958.\n« L’agent chargé du contrôle vérifiera les pièces de l’opération Pamplemousse (Vienne, 1953), établira si le rapport de clôture a été modifié après signature et préservera toute preuve utile. La réussite des négociations actuelles ne devra pas conduire à classer prématurément cette enquête. »\n\nLe document ne nomme pas l’agent contrôlé ; il décrit « un chef de mission ayant autorité sur la récupération initiale ». Une note au bas de la page ajoute : « Ne pas confondre loyauté et destruction de pièces. »",
+      "locationExternalId": "LOC_202",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_202_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_202_02",
+      "playerName": "Comparatif de deux cachets « officiels »",
+      "playerText": "DEUX EMPREINTES — relevé à la loupe.\nCachet A : bordure régulière, étoile centrale à cinq branches, signature du service sur l’anneau extérieur.\nCachet B : même dessin général, mais pointe supérieure de l’étoile légèrement fendue ; sur l’anneau, une lettre paraît avoir été gravée en miroir.\n\nSous les empreintes, une remarque : « Ces deux cachets ne peuvent être issus de la même matrice. Le second a probablement été réalisé à partir d’une impression du premier. » Au crayon : « Chercher qui loue des presses et qui collectionne les titres de noblesse. »",
+      "locationExternalId": "LOC_202",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_202_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_202_03",
+      "playerName": "Talon de virement lié à une saisie de 1953",
+      "playerText": "COPIE COMPTABLE — règlement de transport, novembre 1953.\nDébit : compte de mission administratif ; bénéficiaire : « Transports centraux — consignation technique » ; objet : enlèvement de caisses et fermeture du dépôt de Vienne.\n\nUne somme a été inscrite, puis corrigée à la main. La mention « frais de protection du personnel » est rayée et remplacée par « perte sur marchandise ». Le reçu n’est pas signé par le chef de dépôt. Une initiale apparaît sur la case « validation exceptionnelle » : H.",
+      "locationExternalId": "LOC_202",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_202_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_202_04",
+      "playerName": "Feuillet de carnet de courtage",
+      "playerText": "CARNET DE COURTAGE — pages détachées.\n« 14 h 20 : entretien avec M. de Mirecourt, affaire de cachets anciens. Refuse d’expliquer l’origine de sa gravure. »\n« 16 h 00 : revoir l’échantillon italien ; vérifier la référence des commandes à Vienne. »\n« En cas de contestation, demander les factures de l’imprimeur. »\n\nUn numéro de chambre a été noté puis effacé. À côté, une annotation : « Il se vante d’avoir un titre de noblesse ; se méfier davantage de ceux qui lui ont confié un tampon. »",
+      "locationExternalId": "LOC_202",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_202_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_202_05",
+      "playerName": "Fiche de rendez-vous codé arrachée à un carnet de courtage",
+      "playerText": "CARNET DE COURTAGE — feuillet arraché, papier gris à quadrillage discret. En haut de page, deux lettres sont encerclées : H. C. À droite, une date du jour du sommet est suivie de « salon de jeu, après l’arrivée des délégations ».\n\nUne main a préparé la conversation comme on prépare une commande :\n« Première phrase : La maison paie-t-elle ? »\n« Réplique attendue : Jamais avant d’avoir encaissé. »\n\nPlus bas : « Ne pas demander de nom ; vérifier la réponse avant de montrer le bordereau d’acompte. Une fois la reconnaissance faite, évoquer les honoraires, jamais les feuillets techniques. » Le mot « maison » est souligné au crayon bleu. Aucune signature, aucun insigne de service, mais un numéro de facture d’Hélios Conseil apparaît sous la déchirure.",
+      "locationExternalId": "LOC_202",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_202_05",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_203_01",
+      "playerName": "Correspondance familiale de 1951 au papier distinctif",
+      "playerText": "LETTRE COPIÉE — Belgrade, 1951.\n« Cher correspondant, les archives confiées à la garde du musée suivent désormais l’inventaire établi. Nous avons enregistré soixante lots. Une enveloppe arrivée hors registre demande cependant davantage de précautions que les autres. Son contenu ne devra pas être présenté comme une découverte officielle tant que les destinataires ne seront pas d’accord. »\n\nL’original du courrier a été recopié sur un papier mince, filigrané d’un motif en forme de roue dentée. Une deuxième écriture ajoute : « Le soixante-et-unième lot n’a jamais existé pour l’administration. Pour moi, il a coûté une amitié. »",
+      "locationExternalId": "LOC_203",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_203_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_203_02",
+      "playerName": "Reçu de dépôt signé à 18 h 10",
+      "playerText": "REÇU PROVISOIRE — Grand Hôtel Mirador, jour du sommet, 18 h 10.\n« Je reconnais avoir confié à M. Markus Keller un dossier de feuillets originaux, repère A, pour conservation jusqu’à établissement d’un accord de dépôt commun. Le dépositaire n’est autorisé ni à le reproduire ni à le remettre à un acquéreur unique. »\nSignature : S. Tesla.\n\nAu crayon, un renvoi : « Ne pas laisser le bureau servir de coffre. » Une ligne du bas porte « exemplaire remis au dépositaire » ; aucune autre copie n’est jointe.",
+      "locationExternalId": "LOC_203",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_203_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_203_03",
+      "playerName": "Photographie allemande de 1942 avec visage incomplet",
+      "playerText": "DESCRIPTION D’UNE PHOTOGRAPHIE D’ARCHIVES — prise en 1942, selon le tampon au dos.\nTrois officiers en uniforme entourent une table chargée d’instruments de mesure. Un quatrième homme, habillé en civil sombre, se tient près du bord droit du cliché. Son visage est en grande partie hors champ ; on distingue une main posée sur la table, ornée d’une bague à pierre ovale.\n\nAu verso : « Réunion technique — section acquisitions — printemps 1942 ». Le nom du civil semble avoir été effacé mécaniquement. Une photographie du même personnage, prise plus tard ou sous un autre nom, pourrait permettre la comparaison.",
+      "locationExternalId": "LOC_203",
+      "objectExternalId": "OBJ_NE_203_03",
+      "documentExternalId": "DOC_NE_203_03",
+      "support": "VIRTUAL_OBJECT",
+      "presentationMode": "OBJECT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_203_04",
+      "playerName": "Déposition contradictoire sur Pamplemousse",
+      "playerText": "DÉPOSITION NON RETENUE AU RAPPORT FINAL — Vienne, 1953.\n« J’étais chargé de l’inventaire lorsque des hommes munis d’ordres français se sont présentés au dépôt. Le gardien s’est opposé à l’enlèvement d’une caisse qui ne figurait pas sur le bordereau. Une altercation a suivi. Lorsque je suis revenu, mon collègue était mort et l’on m’a demandé de signer un constat d’accident. Je n’ai pas signé. »\n\nEn haut de la feuille : « Témoignage incompatible avec la version corrigée ». Le nom du déposant a été masqué, mais les mots « caisse hors inventaire » sont entourés.",
+      "locationExternalId": "LOC_203",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_203_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_204_01",
+      "playerName": "Instructions de transit tronquées",
+      "playerText": "MESSAGE DE SERVICE — transmission incomplète, avant la tempête.\n« En cas d’acquisition de pièces techniques au Mirador, éviter toute voie diplomatique visible. La sortie des originaux doit passer par un transport commercial couvert. Remettre le colis à l’agent de transit désigné sous le code… »\n\nLa phrase s’interrompt brutalement. Le bord inférieur du feuillet porte une trace de ruban télégraphique arraché. Au crayon, son destinataire a noté : « Plus de ligne. Agir sur place. » Un renvoi manuscrit indique « F.D., chambre 204 ».",
+      "locationExternalId": "LOC_204",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_204_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_204_02",
+      "playerName": "Dossier 1954 avec passage noirci",
+      "playerText": "OPÉRATION DE FRONTIÈRE — 1954, extrait du rapport américain.\n« Lors du passage de l’intermédiaire soviétique Mikhaïl Andreïev, nos instructions de contrôle ont été contrariées par une initiative locale. Le sujet est décédé au cours de la confrontation. L’équipe américaine n’a pas engagé de manœuvre ayant pour objet sa suppression. »\n\nLa ligne « autorité ayant validé l’emploi de la force » a été noircie. Sur la dernière page figure une signature : J. Sullivan. En marge, une correction non datée : « Ce n’est pas ce que j’ai vu. »",
+      "locationExternalId": "LOC_204",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_204_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_204_03",
+      "playerName": "Facture d’acompte à un intermédiaire sans nom",
+      "playerText": "FACTURE PRO FORMA — Hélios Conseil, référence MI-58.\nNature : ouverture d’un dossier d’acquisition scientifique ; clause : « priorité de négociation assurée après règlement ». La rubrique « bénéficiaire final » a été laissée vide, et la case « copie authentifiée » n’a pas reçu de paraphe.\n\nDans une autre écriture : « Payer ne suffira pas si les originaux sont répartis. Exiger un inventaire avant tout virement définitif. » Le nom de l’intermédiaire commercial a été soigneusement découpé dans la copie.",
+      "locationExternalId": "LOC_204",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_204_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_204_04",
+      "playerName": "Carte de visite belge avec verso chiffré",
+      "playerText": "FRANÇOIS DELORME — ÉQUIPEMENTS ÉLECTRIQUES, BRUXELLES.\n« Installations industrielles — conseil et entretien — devis sur demande. »\n\nSur le verso, trois groupes de caractères ont été inscrits à la hâte : « M / 18-40 / 04 ». Une phrase, en flamand approximatif, demande que « les caisses restent au sec ». Quelqu’un a souligné la lettre M et dessiné une petite flèche vers le mot « paiement ».\nIl peut s’agir d’un rendez-vous avec une intermédiaire, d’un banal aide-mémoire commercial ou d’une phrase codée.",
+      "locationExternalId": "LOC_204",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_204_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_205_01",
+      "playerName": "Deux contrats promettant chacun l’exclusivité",
+      "playerText": "EXTRAITS DE CONTRATS — deux acheteurs, une même promesse.\nDocument I : « Hélios Conseil garantit au client la première et unique faculté d’acquérir les travaux présentés par le professeur Sava Tesla. »\nDocument II : « Hélios Conseil garantit au client la première et unique faculté d’acquérir les travaux présentés par le professeur Sava Tesla. »\n\nLes formulations sont identiques, mais les destinataires et les dates diffèrent. Aucun contrat n’indique que le précédent a été annulé. Une note manuscrite, au bas de la seconde copie : « Il est plus facile de vendre une seule chose quatre fois que d’en fabriquer quatre. »",
+      "locationExternalId": "LOC_205",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_205_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_205_02",
+      "playerName": "Facture personnelle de double commission",
+      "playerText": "RELEVÉ PRIVÉ — « services de présentation et facilitation », 1958.\nUne même réunion préparatoire au sommet apparaît deux fois, sous deux descriptions distinctes : « introduction d’un acheteur principal » et « recherche d’un acheteur concurrent ». Le compte destinataire des deux commissions n’a pas été déclaré à Hélios Conseil.\n\nAu dos du relevé, cette phrase : « La loyauté est un placement raisonnable, jusqu’au jour où la concurrence rapporte davantage. » Une initiale élégante, M., figure à côté d’un total entouré de rouge.",
+      "locationExternalId": "LOC_205",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_205_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_205_03",
+      "playerName": "Reconnaissance de dette d’Antoine de Mirecourt",
+      "playerText": "RECONNAISSANCE DE DETTE — Nice, septembre 1956.\n« Je soussigné Antoine de Mirecourt reconnais devoir à Margaret Greaves la somme de six cents dollars, reçue à titre d’avance personnelle. Je m’engage à rembourser au plus tard à la fin de l’année. »\n\nLa date est ancienne ; aucun remboursement n’est porté au verso. Sur une ligne ajoutée plus récemment : « Ou rendre un service d’importance équivalente. » Cette dernière formule est écrite de la main de la créancière, et non du débiteur.",
+      "locationExternalId": "LOC_205",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_205_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_205_04",
+      "playerName": "Note de témoin : passage de sécurité vers 18 h 30",
+      "playerText": "NOTE PERSONNELLE — rédigée après l’alerte.\n« J’ai vu un employé en veste de sécurité traverser le couloir des suites peu avant que le directeur nous réunisse. Je ne peux jurer de l’heure : l’horloge du palier indiquait environ 18 h 30. L’homme tenait quelque chose près de sa poitrine et semblait pressé. Il ne m’a pas regardée. »\n\nEn dessous : « Était-ce le nouvel employé ? Je n’ai aperçu que son dos. Ne pas affirmer ce que je n’ai pas vu. »",
+      "locationExternalId": "LOC_205",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_205_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_205_05",
+      "playerName": "Cahier de presse : échange ferroviaire sans train",
+      "playerText": "NOTES DE REPORTAGE — copie d’une page chiffonnée. Sous la mention « conversations relevées au palier des chambres », une reporter a tracé deux silhouettes schématiques et consigné un dialogue qui lui paraissait d’une remarquable inutilité.\n\n« Le train s’est-il arrêté en gare ? »\n« Seulement pour tamponner les bagages. »\n\nLe commentaire qui suit est moins innocent : « Ils n’ont parlé ni de train, ni de gare. Le premier a répété les mots sans sourire. Le second a répondu tout de suite, puis les deux se sont séparés par des escaliers différents. » Des initiales hésitantes — M. F. et M. K. — figurent dans la marge, suivies d’un point d’interrogation. Le carnet n’attribue aucune nationalité aux interlocuteurs et ne prétend pas avoir compris leur affaire.",
+      "locationExternalId": "LOC_205",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_205_05",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_206_01",
+      "playerName": "Grille d’authentification des folios A/B/C",
+      "playerText": "CAHIER DE LABORATOIRE — méthode de contrôle, 1958.\n« Avant d’attribuer un folio aux recherches Tesla, comparer la numérotation, le vocabulaire employé, la nature du support et les variantes des équations. Une simple signature peut être copiée ; la manière de corriger une erreur de calcul beaucoup moins facilement. »\n\nTrois colonnes portent les lettres A, B et C. Elles sont presque vides. La colonne A indique seulement « absence de preuve matérielle suffisante » ; la colonne B, « attention aux recopies » ; la colonne C, « comparer les constantes ». Aucune conclusion générale n’est tirée.",
+      "locationExternalId": "LOC_206",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_206_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_206_02",
+      "playerName": "Feuillet de formule corrigée",
+      "playerText": "COPIE DE FORMULE — attribution prétendue : archives Tesla.\nLa page montre un circuit géométrique accompagné d’une formule incomplète : « ΔR = λ² / (t − k) ». Dans une seconde version, le signe placé devant k a été inversé, puis gratté. Le nom du copiste a disparu, mais la pagination comporte deux fois le folio 17.\n\nUne petite annotation au bord du papier : « Un calcul ne devient pas juste parce qu’on lui donne une belle reliure. Chercher qui a corrigé après impression. »",
+      "locationExternalId": "LOC_206",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_206_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_206_03",
+      "playerName": "Lettre non déclarée à Sava Tesla",
+      "playerText": "LETTRE NON ENVOYÉE — sans date.\n« Cher Sava, je vous ai parlé comme une scientifique et vous m’avez répondu comme un homme décidé à sauver le monde de lui-même. Voilà qui devrait m’inspirer confiance. Pourtant vous avez déjà confié une partie de votre travail à des intermédiaires que vous ne connaissez pas vraiment. Je voudrais vous demander de suspendre la vente, sans devoir expliquer qui m’a demandé de l’évaluer. »\n\nDernière ligne, ajoutée puis biffée : « Si je vous disais toute la vérité sur moi, me confieriez-vous encore votre laboratoire ? » La lettre n’a ni enveloppe ni signature.",
+      "locationExternalId": "LOC_206",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_206_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_206_04",
+      "playerName": "Comparatif de deux supports papier incompatibles",
+      "playerText": "NOTES DE MATÉRIALITÉ — loupe et filigrane.\nÉchantillon I : papier mince, encre ayant légèrement traversé les fibres, filigrane mécanique ancien.\nÉchantillon II : papier plus épais, surface traitée, filigrane qui semble reproduit à l’impression plutôt qu’intégré à la pâte.\n\nLes deux feuillets portent pourtant le même numéro d’inventaire, comme s’ils provenaient d’un unique lot. Une phrase conclut : « Un des supports est une reproduction ; déterminer lequel exige de confronter la provenance des archives. »",
+      "locationExternalId": "LOC_206",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_206_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_206_05",
+      "playerName": "Carte à double face glissée dans un échantillon de papier",
+      "playerText": "PETITE CARTE ÉPAISSE — glissée dans la pochette d’un papier à filigrane soumis à l’examen d’authenticité. Une face porte l’impression « contrôle qualité — spécimen à ne pas présenter au client » ; l’autre semble avoir servi de pense-bête à un faussaire pressé.\n\n« Le reçu est-il authentique ? »\nAu-dessous, dans une encre différente : « Il l’était avant l’impression. »\n\nUn trait relie ces deux phrases au dessin sommaire d’un cachet dont la pointe supérieure est fendue. À côté se lit : « À utiliser avant remise de l’épreuve. L’interlocuteur sait pourquoi on ne parle jamais des matrices en public. » Les coins sont usés, comme si la carte avait changé plusieurs fois de poche. Aucune indication ne permet de savoir si son propriétaire était le graveur, l’acheteur ou un messager.",
+      "locationExternalId": "LOC_206",
+      "objectExternalId": "OBJ_NE_206_05",
+      "documentExternalId": "DOC_NE_206_05",
+      "support": "VIRTUAL_OBJECT",
+      "presentationMode": "OBJECT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_207_01",
+      "playerName": "Rapport soviétique incomplet sur l’opération 1954",
+      "playerText": "COPIE DE SERVICE — dossier Andreïev, 1954.\n« L’agent de liaison Mikhaïl Andreïev est mort lors d’une confrontation à un point de passage. Des témoins attribuent la responsabilité aux Américains. Il convient de poursuivre l’identification des participants et de préserver les témoignages disponibles. »\n\nLes pages 3 et 4 manquent. Une note manuscrite, plus récente, indique : « La certitude administrative ne remplace pas un témoin. » La dernière phrase est barrée d’un trait rageur. À la place figure un seul mot : « Sullivan ».",
+      "locationExternalId": "LOC_207",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_207_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_207_02",
+      "playerName": "Consigne de négociation scientifique",
+      "playerText": "MÉMORANDUM TECHNIQUE — usage interne.\n« Ne pas conclure un achat sur simple déclaration d’un intermédiaire. Toute pièce attribuée aux travaux Tesla doit être reconnue par un spécialiste indépendant avant remise de fonds. La possession d’un seul fragment ne constitue pas nécessairement la possession d’un procédé opérationnel. »\n\nUne phrase a été ajoutée en bas : « Un accord partageant le dépôt peut être préférable à un original inutilisable. » Une autre main répond : « Préférable pour qui ? »",
+      "locationExternalId": "LOC_207",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_207_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_207_03",
+      "playerName": "Attestation de décès d’un agent soviétique",
+      "playerText": "DOCUMENT D’IDENTIFICATION — 1954.\nNom : Mikhaïl Andreïev. Qualité déclarée : agent de liaison diplomatique. Lieu du décès : point de passage non précisé. Cause administrative : « blessure reçue lors d’un incident armé ».\n\nUne photographie d’identité a été agrafée puis retirée, laissant deux trous sur le papier. Dans la marge : « Personne n’a averti sa famille à temps. » Une mention ultérieure demande de vérifier « pourquoi les premiers secours n’ont pas été appelés ». Le document n’accuse nommément aucun tireur.",
+      "locationExternalId": "LOC_207",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_207_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_207_04",
+      "playerName": "Devis d’achat adressé à Hélios Conseil",
+      "playerText": "OFFRE COMMERCIALE — destinataire : Hélios Conseil.\n« Nous étudierons une proposition de dépôt exclusif sous réserve de remise des originaux complets, de vérification des formules et d’une chaîne de garde sans rupture. Aucun versement définitif avant présentation du matériel. »\n\nLes coordonnées de l’acquéreur sont codées comme celles d’un importateur de matériels médicaux. Le devis exige « un certificat de propriété de chaque pièce A, B et C ». La copie porte la mention manuscrite : « Ils disent tous être l’unique acheteur. »",
+      "locationExternalId": "LOC_207",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_207_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_208_01",
+      "playerName": "Version corrigée du dossier 1954",
+      "playerText": "RECTIFICATIF — dossier Andreïev, classé hors circulation.\n« Une déposition recueillie après l’incident contredit le rapport initial sur l’ordre d’intercepter Mikhaïl Andreïev. L’officier américain présent a signé la version officielle, mais une note antérieure indique qu’il souhaitait un passage sans violence. Le déroulement exact et l’identité du tireur demeurent indéterminés. »\n\nUne mention manuscrite s’adresse au lecteur : « Celui qui a signé a menti ; cela ne prouve pas qu’il a tiré. » Le tampon de validation est resté blanc.",
+      "locationExternalId": "LOC_208",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_208_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_208_02",
+      "playerName": "Télégramme commercial à en-tête tronqué",
+      "playerText": "MESSAGE TRANSMIS AVANT LA TEMPÊTE.\n« Réception confirmée. Les acheteurs se présentent sous couvert de produits industriels. Ne pas confondre le directeur de l’hôtel et les organisateurs du colloque. Les négociations doivent se conclure sur place ; aucun interlocuteur extérieur ne sera disponible en cas de rupture des lignes. »\n\nLes premières lettres de chaque ligne ont été coupées lors de la reproduction. Au verso : « À conserver comme une instruction commerciale, et surtout ne pas la lire à haute voix au bar. »",
+      "locationExternalId": "LOC_208",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_208_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_208_03",
+      "playerName": "Tableau de deux virements à même bénéficiaire",
+      "playerText": "EXTRAIT DE REGISTRE — commissions de conseil, 1958.\nPaiement I : compte d’un industriel étranger ; destinataire : société d’intermédiation M.H.-58.\nPaiement II : compte d’une fondation scientifique ; destinataire : société d’intermédiation M.H.-58.\n\nDeux opérations présentées comme indépendantes rejoignent ainsi la même caisse. Une colonne « retour à l’acheteur » est vide. En marge, quelqu’un demande : « Pourquoi la fondation paie-t-elle celui qui représente prétendument son acquéreur ? »",
+      "locationExternalId": "LOC_208",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_208_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_208_04",
+      "playerName": "Traduction annotée d’un contrat suspect",
+      "playerText": "TRADUCTION DE TRAVAIL — clause d’exclusivité.\nTexte commercial : « Le dépositaire garantit au demandeur un droit prioritaire et exclusif sur tout exemplaire des dossiers présentés. »\nTraduction littérale révisée : « Le dépositaire garantit une priorité de prise de contact, sous réserve des droits déjà concédés. »\n\nCes deux phrases ne créent pas les mêmes obligations. L’annotatrice a entouré « tout exemplaire » et écrit : « Ajouter ces mots change une option de négociation en monopole. Chercher le texte original signé. »",
+      "locationExternalId": "LOC_208",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_208_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_208_05",
+      "playerName": "Brouillon d’interception d’une correspondance industrielle",
+      "playerText": "FEUILLE DE DÉCRYPTAGE — extrait non signé d’une interception commerciale, datée de la semaine du sommet. Deux colonnes portent les titres « demande convenable » et « accusé de réception convenable ». Le vocabulaire évoque l’industrie, mais aucune référence de commande ne suit.\n\n« Votre usine livre-t-elle à l’heure ? »\n« Toujours avec deux factures. »\n\nUne annotation prévient : « La formule ne doit être prononcée qu’une fois. Si l’interlocuteur réclame un véritable bon de livraison, ne pas insister : ce n’est probablement pas le bon homme. » La seconde moitié du feuillet a été arrachée. Une ligne de transmission mentionne seulement « délégué américain / presse commerciale », sans autre précision. Une oreille indiscrète aurait pu prendre cet échange pour un marché ; un espion y verrait peut-être une poignée de main.",
+      "locationExternalId": "LOC_208",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_208_05",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_209_01",
+      "playerName": "Calcul comparatif aboutissant à la date 1942",
+      "playerText": "CAHIER DE CALCUL — page arrachée.\nDeux suites de dates ont été écrites dans les marges, puis ramenées à un même nombre : 1942. La méthode fait intervenir des coefficients grecs, des décalages de fréquence et une correction notée « Δt ». À côté figure un cercle autour du mot « retour », sans phrase qui permette de savoir ce qui doit revenir.\n\nUne note au crayon conclut : « Il est absurde de refaire 1942. Il serait plus absurde encore que cela devienne possible. » Les derniers calculs sont incomplets ; les valeurs utiles ont été reportées dans un autre dossier absent de la page.",
+      "locationExternalId": "LOC_209",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_209_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_209_02",
+      "playerName": "Lettre personnelle liée à l’année 1951",
+      "playerText": "LETTRE CONSERVÉE — signée Élise, 1951.\n« Paul, tu me dis toujours que les mathématiques rendent le monde plus lisible. Depuis quelques semaines, je découvre surtout qu’elles permettent aux gens puissants d’exiger le silence. Si je cesse d’écrire, ne conclus pas trop vite que je t’ai abandonné. J’ai vu des papiers qu’on aurait dû laisser à leurs auteurs. »\n\nLa lettre s’arrête au milieu d’une phrase. Au dos, une date et une adresse ont été recouvertes d’encre. Une note ajoutée en 1958 dit : « On m’a promis des nouvelles d’elle. Qui les possède vraiment ? »",
+      "locationExternalId": "LOC_209",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_209_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_209_03",
+      "playerName": "Feuillet de comparaison des trajectoires",
+      "playerText": "NOTE DE LABORATOIRE — équations incomplètes.\n« Le dossier B fournit une relation théorique, mais pas ses paramètres d’alignement. Sans les coefficients de la série C, plusieurs résultats incompatibles satisfont les mêmes égalités. On peut donc recopier B, l’expliquer et même le vendre ; cela ne suffit pas à déterminer un point d’arrivée vérifiable. »\n\nLe bas de la page comporte trois schémas semblables, chacun menant à une ligne pointillée différente. Le seul mot souligné trois fois est « C ».",
+      "locationExternalId": "LOC_209",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_209_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_209_04",
+      "playerName": "Correspondance interrompue avec un financeur inconnu",
+      "playerText": "OFFRE DE SOUTIEN À UNE RECHERCHE PRIVÉE — 1958.\n« Cher Docteur, un mécène de confiance a pris connaissance de votre intérêt pour les archives de 1951. Il pourrait financer la poursuite de vos travaux et, surtout, vous communiquer une piste concernant la disparition d’une personne qui vous est chère. »\n\nLa lettre demande en retour « une évaluation confidentielle des trois séries de feuillets Tesla ». Le nom du financier n’est jamais indiqué. Il ne reste que le paraphe d’un secrétaire : C.V. Une réponse commencée au verso s’arrête sur « Je refuse de vendre une personne pour une équation, mais… »",
+      "locationExternalId": "LOC_209",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_209_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_210_01",
+      "playerName": "Protocole de consignation neutre",
+      "playerText": "PROPOSITION DE GARDE INTERNATIONALE — brouillon personnel.\n« Les trois ensembles de notes seront déposés séparément auprès de parties distinctes. Nul n’aura l’usage exclusif d’une série. Une consultation croisée ne sera autorisée qu’en présence de témoins représentant plusieurs intérêts. »\n\nUne dernière clause prévoit la restitution des documents à une institution scientifique si les négociations échouent. Le papier porte une annotation : « Attention : une consignation sans compétence scientifique n'est qu'une belle armoire avec une serrure. »",
+      "locationExternalId": "LOC_210",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_210_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_210_02",
+      "playerName": "Ordre britannique avec clause secrète",
+      "playerText": "INSTRUCTION DIPLOMATIQUE — diffusion limitée, 1958.\n« La représentante chargée des échanges doit empêcher qu’une seule puissance puisse acquérir, exploiter ou dissimuler les travaux Tesla. L’accès conjoint à la documentation est préférable à la prise de contrôle par un intermédiaire commercial. »\n\nUne clause supplémentaire, encadrée : « Si aucun accord ne peut être garanti, les services de Sa Majesté devront conserver les éléments indispensables à toute reconstitution. » Une note manuscrite demande : « S'agit-il de les protéger, ou simplement de les garder pour nous ? »",
+      "locationExternalId": "LOC_210",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_210_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_210_03",
+      "playerName": "Archive britannique de 1946",
+      "playerText": "FICHE DE RECHERCHE — personnes disparues après la guerre, 1946.\n« Karl von Strausser, allemand. Affectations présumées : achats techniques, récupération de brevets, acquisitions industrielles au profit du régime nazi. Dernière trace fiable : circuit de fournisseurs connu en 1943. Sort après-guerre : inconnu. »\n\nLe portrait joint au dossier est absent. Une ligne décrit un homme « régulièrement photographié de profil, rarement sous sa véritable signature ». Une instruction demande de réunir au moins deux éléments d’identification avant toute accusation.",
+      "locationExternalId": "LOC_210",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_210_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_210_04",
+      "playerName": "Photocopie d’un contrat d’achat à signature inhabituelle",
+      "playerText": "COPIE PARTIELLE — achat de droits techniques.\n« Le soussigné accepte de verser une avance contre présentation ultérieure des dossiers de recherche et garantie d'une priorité de négociation. »\n\nLa signature du représentant d’Hélios est élégante mais manifestement différente de celle figurant sur un deuxième paraphe. Une correction manuscrite remplace « première consultation » par « cession exclusive ». Sur le bord, quelqu’un a ajouté : « Ne pas supposer que le signataire avait lu la clause corrigée. »",
+      "locationExternalId": "LOC_210",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_210_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_210_05",
+      "playerName": "Mémo d’écoute déposé dans une chemise diplomatique",
+      "playerText": "SERVICE DES OBSERVATIONS — mémo de couloir, sans en-tête national. La transcription concerne un échange entendu devant l’escalier de service, à une heure où les délégations se croisaient encore sans prendre garde à leur voisinage.\n\n« La conférence commence-t-elle à neuf heures ? »\n« À Moscou, elle a déjà fini. »\n\nEn regard des mots « conférence » et « Moscou », un analyste a écrit : « Réplique trop précise pour être une plaisanterie. Un des deux portait une mallette. » Les noms manquent, mais la mention « entretien entre deux personnes présentées comme visiteurs de commerce » apparaît dans le bord supérieur. Aucune interception ultérieure n’est jointe. Quiconque retrouve l’un des interlocuteurs pourrait tenter la même phrase : il lui restera à justifier ce qu’il vient ensuite chercher.",
+      "locationExternalId": "LOC_210",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_210_05",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_211_01",
+      "playerName": "Lettre de dernières volontés de Sava",
+      "playerText": "NOTE PERSONNELLE — Sava Tesla, non datée.\n« Si le sommet devait m’échapper, je veux qu’aucune nation ne puisse prétendre avoir reçu de moi le droit de disposer seule de l’ensemble. J’ai séparé mes notes par prudence. Cette décision peut passer pour de la méfiance ; elle est aussi une forme de confiance accordée à trois personnes différentes. »\n\nPlus loin : « Ne les laissez pas confondre mon nom avec la propriété de mon travail. Si je suis absent, rappelez-leur qu’un savant peut encore avoir des volontés. » Le texte ne désigne aucun héritier et n'attribue aucun dossier à une puissance.",
+      "locationExternalId": "LOC_211",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_211_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_211_02",
+      "playerName": "Copie du bordereau de garde de C",
+      "playerText": "COPIE DE REÇU — veille du sommet, 10 h 05.\n« Série C : document original confié à Bianca Moretti en sa qualité de collaboratrice scientifique. La remise n’est ni une vente ni une autorisation de reproduction. Le dossier doit rester disponible pour une vérification scientifique contradictoire. »\n\nLa signature de Sava est reconnaissable sur la copie. Une annotation personnelle précise : « Il m’a dit de ne pas croire les invitations, même les plus polies. » Aucun feuillet scientifique n’est joint au reçu.",
+      "locationExternalId": "LOC_211",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_211_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_211_03",
+      "playerName": "Rendez-vous fixé avec Sava à 18 h 45",
+      "playerText": "CARTE DE RENDEZ-VOUS — jour du sommet.\n« Bianca, passez me voir à 18 h 45 avant l’ouverture. Nous devons reprendre la dernière clause et reparler du dépôt des séries. Venez seule ; je crains d’avoir fait confiance à trop de gens. — S. »\n\nSur le revers, Bianca a noté : « Il ne doit pas céder à la menace. » La carte porte une petite trace de pliure, comme si elle avait été consultée plusieurs fois. Aucun message d'annulation n’a été écrit.",
+      "locationExternalId": "LOC_211",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_211_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_211_04",
+      "playerName": "Note sur la visite d’Alice Lambert la veille",
+      "playerText": "NOTE DE LABORATOIRE — veille du sommet.\n« Alice Lambert a obtenu un entretien privé. Elle est repartie avec une enveloppe fermée, repère B, après avoir évoqué un séquestre indépendant. Sava a paru soulagé, puis inquiet. Il m’a demandé si j’avais confiance dans les gens qui savent si bien employer le mot neutre. »\n\nUne phrase est soulignée : « Alice n’a pas été autorisée à emporter C. » En bas, Bianca a écrit : « Notre amitié ne doit pas devenir une excuse pour ne pas lui poser de questions. »",
+      "locationExternalId": "LOC_211",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_211_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_212_01",
+      "playerName": "Copie carbone du registre des passes",
+      "playerText": "REGISTRE DES CLÉS DE SERVICE — nuit du sommet.\n18 h 24 : retrait d’une passe de couloir, motif « vérification sécurité ».\n18 h 37 : retour inscrit au crayon, puis repassé à l’encre.\nUne troisième ligne semble avoir été grattée ; la copie carbone laisse apparaître « secteur des suites ».\n\nDans la colonne « signature de l’agent », des initiales très proches de V.L. ont été écrites, puis corrigées d’une autre main. Rien ne prouve à lui seul que le signataire a pénétré dans la suite du professeur.",
+      "locationExternalId": "LOC_212",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_212_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_212_02",
+      "playerName": "Veste de sécurité à doublure déchirée",
+      "playerText": "OBJET — veste de service du Grand Hôtel Mirador.\nLe revers de la poche intérieure porte une déchirure récente. Un coin de doublure gris foncé reste pris dans la couture et des fils ressemblent à ceux d’un morceau de textile retrouvé ailleurs dans l’hôtel.\n\nUne petite étiquette porte simplement « V. Lenoir — renfort sécurité ». Le tissu n’explique pas pourquoi la poche a été déchirée. L’usure pourrait être accidentelle ; la fraîcheur des fibres suggère néanmoins un accrochage récent.",
+      "locationExternalId": "LOC_212",
+      "objectExternalId": "OBJ_NE_212_02",
+      "documentExternalId": null,
+      "support": "VIRTUAL_OBJECT",
+      "presentationMode": "OBJECT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_212_03",
+      "playerName": "Reproduction d’un dossier de 1984 relatant 1958 et 1942",
+      "playerText": "FEUILLE FROISSÉE — impression au papier d’origine inhabituelle.\n« Archives de la Résistance — Londres, 1984. Recoupement documentaire : un rapport daté de 1942 mentionne une délégation revenue d’un rendez-vous tenu en 1958 au Mirador. L’homme désigné par les initiales K.v.S. aurait remis des travaux scientifiques dont l’origine demeure impossible à établir selon la chronologie officielle. »\n\nUn passage est manquant. Il ne reste que : « Empêcher la livraison. Toute tentative de destruction après dispersion des trois séries est… » La fin a été arrachée.",
+      "locationExternalId": "LOC_212",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_212_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_212_04",
+      "playerName": "Liste des invités : cercle autour de « Valmont »",
+      "playerText": "LISTE INTERNE DE RÉCEPTION — dressée par le service de sécurité.\nLes noms publics des seize invités sont reportés avec leurs numéros de chambre. Aucun réseau ni véritable nom ne figure sur la liste.\n\n« Charles Valmont — 216 » est entouré deux fois à l’encre noire. Une flèche mène à la mention « ne pas laisser seul avec les caisses ». Le bas de la page comporte trois essais d’écriture du mot « Karl », dont l'un est barré si vigoureusement que le papier s'est presque percé.",
+      "locationExternalId": "LOC_212",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_212_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_212_05",
+      "playerName": "Ticket de bagagerie annoté d’un dialogue absurde",
+      "playerText": "TICKET DE BAGAGERIE DU MIRADOR — numéro 58/17, détaché d’une liasse du service de nuit. Le recto indique une consigne sans nom et une heure de dépôt mal imprimée. Le verso porte une transcription rapide, probablement copiée par un employé qui avait compris que certains clients étaient plus dangereux lorsqu’ils parlaient du thé.\n\n« Le thé a-t-il été servi ? »\n« Il attend une autorisation d’importation. »\n\nSous l’échange, une note : « Deux voyageurs séparés, visiblement satisfaits de cette réponse. Le monsieur de la sécurité n’a pas été présenté. » Les deux dernières lettres de la signature du rédacteur ont été frottées au pouce. Au coin supérieur, une tache de café dissimule une partie de la date ; le numéro de ticket est, lui, parfaitement lisible.",
+      "locationExternalId": "LOC_212",
+      "objectExternalId": "OBJ_NE_212_05",
+      "documentExternalId": "DOC_NE_212_05",
+      "support": "VIRTUAL_OBJECT",
+      "presentationMode": "OBJECT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_213_01",
+      "playerName": "Quatre modèles incompatibles de contrat exclusif",
+      "playerText": "DOSSIER DE NÉGOCIATION — quatre chemises, un seul objet de vente.\nChaque projet garantit une « priorité exclusive » sur les travaux scientifiques de Sava Tesla. Pourtant, les quatre contrats portent une référence identique et s'adressent à quatre acheteurs différents. Les échéances de paiement ont été décalées pour qu’aucun client ne puisse constater facilement la contradiction.\n\nUne remarque figure en marge du quatrième : « Chaque délégation croit être la première reçue ; veiller à ce qu’elles ne comparent pas les exemplaires avant règlement. » À l’encre rouge : « Ne jamais laisser un acheteur voir la liste entière. »",
+      "locationExternalId": "LOC_213",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_213_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_213_02",
+      "playerName": "Statuts d’Hélios Conseil",
+      "playerText": "EXTRAIT DE STATUTS — Hélios Conseil, société de représentation.\nObjet social : « mise en relation d’investisseurs, consultants et déposants de projets scientifiques ; facilitation administrative et organisation de rencontres privées ».\n\nLes administrateurs déclarés sont des fondés de pouvoir dont les signatures paraissent remarquablement semblables. Aucune mention d'un réseau de renseignement ne figure dans le texte. Une note interne ajoute : « Le client doit connaître Hélios ; il n’a aucune raison de connaître qui rémunère véritablement les intermédiaires. » La dernière page porte un tampon différent de celui des quatre projets de contrat.",
+      "locationExternalId": "LOC_213",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_213_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_213_03",
+      "playerName": "Tableau de commissions à différents intermédiaires",
+      "playerText": "TABLEAU DE RÉPARTITION — usage interne, sommet du Mirador.\nTrois colonnes reviennent d'une ligne à l'autre : « introduction », « conservation », « garantie ». Les commissions sont promises avant même que les originaux aient été montrés aux acquéreurs.\n\nLes noms des bénéficiaires sont codés par fonctions : « relations publiques », « expert en fac-similés », « financeur ». L'un des associés a griffonné : « Une garantie qui ne garantit rien reste une bonne garantie si elle a été payée. » Une correction au bas du tableau demande d'attendre la fin du sommet avant de solder les comptes.",
+      "locationExternalId": "LOC_213",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_213_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_213_04",
+      "playerName": "Reçu d’acompte dont le financeur est masqué",
+      "playerText": "AVIS DE VERSEMENT — Hélios Conseil, copie non validée.\n« Acompte enregistré pour réservation de la prestation scientifique liée au dossier Mirador. Le versement ne constitue pas transfert des documents originaux. »\n\nLe nom du donneur d'ordre est couvert par une bande de papier collée, mais une empreinte à travers la feuille révèle les deux premières lettres : « Va… ». Le numéro de référence ressemble à celui d’une facture d’acompte adressée à un acheteur et au registre de commissions. Dans la marge : « Exiger une seconde signature si le financeur prétend parler au nom de tous. »",
+      "locationExternalId": "LOC_213",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_213_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_214_01",
+      "playerName": "Rendez-vous avec Sava horodaté avant 18 h 15",
+      "playerText": "AGENDA DE CONSULTATION — note d'Alice Lambert.\n« Veille du sommet, 11 h 10 : entretien avec S. Tesla. Remise provisoire de l'enveloppe B. Confirmer la clause de séquestre ; aucune reproduction autorisée. »\n« Jour du sommet, avant 18 h 15 : reprendre le projet de signature et obtenir l'accord du déposant. »\n\nLe dernier rendez-vous est coché, sans indication de l'heure exacte du départ. Dans la marge : « Il était inquiet. Il parlait de rendre les contrats publics. » Rien ne situe Alice dans la suite au moment où Sava meurt.",
+      "locationExternalId": "LOC_214",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_214_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_214_02",
+      "playerName": "Mandat de séquestre de B",
+      "playerText": "MANDAT PROVISOIRE — Série B, dépôt scientifique.\n« La société intermédiaire agit comme gardienne matérielle des feuillets remis par Sava Tesla. Elle ne peut procéder à une vente définitive avant l'ouverture des négociations. Le déposant conserve la faculté d'annuler la convention. »\n\nLes conditions de révocation ont été remaniées au stylo : « après accord de toutes les parties » remplace « à première demande du déposant ». Le changement n'est contresigné par personne. La responsable du dépôt a noté : « Je suis censée garder B, pas le posséder. »",
+      "locationExternalId": "LOC_214",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_214_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_214_03",
+      "playerName": "Lettre menaçant d’annuler les transactions",
+      "playerText": "LETTRE DE SAVA TESLA — projet remis à l'intermédiaire.\n« J'ai découvert que plusieurs offres attribuent simultanément des droits incompatibles sur mes travaux. Si les engagements ne sont pas clarifiés avant l'ouverture du sommet, je retirerai mon consentement et communiquerai aux délégations le détail des promesses reçues. »\n\nUne phrase, ajoutée au bas de la page : « Vous m'aviez promis la neutralité. Je vous ai cru. » La destinataire a entouré le mot « cru » et écrit : « C'est peut-être encore réparable. »",
+      "locationExternalId": "LOC_214",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_214_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_214_04",
+      "playerName": "Reçu du bar daté vers 18 h 30",
+      "playerText": "GRAND HÔTEL MIRADOR — bar du salon, ticket de consommation.\n« 18 h 31 : café noir, eau minérale. Table servie — A. Lambert. »\nAu verso, la serveuse a écrit : « Cliente pressée ; a demandé s'il restait une ligne téléphonique en état. Est repartie avec son manteau sur le bras. »\n\nL'heure du ticket provient de la caisse, non d'une vérification indépendante ; le nom a été inscrit par le personnel après coup. Le reçu peut établir un passage au bar, pas une présence continue durant toute la période du meurtre.",
+      "locationExternalId": "LOC_214",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_214_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_215_01",
+      "playerName": "Épreuves d’impression et note de reproduction",
+      "playerText": "ÉPREUVES D'IMPRIMERIE — deux versions du même folio scientifique.\nLa première reproduit soigneusement un feuillet attribué aux archives Tesla. Dans la seconde, un signe a été corrigé au crayon ; pourtant, le numéro de folio n'a pas changé. Un morceau de papier calque montre comment reporter une signature sur un autre support.\n\nNote de l'atelier : « La page est convaincante à distance. Éviter de la laisser à un lecteur qui vérifie les calculs. Pour le filigrane, employer le papier traité du nouveau fournisseur. » Le feuillet 17 a été imprimé deux fois.",
+      "locationExternalId": "LOC_215",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_215_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_215_02",
+      "playerName": "Cachet viennois à étoile fendue",
+      "playerText": "OBJET ET NOTE D’ATELIER — un petit cachet métallique enveloppé dans du papier huilé, accompagné de son empreinte sur une feuille de contrôle. L’étoile centrale porte une pointe supérieure fendue ; une lettre de l’anneau extérieur est gravée à l’envers. La pièce paraît ancienne, mais sa provenance ne figure sur aucun registre officiel.\n\nLa note jointe précise : « Modèle emprunté à une pièce saisie à Vienne en 1953. À ne pas utiliser deux fois devant le même contrôleur. » Une seconde mention ajoute : « Livraison facturée comme restauration de collection privée. » La facture initiale manque. Une autre empreinte datée permettrait de comparer les défauts de la matrice.",
+      "locationExternalId": "LOC_215",
+      "objectExternalId": "OBJ_NE_215_02",
+      "documentExternalId": "DOC_NE_215_02",
+      "support": "VIRTUAL_OBJECT",
+      "presentationMode": "OBJECT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_215_03",
+      "playerName": "Reconnaissance de dette envers Margaret Greaves",
+      "playerText": "ORIGINAL CONSERVÉ PAR LE DÉBITEUR — Nice, 1956.\n« Je reconnais avoir reçu de Margaret Greaves six cents dollars, remboursables avant la fin de l'année. »\n\nUne autre écriture a ajouté sous la signature : « Je rembourserai lorsque mes affaires iront mieux, ce qui n'engage que mon optimisme. » Le papier a été plié puis déplié plusieurs fois. Une note plus récente est beaucoup moins drôle : « Elle pourrait me faire arrêter si elle révélait ce que j'ai fabriqué pour elle. »",
+      "locationExternalId": "LOC_215",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_215_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_215_04",
+      "playerName": "Facture d’une imprimerie prétendument royale",
+      "playerText": "FACTURE — « Atelier des Impressions Royales et Diplomatiques ».\nPrestations : papier filigrané, trois cachets, gravure de plaques, reproduction d'une signature et livraison discrète. Le devis est adressé à « M. de Mirecourt » et porte une mention « pour consultation privée, non pour usage officiel ».\n\nL'atelier revendique sur son en-tête une « tradition au service des chancelleries ». En petits caractères, le bas de page précise qu'il s'agit d'une raison commerciale sans aucun privilège légal. Une correction sur le total est paraphée « L.B. ».",
+      "locationExternalId": "LOC_215",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_215_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_216_01",
+      "playerName": "Certificat de nationalité au nom de Charles Valmont",
+      "playerText": "CERTIFICAT DE NATIONALITÉ — copie suisse prétendument certifiée.\nNom : Charles Valmont. Profession : investisseur en équipements industriels. Date de naturalisation et références administratives soigneusement alignées ; tampon légèrement décalé par rapport à la signature.\n\nUne ancienne date, presque effacée, apparaît sous le nom actuel. Elle ne correspond pas à l'âge annoncé par le porteur. Dans un coin, une photographie d'identité montre une bague à pierre ovale visible à la main droite. Le document n'indique aucun nom antérieur.",
+      "locationExternalId": "LOC_216",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_216_01",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_216_02",
+      "playerName": "Note militaire de 1943 avec désignation Teleforce",
+      "playerText": "NOTE TECHNIQUE ALLEMANDE — 1943, reproduction partielle.\n« Projet désigné TELEFORCE dans des pièces étrangères. Priorité : identifier les conditions d'emploi militaire avant toute tentative de reproduction. La documentation récupérée est insuffisante pour établir un dispositif opérationnel. »\n\nÀ côté figure la mention « section acquisitions, ancien dossier 1942 », suivie d'une série d'initiales illisibles. Une annotation contemporaine précise : « Si le reste existe vraiment, un ingénieur saura le reconnaître. » La signature a été soigneusement coupée de la copie.",
+      "locationExternalId": "LOC_216",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_216_02",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_216_03",
+      "playerName": "Liste de fournisseurs destinés à un atelier clandestin",
+      "playerText": "ESTIMATION D'ATELIER — sans commande exécutée.\nMatériel envisagé : bobines, isolants spéciaux, équipements de mesure, systèmes d'alimentation et pièces usinées. Les livraisons ne pourraient commencer qu'après le sommet ; plusieurs fournisseurs exigent des plans complets avant même de chiffrer.\n\nUn paragraphe a été entouré : « Prévoir une installation isolée, hors de tout contrôle public. Financer la construction après acquisition des trois séries. » Le calendrier prévoit les livraisons après le sommet. Aucune commande exécutée n’est jointe au dossier.",
+      "locationExternalId": "LOC_216",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_216_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_216_04",
+      "playerName": "Lettres de crédit reliant Hélios Conseil et Valmont",
+      "playerText": "DEUX LETTRES BANCAIRES — demandes de garantie.\nLa première promet à Hélios Conseil un financement conditionné à l'acquisition des dossiers scientifiques. La seconde autorise Charles Valmont à se retirer de la transaction sans pénalité si un intermédiaire est compromis.\n\nLes pièces mentionnent « frais d'intermédiation » et « réserve pour le montage industriel ». À la main : « Les associés doivent croire que je protège leur entreprise ; je protège d'abord mon investissement. » Un paraphe difficile à distinguer paraît reprendre trois lettres plutôt qu'un nom entier.",
+      "locationExternalId": "LOC_216",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_216_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_217_01",
+      "playerName": "Photographie d’une inconnue — Londres, 1984",
+      "playerText": "PHOTOGRAPHIE TROUVÉE PRÈS DU BUREAU DU PROFESSEUR.\nUne jeune femme en manteau sombre regarde l'objectif dans une rue de Londres. À l'arrière-plan, une grande affiche officielle porte clairement la date « 1984 » ; l'architecture familière de la ville est marquée par des symboles d'un régime de domination étranger à l'année 1958.\n\nAu verso, à l'encre : « Pour te rappeler qu'un autre monde a existé. E. » Le cliché n'est ni dédicacé à Sava ni classé parmi ses papiers. Une trace de pliure récente suggère qu'il a été transporté dans une poche.",
+      "locationExternalId": "LOC_217",
+      "objectExternalId": "OBJ_NE_217_01",
+      "documentExternalId": null,
+      "support": "VIRTUAL_OBJECT",
+      "presentationMode": "OBJECT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_217_02",
+      "playerName": "Fragment de doublure gris foncé",
+      "playerText": "PETIT FRAGMENT TEXTILE TROUVÉ DANS LA SUITE.\nDes fils gris foncé sont accrochés au bord d'un meuble proche du corps. La trame paraît provenir d'une doublure de veste plutôt que d'un rideau ou d'une nappe. Le morceau n'a ni étiquette ni initiales.\n\nLe rapport de constat indique simplement : « Fibre récente, origine non déterminée. » Une comparaison directe avec un vêtement endommagé permettrait d'étayer l'hypothèse d'une lutte dans la suite.",
+      "locationExternalId": "LOC_217",
+      "objectExternalId": "OBJ_NE_217_02",
+      "documentExternalId": null,
+      "support": "VIRTUAL_OBJECT",
+      "presentationMode": "OBJECT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_217_03",
+      "playerName": "Coffre vide et bordereaux de trois dépôts",
+      "playerText": "INVENTAIRE DE LA SUITE — coffre ouvert, presque vide.\nTrois bordereaux sont encore rangés dans une chemise cartonnée :\n« C — déposé hier à 10 h 05, destinataire B.M. »\n« B — déposé hier à 11 h 10, destinataire A.L. »\n« A — remis aujourd'hui à 18 h 10, destinataire M.K. »\n\nLes dossiers eux-mêmes ne se trouvent pas dans le coffre. À la place, une note de Sava : « Trois dépositaires, trois risques. Si l'un meurt, les deux autres doivent pouvoir refuser. » Aucun nom de réseau ou de gouvernement n'est porté sur la chemise.",
+      "locationExternalId": "LOC_217",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_217_03",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_217_04",
+      "playerName": "Constat de décès et rendez-vous de 18 h 45",
+      "playerText": "CONSTAT PROVISOIRE — Grand Hôtel Mirador, avant l'arrivée des autorités.\n« Le professeur Sava Tesla a été retrouvé sans vie dans sa suite. Des marques au cou et le désordre limité autour du bureau font suspecter une intervention violente. La cause exacte et l'heure précise du décès ne pourront être établies par la direction de l'hôtel. »\n\nPrès du téléphone inutilisable a été trouvée une note : « Bianca — 18 h 45 — dernier point sur le dépôt. » Sur un feuillet séparé, Sava avait commencé : « Si je disparais, ne laissez pas les contrats décider à ma place. » La phrase s'arrête là.",
+      "locationExternalId": "LOC_217",
+      "objectExternalId": null,
+      "documentExternalId": "DOC_NE_217_04",
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": false
+    },
+    {
+      "externalId": "CL_NE_A",
+      "playerName": "Dossier A — feuillets techniques",
+      "playerText": "ENVELOPPE SCELLÉE — série A. Un lot de folios portant des tracés géométriques,\ndes nombres sans légende, des annotations au crayon et plusieurs corrections\nsuperposées. Les pages sont numérotées, mais certaines portent des lettres\nlatines plutôt que des chiffres. Une mention récurrente est « T-F ».\nExtrait lisible : « σ(λ) / ΔR ; 0,47 ; κ ≠ 0 ». Aucun mode d'emploi n'est joint.",
+      "locationExternalId": null,
+      "objectExternalId": "DOC_OBJ_DOC_NE_A",
+      "documentExternalId": "DOC_NE_A",
+      "support": "PHYSICAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_B",
+      "playerName": "Dossier B — équations non classées",
+      "playerText": "ENVELOPPE SCELLÉE — série B. Des pages couvertes de formules et de tableaux\nde fréquences ; les annotations se répondent d'un folio à l'autre. On lit\nplusieurs fois « Δt », « γ », « phase » et « ΣB », sans définition apparente.\nUn feuillet se termine par une égalité inachevée et un renvoi manuscrit :\n« Vérifier la concordance des constantes avant conclusion. »",
+      "locationExternalId": null,
+      "objectExternalId": "DOC_OBJ_DOC_NE_B",
+      "documentExternalId": "DOC_NE_B",
+      "support": "PHYSICAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_C",
+      "playerName": "Dossier C — tables de correspondance",
+      "playerText": "ENVELOPPE SCELLÉE — série C. Six feuilles portant des tableaux à double\nentrée, des colonnes chiffrées et une grille de signes. Une note semble\nrenvoyer à deux autres séries : « A/B : aligner avant restitution ».\nLes marges comportent une ligne réécrite de la main de Sava Tesla :\n« La dernière relation doit rester ici. » Le sens de cette phrase n'est pas\nexpliqué dans l'enveloppe.",
+      "locationExternalId": null,
+      "objectExternalId": "DOC_OBJ_DOC_NE_C",
+      "documentExternalId": "DOC_NE_C",
+      "support": "PHYSICAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_204_00",
+      "playerName": "Pistolet de poche",
+      "playerText": "Pistolet de jeu transférable. Il accorde +3 à une tentative d’Intimidation uniquement tant que son auteur possède ce pistolet. Le bonus cesse si le pistolet est cédé, perdu ou volé.",
+      "locationExternalId": "LOC_204",
+      "objectExternalId": "OBJ_PISTOLET_P04",
+      "documentExternalId": null,
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_207_00",
+      "playerName": "Pistolet de service",
+      "playerText": "Pistolet de jeu transférable. Il accorde +3 à une tentative d’Intimidation uniquement tant que son auteur possède ce pistolet. Le bonus cesse si le pistolet est cédé, perdu ou volé.",
+      "locationExternalId": "LOC_207",
+      "objectExternalId": "OBJ_PISTOLET_P07",
+      "documentExternalId": null,
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_201_00",
+      "playerName": "Mallette de billets — 100 000 $",
+      "playerText": "Mallette contenant 100 000 $, réservés à une négociation. Ces fonds sont distincts de l’argent personnel de son détenteur. Le transfert de la mallette transmet les fonds qu’elle représente.",
+      "locationExternalId": "LOC_201",
+      "objectExternalId": "OBJ_MALLETTE_P01",
+      "documentExternalId": null,
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    },
+    {
+      "externalId": "CL_NE_213_00",
+      "playerName": "Mallette de billets — 100 000 $",
+      "playerText": "Mallette contenant 100 000 $, réservés à une négociation. Ces fonds sont distincts de l’argent personnel de son détenteur. Le transfert de la mallette transmet les fonds qu’elle représente.",
+      "locationExternalId": "LOC_213",
+      "objectExternalId": "OBJ_MALLETTE_P13",
+      "documentExternalId": null,
+      "support": "DIGITAL",
+      "presentationMode": "DOCUMENT",
+      "active": true,
+      "major": true
+    }
+  ],
+  "interactions": [
+    {
+      "externalId": "SYSTEM_LOCATION_SEARCH",
+      "name": "Fouiller",
+      "active": true,
+      "targetType": "LOCATION",
+      "resolution": "AUTO",
+      "validation": "AUTO",
+      "costResourceExternalId": "RES_PA",
+      "costValue": 1
+    },
+    {
+      "externalId": "INT_AB_SEDUCTION",
+      "name": "Séduction",
+      "active": true,
+      "targetType": "CHARACTER",
+      "resolution": "AUTO",
+      "validation": "AUTO",
+      "costResourceExternalId": "RES_PA",
+      "costValue": 1
+    },
+    {
+      "externalId": "INT_AB_INTIMIDATION",
+      "name": "Intimidation",
+      "active": true,
+      "targetType": "CHARACTER",
+      "resolution": "OPPOSED",
+      "validation": "AUTO",
+      "costResourceExternalId": "RES_PA",
+      "costValue": 1
+    }
+  ],
+  "resources": [
+    {
+      "scenarioVersionId": "a92d6570-432e-5e0c-9e90-985bc7b9f8ee",
+      "externalId": "RES_CASH",
+      "name": "Dollars personnels",
+      "scopeType": "PLAYER",
+      "unit": "$",
+      "defaultValue": null,
+      "maxValue": null,
+      "physicalMode": "DIGITAL",
+      "isPublic": false,
+      "active": true
+    },
+    {
+      "scenarioVersionId": "a92d6570-432e-5e0c-9e90-985bc7b9f8ee",
+      "externalId": "RES_PA",
+      "name": "Points d’action",
+      "scopeType": "PLAYER",
+      "unit": "PA",
+      "defaultValue": 5,
+      "maxValue": null,
+      "physicalMode": "DIGITAL",
+      "isPublic": false,
+      "active": true
+    }
+  ]
+}

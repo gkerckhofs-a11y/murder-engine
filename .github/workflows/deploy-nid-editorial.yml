@@ -20,7 +20,7 @@ jobs:
           node-version: '22'
       - run: npm ci --prefix functions
       - name: Targeted player and snapshot checks
-        run: node --test functions/test/player.test.mjs functions/test/document-analysis.test.mjs functions/test/session-incarnations.test.mjs
+        run: node --test functions/test/player.test.mjs functions/test/document-analysis.test.mjs functions/test/session-incarnations.test.mjs functions/test/nid-editorial.test.mjs
       - run: npm install --global firebase-tools@15.34.0
       - name: Exercise atomic correction on SQL emulator
         run: node functions/integration/run.mjs nid-editorial
