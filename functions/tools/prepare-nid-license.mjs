@@ -11,7 +11,7 @@ const email = 'collin.marielle@hotmail.com';
 
 const stateQuery = `query InspectNidLicence($sessionId: UUID!) {
   gameSession(id:$sessionId){
-    id name status scheduledAt venue language runtimeInitializedAt startedAt pausedAt finishedAt
+    id name status scheduledAt venue language runtimeInitializedAt startedAt pausedAt finishedAt notes
     liveClockStartedAt liveElapsedSeconds currentPhaseExternalId
     organizerEmail organizerAccessEnabled selfServiceEnabled realSessionStartedAt rehearsalOfId activeRehearsalId
     scenarioVersion { sourceScenarioId versionLabel }
@@ -21,7 +21,7 @@ const stateQuery = `query InspectNidLicence($sessionId: UUID!) {
   }
   sessionActionLogs(where:{gameSessionId:{eq:$sessionId}},limit:1000){actionType}
   sessionClueDiscoveries(where:{gameSessionId:{eq:$sessionId}},limit:1000){clueExternalId}
-  sessionResources(where:{gameSessionId:{eq:$sessionId}},limit:1000){resourceExternalId initialValue currentValue}
+  sessionResources(where:{gameSessionId:{eq:$sessionId}},limit:1000){characterExternalId resourceExternalId initialValue currentValue}
   sessionCasino(key:{gameSessionId:$sessionId}){revision stateJson}
 }`;
 const state = await accessReader(stateQuery, {sessionId});
@@ -35,7 +35,7 @@ const auth = await getAuth().getUserByEmail(email).then(user=>({
   if(error.code==='auth/user-not-found')return {exists:false};
   return {unknown:error.code??'AUTH_LOOKUP_FAILED'};
 });
-const {organizerEmail, ...publicState} = session;
+const {organizerEmail, notes, ...publicState} = session;
 console.log(JSON.stringify({session:publicState, sameOrganizer:organizerEmail?.toLowerCase()===email,
   otherOrganizer:Boolean(organizerEmail && organizerEmail.toLowerCase()!==email), auth,
   players:state.sessionParticipants.length,
@@ -100,7 +100,7 @@ if (process.argv.includes('--apply')) {
   assert.deepEqual(stable(after.sessionParticipants),stable(state.sessionParticipants));
   assert.deepEqual(after.sessionCasino,state.sessionCasino);
   assert.deepEqual(after.sessionClueDiscoveries,state.sessionClueDiscoveries);
-  const resources = rows=>rows.map(row=>JSON.stringify(row)).sort();
+  const resources = rows=>rows.map(({characterExternalId,resourceExternalId,initialValue,currentValue})=>[characterExternalId,resourceExternalId,initialValue,currentValue]).sort();
   assert.deepEqual(resources(after.sessionResources),resources(state.sessionResources));
 
   // Exercise production authorisation and both launch plans without starting either.
@@ -119,4 +119,48 @@ if (process.argv.includes('--apply')) {
   console.log(JSON.stringify({applied:true,status:after.gameSession.status,venue:after.gameSession.venue,
     scheduledAt:after.gameSession.scheduledAt,accessMode:access.mode,existingPlayerLinks:after.sessionParticipants.length,
     isolatedRehearsalPlan:true,realLaunchPlan:true,organizerAccountExists:auth.exists??null}));
+}
+
+if(process.argv.includes('--schedule')) {
+  assert.equal(session.status,'READY');
+  assert.equal(session.selfServiceEnabled,true);
+  assert.equal(session.organizerAccessEnabled,true);
+  assert.equal(session.organizerEmail,email);
+  assert.equal(session.venue,'Centerpark');
+  assert.equal(session.startedAt,null);
+  assert.equal(session.realSessionStartedAt,null);
+  assert.equal(session.scheduledAt,null);
+  const rawDate = process.env.NID_SCHEDULED_AT ?? '2026-11-13T00:00:00+01:00';
+  const date = new Date(rawDate);
+  assert.equal(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Brussels',year:'numeric',month:'2-digit',day:'2-digit'}).format(date),'2026-11-13');
+  const data = {scheduledAt:date.toISOString()};
+  if (!process.env.NID_SCHEDULED_AT) {
+    data.notes = [notes,'Vendredi 13 novembre 2026 à Centerpark. Heure de début à confirmer (00 h est un repère de date).'].filter(Boolean).join('\n');
+  }
+  const identity = {uid:'licence-policy-check',email,email_verified:true};
+  const access = await getSelfServiceState(identity,sessionId);
+  assert.equal(access.mode,'PREPARATION');
+  assert.equal(access.enabled,true);
+  assert.equal(access.workingSessionId,sessionId);
+  await assert.rejects(authorizeSession({...identity,email:'other@example.com'},sessionId), /SESSION_ACCESS_DENIED/);
+  await assert.rejects(authorizeEndpoint('listSessions',identity,{}), /ADMINISTRATOR_REQUIRED/);
+  const rehearsal = await replaceSessionRehearsal(identity,sessionId,{executor:async()=>{}});
+  const real = await replaceSessionRehearsal(identity,sessionId,{real:true,executor:async()=>{}});
+  assert.equal(rehearsal.mode,'REHEARSAL');
+  assert.notEqual(rehearsal.workingSessionId,sessionId);
+  assert.equal(real.workingSessionId,sessionId);
+  await accessExecutor(`mutation ScheduleLicensedNid($sessionId:UUID!, $email:String!, $data:GameSession_Data!) @transaction {
+    gameSession_updateMany(where:{
+      id:{eq:$sessionId},status:{eq:"READY"},startedAt:{isNull:true},scheduledAt:{isNull:true},
+      organizerEmail:{eq:$email},organizerAccessEnabled:{eq:true},selfServiceEnabled:{eq:true}
+    },data:$data) @check(expr:"this == 1",message:"NID_LICENCE_STATE_CHANGED")
+  }`, {sessionId,email,data});
+  const after = await accessReader(stateQuery,{sessionId});
+  assert.equal(new Date(after.gameSession.scheduledAt).toISOString(),data.scheduledAt);
+  assert.equal(after.gameSession.venue,'Centerpark');
+  assert.equal(after.gameSession.status,'READY');
+  const participants = rows=>[...rows].sort((a,b)=>a.id.localeCompare(b.id));
+  assert.deepEqual(participants(after.sessionParticipants),participants(state.sessionParticipants));
+  console.log(JSON.stringify({verified:true,scheduledAt:data.scheduledAt,venue:'Centerpark',mode:access.mode,
+    pendingTime:!process.env.NID_SCHEDULED_AT,isolatedRehearsalPlan:true,realLaunchPlan:true,existingPlayerLinks:after.sessionParticipants.length}));
 }

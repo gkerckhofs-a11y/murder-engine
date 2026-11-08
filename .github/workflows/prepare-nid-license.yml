@@ -22,4 +22,4 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
-      - run: node functions/tools/prepare-nid-license.mjs --apply
+      - run: node functions/tools/prepare-nid-license.mjs --schedule
