@@ -93,7 +93,7 @@
       }
     }
   ],
-  "gameObjects": [
+  "objects": [
     {
       "externalId": "OBJ_PISTOLET_P04",
       "expected": {
@@ -172,7 +172,7 @@
       }
     }
   ],
-  "gameLocations": [
+  "locations": [
     {
       "externalId": "LOC_201",
       "expected": {
