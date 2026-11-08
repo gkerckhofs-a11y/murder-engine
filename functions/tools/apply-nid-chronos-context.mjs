@@ -112,6 +112,7 @@ if (verifyOnly) {
     const {portal} = await request('/api/player/portal', {token:player.playerAccessToken, refresh:'1'});
     const character = after.characters.find(row => row.externalId === player.characterExternalId);
     assert.equal(portal.character.biography, character.biography, player.characterExternalId);
+    assert.match(portal.character.biography, /Hélios Conseil/, player.characterExternalId);
   }
 }
 console.log(JSON.stringify({verifyOnly, updatedBiographies:edits.characters.length,
