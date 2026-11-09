@@ -25,6 +25,7 @@ const models = {
 };
 const queries = Object.entries(models).map(([group, [, , collection]]) => {
   const fields = [...new Set(edits[group].flatMap(row => Object.keys(row.data)))];
+  if (group === 'facts') fields.push('notebookCategory');
   return `${group}:${collection}(where:{scenarioVersionId:{eq:$v}},limit:500){externalId ${fields.join(' ')}}`;
 }).join('\n');
 async function read(query, variables) {
@@ -128,7 +129,12 @@ if (verifyOnly) {
     for (const change of edits.facts.filter(row => row.externalId.startsWith('F_CONTACT_' + player.characterExternalId + '_'))) {
       const fact = after.facts.find(row => row.externalId === change.externalId);
       assert.ok(portal.relationships.some(row => row.text.includes(fact.text)), 'NID_CONTACT_TEXT_MISMATCH:' + change.externalId);
-      if (change.data.title) assert.ok(portal.relationships.some(row => row.otherName === change.data.title), 'NID_CONTACT_TITLE_MISMATCH:' + change.externalId);
+      if (change.data.title) {
+        const isReference = fact.notebookCategory === 'RELATION:REFERENCE';
+        assert.ok(portal.relationships.some(row => row.text.includes(fact.text) &&
+          (isReference ? row.otherName === change.data.title : row.otherExternalId === fact.notebookCategory.slice(9))),
+          'NID_CONTACT_TITLE_MISMATCH:' + change.externalId);
+      }
     }
   }
 }
