@@ -14580,3 +14580,11 @@ button.skinGalleryCard:disabled{
 .immersiveViewerStage .immersivePaperFallback h2{color:#34271b}
 .immersiveViewerHeader strong{white-space:normal;overflow-wrap:anywhere}
 @media(max-width:760px){.immersiveViewerStage.hasImage{display:block}.immersiveViewerStage{padding:12px}.immersiveImageSection{margin-bottom:18px}.immersiveImageScroller{max-height:65vh}.immersiveViewerStage .immersivePaperFallback{padding:24px 20px}.immersiveViewerHeader{padding:10px 12px}.immersiveViewerControls{gap:6px;padding-top:8px}}
+
+/* Task-oriented organizer workspace */
+.shell [hidden]{display:none!important}
+.orgaWorkspaceNav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:18px 0 24px;position:sticky;top:0;z-index:20;background:var(--bg,#f5f3ee);padding:12px 0}
+.orgaWorkspaceNav button{text-align:left;min-height:78px;padding:14px;border-radius:12px;background:#fff;color:#292823;border:1px solid #d6d2c9;box-shadow:0 2px 6px #00000008}
+.orgaWorkspaceNav strong,.orgaWorkspaceNav small{display:block}.orgaWorkspaceNav strong{font-size:15px}.orgaWorkspaceNav small{font-size:12px;margin-top:6px;font-weight:400}
+.orgaWorkspaceNav button.active{background:#292823;color:#fff;border-color:#292823}.orgaWorkspaceNav button:focus-visible{outline:3px solid #b67f2e;outline-offset:3px}
+@media(max-width:760px){.orgaWorkspaceNav{grid-template-columns:repeat(2,minmax(0,1fr));position:static;gap:8px}.orgaWorkspaceNav button{min-height:64px;padding:12px}.orgaWorkspaceNav button:last-child{grid-column:1/-1}}
