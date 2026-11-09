@@ -565,7 +565,6 @@ function EngineApp({isAdmin}: {isAdmin: boolean}) {
     {organizerSessionId && <SessionLicensePanel sessionId={organizerSessionId} admin={false} onState={next => {if(!license || license.workingSessionId!==next.workingSessionId)openWorkingSession(next);}} onChanged={openWorkingSession}/>}
     {scoped && !organizerSessionId && <section className="card"><h2>Votre accès organisateur</h2><p>Ouvrez le lien de session qui vous a été transmis pour préparer et animer votre murder.</p></section>}
     {!scoped && view === 'sessions' && session && <SessionLicensePanel key={`license:${session.id}`} sessionId={session.id} admin={isAdmin} onState={setLicense} onChanged={setLicense}/>}
-    {view==='sessions'&&session&&<CasinoAdmin key={`casino:${session.id}`} sessionId={session.id}/>}
     {view === 'library' && version && <div className="gmPackShortcut"><button onClick={()=>window.open(`/?gmPack=${encodeURIComponent(version.id)}`,'_blank')}>📦 Ouvrir le Pack MJ</button></div>}
 
     {view === 'library' && <LibraryView scenarios={scenarios} loading={libraryLoading} error={libraryError} version={version} versionLoading={versionLoading} character={character} characterLoading={characterLoading} onReload={()=>void loadLibrary()} onImport={()=>{setImportTargetScenario(null);choose(null);setView('import');}} onImportVersion={scenario=>{
@@ -706,6 +705,7 @@ function OrganizerFold({
   title,
   subtitle,
   defaultOpen=true,
+  hidden=false,
   children,
 }:{
   sessionId:string;
@@ -713,6 +713,7 @@ function OrganizerFold({
   title:string;
   subtitle?:string;
   defaultOpen?:boolean;
+  hidden?:boolean;
   children:any;
 }){
   const storageKey=`murderOrgaFold:${sessionId}:${id}`;
@@ -735,7 +736,7 @@ function OrganizerFold({
     }catch{}
   }
 
-  return <section className={`orgaFold ${open?'open':'closed'}`}>
+  return <section hidden={hidden} className={`orgaFold ${open?'open':'closed'}`}>
     <button
       type="button"
       className="orgaFoldToggle"
@@ -757,6 +758,9 @@ function OrganizerFold({
 }
 
 function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onPurge:(sessionId:string,name:string)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onBusinessDeal:(dealId:string)=>void;onInteractionMutation:()=>void}) {
+  const [workspace,setWorkspace]=useState('prepare');
+  useEffect(()=>{setWorkspace(props.session?.runtimeInitializedAt?'live':'prepare');},[props.session?.id]);
+  const sections=[['prepare','Préparer','Installation & documents'],['people','Personnages & joueurs','Fiches, casting & messages'],['live','Animer','Déroulement & actions'],['casino','Casino','Tables, réglages & QR'],['settings','Réglages','Session & archivage']];
   const [showArchived,setShowArchived]=useState(false);
   const listedSessions=showArchived?props.sessions:props.sessions.filter(s=>s.status!=='ARCHIVED');
 
@@ -783,11 +787,14 @@ function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sess
   const assigned=new Map(s.participants.filter(p=>p.characterExternalId).map(p=>[p.characterExternalId!,p.id]));
   return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}{!props.delegated&&<button className="backlink" onClick={props.onBack}>← Sessions</button>}{props.loading?<section className="card emptyState">Chargement…</section>:<>
     <section className={`sessionHero ${archived?'archived':''}`}><div className="sessionHeroDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="sessionHeroMain"><p className="eyebrow">{s.scenarioVersion.scenario?.title} · V{s.scenarioVersion.versionLabel}</p><h2>{s.name||'Session'}</h2><p>{s.venue||'Lieu à définir'} · {s.language}</p></div><span className={`sessionStatus large ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></section>
-    {(!props.delegated||props.mode==='PREPARATION')&&!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
-    <section className="metaStrip"><div><span>Participants</span><strong>{s.counts.participants}</strong></div><div><span>Castés</span><strong>{s.counts.assigned}</strong></div><div><span>Rôles disponibles</span><strong>{s.counts.playableCharacters}</strong></div><div><span>Sans rôle</span><strong>{s.counts.unassignedParticipants}</strong></div><div><span>Rôles libres</span><strong>{s.counts.unassignedCharacters}</strong></div></section>
+    <nav className="orgaWorkspaceNav" aria-label="Outils de la session">{sections.map(([id,label,description])=><button key={id} type="button" aria-pressed={workspace===id} className={workspace===id?'active':''} onClick={()=>setWorkspace(id)}><strong>{label}</strong><small>{description}</small></button>)}</nav>
+    {workspace==='casino'&&<CasinoAdmin key={s.id} sessionId={s.id}/>}
+    {workspace==='live'&&(!s.runtimeInitializedAt||archived)&&<section className="card"><h3>{archived?'Session archivée':'Préparer le lancement'}</h3><p>{archived?'Réactivez la session depuis Réglages pour reprendre sa préparation.':'La partie doit être préparée avant de pouvoir être animée.'}</p><button onClick={()=>setWorkspace(archived?'settings':'prepare')}>{archived?'Ouvrir les réglages':'Ouvrir la préparation'}</button></section>}
+    {workspace==='settings'&&(!props.delegated||props.mode==='PREPARATION')&&!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
+    <section hidden={workspace!=='prepare'&&workspace!=='people'} className="metaStrip"><div><span>Participants</span><strong>{s.counts.participants}</strong></div><div><span>Castés</span><strong>{s.counts.assigned}</strong></div><div><span>Rôles disponibles</span><strong>{s.counts.playableCharacters}</strong></div><div><span>Sans rôle</span><strong>{s.counts.unassignedParticipants}</strong></div><div><span>Rôles libres</span><strong>{s.counts.unassignedCharacters}</strong></div></section>
     {(!props.delegated||props.mode==='PREPARATION')&&!archived&&<OrganizerFold
       sessionId={s.id}
-      id="preparation"
+      id="preparation" hidden={workspace!=='prepare'}
       title="Préparation de la session"
       subtitle="Casting, vérifications et mise en état prête"
       defaultOpen={!liveMode&&!s.runtimeInitializedAt}
@@ -798,7 +805,7 @@ function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sess
     {!props.delegated&&<>
     <OrganizerFold
       sessionId={s.id}
-      id="scenario-variant"
+      id="scenario-variant" hidden={workspace!=='settings'}
       title="Variante de scénario"
       subtitle="MASTER utilisé par cette session"
       defaultOpen={false}
@@ -826,11 +833,11 @@ function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sess
     </OrganizerFold>
     </>}
 
-    {props.delegated&&props.mode==='PREPARATION'&&<section className="card"><h3>Fiches personnages</h3><p>Figez les fiches après avoir terminé le casting, puis commencez les essais.</p><button onClick={async()=>{try{await postJson('/api/sessions/incarnations/freeze',{sessionId:s.id});props.onOpen(s.id);}catch(e){window.alert(e instanceof Error?e.message:String(e));}}}>Figer les fiches</button></section>}
+    {workspace==='people'&&props.delegated&&props.mode==='PREPARATION'&&<section className="card"><h3>Fiches personnages</h3><p>Figez les fiches après avoir terminé le casting, puis commencez les essais.</p><button onClick={async()=>{try{await postJson('/api/sessions/incarnations/freeze',{sessionId:s.id});props.onOpen(s.id);}catch(e){window.alert(e instanceof Error?e.message:String(e));}}}>Figer les fiches</button></section>}
     {!archived&&s.runtimeInitializedAt&&
       <OrganizerFold
         sessionId={s.id}
-        id="player-communication"
+        id="player-communication" hidden={workspace!=='people'}
         title="Communication joueurs"
         subtitle="Messages MJ, liens joueurs et suivi des ouvertures"
         defaultOpen={liveMode}
@@ -846,7 +853,7 @@ function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sess
     {!props.delegated&&<>
     <OrganizerFold
       sessionId={s.id}
-      id="session-lifecycle"
+      id="session-lifecycle" hidden={workspace!=='settings'}
       title="Gestion de la session"
       subtitle="Archivage et suppression"
       defaultOpen={false}
@@ -857,14 +864,14 @@ function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sess
 
     {(!props.delegated||props.mode==='PREPARATION')&&!archived&&['DRAFT','CASTING','READY'].includes(s.status)&&<OrganizerFold
       sessionId={s.id}
-      id="session-state"
+      id="session-state" hidden={workspace!=='prepare'}
       title="État pré-live"
       subtitle={statusLabel(s.status)}
       defaultOpen={false}
     ><section className="card sessionState"><div><p className="eyebrow">ÉTAT PRÉ-LIVE</p><h3>{statusLabel(s.status)}</h3><p>DRAFT = préparation · CASTING = attribution en cours · READY = distribution verrouillée et prête pour le briefing.</p></div><div className="statusButtons">{['DRAFT','CASTING','READY'].map(st=><button key={st} disabled={Boolean(s.runtimeInitializedAt)&&st!=='READY'} className={s.status===st?'active':''} onClick={()=>props.onStatus(st)}>{statusLabel(st)}</button>)}</div></section></OrganizerFold>}
     <OrganizerFold
       sessionId={s.id}
-      id="gm-pack"
+      id="gm-pack" hidden={workspace!=='prepare'}
       title="Pack MJ de session"
       subtitle="Fiches, enveloppes, QR et installation"
       defaultOpen={false}
@@ -898,21 +905,13 @@ function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sess
     </OrganizerFold>
 
     {!props.delegated&&<>
-    <OrganizerFold
-      sessionId={s.id}
-      id="incarnations"
-      title="Incarnations de session"
-      subtitle="Personnages adaptés et fiches figées pour cette partie"
-      defaultOpen={!liveMode&&!s.runtimeInitializedAt}
-    >
-      <SessionIncarnationsPanel session={s}/>
-    </OrganizerFold>
+    <div hidden={workspace!=='people'}><SessionIncarnationsPanel session={s}/></div>
     </>}
 
     {!props.delegated&&<>
     <OrganizerFold
       sessionId={s.id}
-      id="runtime"
+      id="runtime" hidden={workspace!=='prepare'}
       title="Runtime de session"
       subtitle="Ressources, objectifs, connaissances et objets"
       defaultOpen={!liveMode&&!s.runtimeInitializedAt}
@@ -921,17 +920,17 @@ function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sess
     </OrganizerFold>
     </>}
 
-    {!archived&&s.runtimeInitializedAt&&<LivePanel session={s} live={props.live} loading={props.liveLoading} onControl={props.onLiveControl} hideStart={props.mode==='PREPARATION'} rehearsal={props.mode==='REHEARSAL'} onResource={props.onLiveResource} onState={props.onLiveState} onEvent={props.onLiveEvent} onBusinessDeal={props.onBusinessDeal} onInteractionMutation={props.onInteractionMutation}/>}
+    <div hidden={workspace!=='live'}>{!archived&&s.runtimeInitializedAt&&<LivePanel session={s} live={props.live} loading={props.liveLoading} onControl={props.onLiveControl} hideStart={props.mode==='PREPARATION'} rehearsal={props.mode==='REHEARSAL'} onResource={props.onLiveResource} onState={props.onLiveState} onEvent={props.onLiveEvent} onBusinessDeal={props.onBusinessDeal} onInteractionMutation={props.onInteractionMutation}/>}</div>
 
     {(!props.delegated||props.mode==='PREPARATION')&&!archived&&!s.runtimeInitializedAt?
-      <OrganizerFold sessionId={s.id} id="add-participant" title="Ajouter un participant" defaultOpen={!liveMode}>
+      <OrganizerFold sessionId={s.id} id="add-participant" hidden={workspace!=='people'} title="Ajouter un participant" defaultOpen={!liveMode}>
         <AddParticipantForm onAdd={props.onAddParticipant}/>
       </OrganizerFold>
-      :!archived?<section className="card lockNotice"><strong>Préparation verrouillée</strong><p>{props.delegated?'La distribution des personnages est conservée. Pour recommencer les essais, utilisez le bouton en haut de page.':'Le runtime est initialisé : participants et casting ne peuvent plus être modifiés dans cette version.'}</p></section>:null}
+      :!archived?<section hidden={workspace!=='people'} className="card lockNotice"><strong>Préparation verrouillée</strong><p>{props.delegated?'La distribution des personnages est conservée. Pour recommencer les essais, utilisez le bouton en haut de page.':'Le runtime est initialisé : participants et casting ne peuvent plus être modifiés dans cette version.'}</p></section>:null}
 
     <OrganizerFold
       sessionId={s.id}
-      id="casting"
+      id="casting" hidden={workspace!=='people'}
       title="Participants & rôles"
       subtitle={`${s.counts.assigned}/${s.counts.participants} castés`}
       defaultOpen={!liveMode}
@@ -1072,6 +1071,7 @@ function SessionIncarnationsPanel({
 }:{
   session:SessionDetail
 }){
+  const [search,setSearch]=useState('');
   const [data,setData]=useState<any|null>(null);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
@@ -1138,21 +1138,21 @@ function SessionIncarnationsPanel({
   }
 
   const rows=data?.incarnations??[];
+  const normalize=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const filteredRows=rows.filter((row:any)=>normalize([row.characterDisplayName,row.participantDisplayName,row.resolved?.character?.name,row.resolved?.character?.publicRole].filter(Boolean).join(' ')).includes(normalize(search.trim())));
 
   return <section className="card incarnationPanel">
 
     <div className="paneHead">
       <div>
         <p className="eyebrow">
-          INCARNATIONS DE SESSION · V1.8D
+          FICHES PERSONNAGES
         </p>
 
         <h3>Personnages de cette partie</h3>
 
         <p className="microNote">
-          Le rôle technique et son QR restent stables.
-          Ici tu modifies uniquement son incarnation
-          pour cette session.
+          Retrouvez les histoires, secrets et objectifs des personnages de cette partie.
         </p>
       </div>
 
@@ -1177,6 +1177,8 @@ function SessionIncarnationsPanel({
       </p>
     }
 
+    <label className="orgaCharacterSearch">Trouver un personnage ou un joueur<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nom, personnage ou rôle…"/></label>
+    {rows.length>0&&<p className="microNote" role="status">{filteredRows.length} fiche(s){search?' correspondant à la recherche':''}</p>}
     {loading&&!data
       ? <p className="microNote">
           Chargement des incarnations…
@@ -1188,7 +1190,7 @@ function SessionIncarnationsPanel({
           </p>
 
         : <div className="incarnationList">
-            {rows.map((row:any)=>
+            {filteredRows.map((row:any)=>
               <SessionIncarnationEditor
                 key={row.participantId}
                 sessionId={session.id}
