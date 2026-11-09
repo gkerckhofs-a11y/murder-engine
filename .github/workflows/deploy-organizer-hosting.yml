@@ -1,0 +1,33 @@
+name: Deploy organizer hosting
+on:
+  push:
+    branches: [deploy/organizer-hosting]
+permissions:
+  contents: read
+concurrency:
+  group: organizer-hosting-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install and build interface
+        run: npm ci --prefix web && npm run build
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.34.0
+      - name: Deploy hosting only
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+          firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting --non-interactive
