@@ -1005,9 +1005,8 @@ function PlayerAccessPanel({session,onToggle,onMessage,messageAllowed=true}:{ses
             <input disabled={busy} maxLength={120} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Information importante"/>
           </label>
         </div>
-        <label>Message <span>(obligatoire)</span>
-          <textarea disabled={busy} maxLength={1200} value={body} onChange={e=>setBody(e.target.value)} placeholder="Votre message…"/>
-        </label>
+        <label htmlFor={`player-message-${session.id}`}>Message <span>(obligatoire)</span></label>
+        <textarea id={`player-message-${session.id}`} disabled={busy} maxLength={1200} value={body} onChange={e=>setBody(e.target.value)} placeholder="Votre message…"/>
         {!messageAllowed&&<p className="microNote">Pour envoyer un message, commencez les essais ou démarrez la partie réelle avec les commandes en haut de page.</p>}
         {!enabled&&<p className="microNote">Les accès joueurs sont désactivés. Activez les liens pour que les joueurs puissent consulter leur fiche et recevoir vos messages.</p>}
         {enabled&&selected&&!link(selected)&&<p className="microNote">L’accès de ce joueur est désactivé ou son lien n’a pas encore été créé.</p>}
