@@ -14591,4 +14591,6 @@ button.skinGalleryCard:disabled{
 @media(max-width:760px){.orgaWorkspaceNav{grid-template-columns:repeat(2,minmax(0,1fr));position:static;gap:8px}.orgaWorkspaceNav button{min-height:64px;padding:12px}}
 .communicationShortcut{display:flex;align-items:center;justify-content:space-between;gap:16px}.communicationShortcut p{margin:6px 0 0}.communicationShortcut button{flex-shrink:0}
 .playerLinkActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.playerSheetLink{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border:1px solid currentColor;border-radius:10px;text-decoration:none;font-weight:700;white-space:nowrap}.playerSheetLink:focus-visible{outline:3px solid #b67f2e;outline-offset:3px}
+.playerSheetLink,.playerSheetLink:visited{color:#edc67a;border-color:#96733f;background:#211d17}.playerSheetLink:hover{color:#ffe2a4;background:#33291b}
+.playerLinkRow>div:first-child>strong,.playerLinkRow>div:first-child>small{display:block}.playerLinkRow>div:first-child>small{margin:4px 0 6px;color:#b7c3ca}
 @media(max-width:760px){.communicationShortcut{align-items:flex-start;flex-direction:column}.liveCommunicationPanel .precastHead{flex-wrap:wrap}.playerLinkRow input{min-width:0}}
