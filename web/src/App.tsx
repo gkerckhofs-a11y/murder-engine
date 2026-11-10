@@ -433,7 +433,7 @@ function EngineApp({isAdmin}: {isAdmin: boolean}) {
   }
   async function sendPlayerMessage(input:{characterExternalId:string;title:string;body:string;priority?:string}) {
     if(!session)return; setSessionError('');
-    try { await postJson('/api/sessions/player-notification',{sessionId:session.id,...input}); await openSession(session.id); }
+    try { await postJson('/api/sessions/player-notification',{sessionId:session.id,...input}); await loadLive(session.id); }
     catch(e){ setSessionError(e instanceof Error?e.message:String(e)); throw e; }
   }
   async function liveControl(action:string) {
@@ -760,7 +760,7 @@ function OrganizerFold({
 function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sessions:SessionSummary[];session:SessionDetail|null;runtime:RuntimeState|null;runtimeLoading:boolean;live:LiveDashboard|null;liveLoading:boolean;loading:boolean;error:string;onReload:()=>void;onOpen:(id:string)=>void;onBack:()=>void;onAddParticipant:(input:{displayName:string;email:string;ageBracket:string;genderPreference:string;desiredInvolvement:string;notes?:string})=>Promise<void>;onCast:(participantId:string,characterExternalId:string|null)=>void;onStatus:(status:string)=>void;onUpdateDetails:(input:{name:string;scheduledAt:string;venue:string;language:string})=>Promise<void>;onArchive:(archived:boolean)=>void;onPurge:(sessionId:string,name:string)=>void;onInitializeRuntime:()=>void;onPlayerAccess:(enabled:boolean)=>void;onPlayerMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;onLiveControl:(action:string)=>void;onLiveResource:(characterExternalId:string,resourceExternalId:string,value:number,mode:'DELTA'|'SET')=>void;onLiveState:(characterExternalId:string,stateExternalId:string,action:'APPLY'|'REMOVE')=>void;onLiveEvent:(eventExternalId:string,status:'PENDING'|'DONE'|'SKIPPED')=>void;onBusinessDeal:(dealId:string)=>void;onInteractionMutation:()=>void}) {
   const [workspace,setWorkspace]=useState('prepare');
   useEffect(()=>{setWorkspace(props.session?.runtimeInitializedAt?'live':'prepare');},[props.session?.id]);
-  const sections=[['live','Animer & suivre','Monitoring & actions en cours'],['people','Personnages & joueurs','Fiches, casting & messages'],['casino','Casino','Tables, réglages & QR'],['prepare','Préparer','Installation & documents'],['settings','Réglages','Session & archivage']];
+  const sections=[['live','Animer & suivre','Monitoring & actions en cours'],['communication','Messages & liens','Messages MJ & fiches joueurs'],['people','Personnages & joueurs','Histoires & casting'],['casino','Casino','Tables, réglages & QR'],['prepare','Préparer','Installation & documents'],['settings','Réglages','Session & archivage']];
   const [showArchived,setShowArchived]=useState(false);
   const listedSessions=showArchived?props.sessions:props.sessions.filter(s=>s.status!=='ARCHIVED');
 
@@ -788,6 +788,7 @@ function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sess
   return <section>{props.error&&<p className="errorbox standalone">{props.error}</p>}{!props.delegated&&<button className="backlink" onClick={props.onBack}>← Sessions</button>}{props.loading?<section className="card emptyState">Chargement…</section>:<>
     <section className={`sessionHero ${archived?'archived':''}`}><div className="sessionHeroDate"><strong>{sessionDateLabel(s.scheduledAt)}</strong><span>{sessionTimeLabel(s.scheduledAt)||'Heure à définir'}</span></div><div className="sessionHeroMain"><p className="eyebrow">{s.scenarioVersion.scenario?.title} · V{s.scenarioVersion.versionLabel}</p><h2>{s.name||'Session'}</h2><p>{s.venue||'Lieu à définir'} · {s.language}</p></div><span className={`sessionStatus large ${s.status.toLowerCase()}`}>{statusLabel(s.status)}</span></section>
     <nav className="orgaWorkspaceNav" aria-label="Outils de la session">{sections.map(([id,label,description])=><button key={id} type="button" aria-pressed={workspace===id} className={workspace===id?'active':''} onClick={()=>setWorkspace(id)}><strong>{label}</strong><small>{description}</small></button>)}</nav>
+    {(workspace==='live'||workspace==='people')&&!archived&&<section className="card communicationShortcut"><div><strong>Messages MJ et fiches joueurs</strong><p>Envoyez une information, ouvrez une fiche ou copiez son lien à transmettre.</p></div><button className="secondary" onClick={()=>setWorkspace('communication')}>Ouvrir les messages et liens</button></section>}
     {workspace==='casino'&&<CasinoAdmin key={s.id} sessionId={s.id}/>}
     {workspace==='live'&&(!s.runtimeInitializedAt||archived)&&<section className="card"><h3>{archived?'Session archivée':'Préparer le lancement'}</h3><p>{archived?'Réactivez la session depuis Réglages pour reprendre sa préparation.':'La partie doit être préparée avant de pouvoir être animée.'}</p><button onClick={()=>setWorkspace(archived?'settings':'prepare')}>{archived?'Ouvrir les réglages':'Ouvrir la préparation'}</button></section>}
     {workspace==='settings'&&(!props.delegated||props.mode==='PREPARATION')&&!archived&&<EditSessionPanel session={s} onSave={props.onUpdateDetails}/>}
@@ -834,21 +835,18 @@ function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sess
     </>}
 
     {workspace==='people'&&props.delegated&&props.mode==='PREPARATION'&&<section className="card"><h3>Fiches personnages</h3><p>Figez les fiches après avoir terminé le casting, puis commencez les essais.</p><button onClick={async()=>{try{await postJson('/api/sessions/incarnations/freeze',{sessionId:s.id});props.onOpen(s.id);}catch(e){window.alert(e instanceof Error?e.message:String(e));}}}>Figer les fiches</button></section>}
-    {!archived&&s.runtimeInitializedAt&&
-      <OrganizerFold
-        sessionId={s.id}
-        id="player-communication" hidden={workspace!=='people'}
-        title="Communication joueurs"
-        subtitle="Messages MJ, liens joueurs et suivi des ouvertures"
-        defaultOpen={liveMode}
-      >
+    <div hidden={workspace!=='communication'}>
+    {!archived&&s.runtimeInitializedAt ?
       <PlayerAccessPanel
+        key={s.id}
         session={s}
         onToggle={props.onPlayerAccess}
         onMessage={props.onPlayerMessage}
+        messageAllowed={!props.delegated||props.mode!=='PREPARATION'}
       />
-      </OrganizerFold>
+      : <section className="card"><h3>Messages et liens des fiches personnages</h3><p>{archived?'Cette session est archivée. Réactivez-la pour retrouver les accès joueurs.':'Terminez la préparation de la partie pour activer les liens des fiches et les messages MJ.'}</p>{(!archived||!props.delegated)&&<button onClick={()=>setWorkspace(archived?'settings':'prepare')}>{archived?'Ouvrir les réglages':'Ouvrir la préparation'}</button>}</section>
     }
+    </div>
 
     {!props.delegated&&<>
     <OrganizerFold
@@ -970,61 +968,70 @@ function SessionsView(props:{delegated?:boolean;mode?:SessionAccess['mode'];sess
 }
 
 
-function PlayerAccessPanel({session,onToggle,onMessage}:{session:SessionDetail;onToggle:(enabled:boolean)=>void;onMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>}) {
+function PlayerAccessPanel({session,onToggle,onMessage,messageAllowed=true}:{session:SessionDetail;onToggle:(enabled:boolean)=>void;onMessage:(input:{characterExternalId:string;title:string;body:string;priority?:string})=>Promise<void>;messageAllowed?:boolean}) {
   const casted=session.participants.filter(p=>p.active!==false&&p.characterExternalId);
   const enabled=casted.some(p=>p.playerAccessEnabled);
   const [copied,setCopied]=useState(''); const [target,setTarget]=useState(casted[0]?.characterExternalId||''); const [title,setTitle]=useState('Message du MJ'); const [body,setBody]=useState(''); const [busy,setBusy]=useState(false);
+  const [notice,setNotice]=useState(''); const [error,setError]=useState('');
   useEffect(()=>{ if(!target || !casted.some(p=>p.characterExternalId===target)) setTarget(casted[0]?.characterExternalId||''); },[casted.map(p=>p.characterExternalId).join('|'),target]);
-  const link=(p:SessionParticipant)=>p.playerAccessToken?`${window.location.origin}/?player=${encodeURIComponent(p.playerAccessToken)}`:'';
+  const link=(p:SessionParticipant)=>p.playerAccessEnabled&&p.playerAccessToken?`${window.location.origin}/?player=${encodeURIComponent(p.playerAccessToken)}`:'';
+  const selected=casted.find(p=>p.characterExternalId===target);
+  const canSend=messageAllowed&&Boolean(selected&&link(selected));
   return <section className="card playerAccessPanel liveCommunicationPanel">
     <div className="precastHead">
       <div>
         <p className="eyebrow">COMMUNICATION JOUEURS</p>
-        <h3>{enabled?'Messages & accès joueurs':'Accès joueurs désactivé'}</h3>
-        <p>En live, utilise ce bloc pour envoyer rapidement une information à un joueur.</p>
+        <h3>Messages et liens des fiches personnages</h3>
+        <p>Envoyez un message dans l’application du joueur, puis retrouvez les liens de ses fiches ci-dessous.</p>
       </div>
-      <button className={enabled?'danger secondary':''} onClick={()=>onToggle(!enabled)}>
+      <button disabled={casted.length===0||busy} className={enabled?'danger secondary':''} onClick={()=>onToggle(!enabled)}>
         {enabled?'Désactiver les liens':'Activer les liens joueurs'}
       </button>
     </div>
 
-    {enabled&&casted.length>0&&
+    {casted.length===0&&<p>Aucun personnage n’est encore attribué. Complétez le casting dans « Personnages & joueurs ».</p>}
+    {casted.length>0&&
       <div className="playerMessageComposer liveMessageComposer">
         <p className="eyebrow">MESSAGE MJ</p>
         <div className="formGrid">
           <label>Destinataire
-            <select value={target} onChange={e=>setTarget(e.target.value)}>
+            <select disabled={busy} value={target} onChange={e=>{setTarget(e.target.value);setNotice('');setError('');}}>
               {casted.map(p=><option key={p.id} value={p.characterExternalId||''}>
-                {session.characters.find(c=>c.externalId===p.characterExternalId)?.name||p.displayName}
+                {p.characterDisplayName||session.characters.find(c=>c.externalId===p.characterExternalId)?.name||p.characterExternalId} — {p.displayName}
               </option>)}
             </select>
           </label>
           <label>Titre
-            <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Information importante"/>
+            <input disabled={busy} maxLength={120} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Information importante"/>
           </label>
         </div>
         <label>Message <span>(obligatoire)</span>
-          <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Votre message…"/>
+          <textarea disabled={busy} maxLength={1200} value={body} onChange={e=>setBody(e.target.value)} placeholder="Votre message…"/>
         </label>
-        <button disabled={busy||!target||!title.trim()||!body.trim()} onClick={async()=>{
-          setBusy(true);
+        {!messageAllowed&&<p className="microNote">Pour envoyer un message, commencez les essais ou démarrez la partie réelle avec les commandes en haut de page.</p>}
+        {!enabled&&<p className="microNote">Les accès joueurs sont désactivés. Activez les liens pour que les joueurs puissent consulter leur fiche et recevoir vos messages.</p>}
+        {enabled&&selected&&!link(selected)&&<p className="microNote">L’accès de ce joueur est désactivé ou son lien n’a pas encore été créé.</p>}
+        <button disabled={busy||!canSend||!target||!title.trim()||!body.trim()} onClick={async()=>{
+          setBusy(true);setError('');setNotice('');
           try{
             await onMessage({characterExternalId:target,title,body});
             setTitle('Message du MJ');
             setBody('');
+            setNotice(`Message envoyé à ${selected?.displayName||'ce joueur'}.`);
+          }catch(e){
+            setError(e instanceof Error?e.message:'Le message n’a pas pu être envoyé. Réessayez.');
           }finally{
             setBusy(false);
           }
         }}>{busy?'Envoi…':'Envoyer au joueur'}</button>
+        {notice&&<p role="status">{notice}</p>}
       </div>
     }
+    {error&&<p role="alert" className="errorbox">{error}</p>}
 
-    {enabled&&
-      <details className="playerAccessLinks">
-        <summary>
-          <span>Liens joueurs & suivi des ouvertures</span>
-          <b>{casted.length}</b>
-        </summary>
+    {casted.length>0&&
+      <section className="playerAccessLinks" aria-label="Liens des fiches personnages">
+        <div className="paneHead"><h3>Liens des fiches personnages</h3><span>{casted.length}</span></div>
         <div className="playerLinkRows">
           {casted.map(p=><div className="playerLinkRow" key={p.id}>
             <div>
@@ -1035,15 +1042,20 @@ function PlayerAccessPanel({session,onToggle,onMessage}:{session:SessionDetail;o
                 <span>{p.playerOpenCount||0} ouverture(s)</span>
               </div>
             </div>
-            <input readOnly value={link(p)}/>
+            <input aria-label={`Lien de la fiche de ${p.displayName}`} readOnly value={link(p)} placeholder="Accès joueur désactivé" onFocus={e=>e.target.select()}/>
+            <div className="playerLinkActions">
+            {link(p)&&<a className="playerSheetLink" href={link(p)} target="_blank" rel="noopener noreferrer" aria-label={`Ouvrir la fiche de ${p.displayName}`}>Ouvrir la fiche</a>}
             <button className="secondary" disabled={!link(p)} onClick={async()=>{
-              await navigator.clipboard.writeText(link(p));
-              setCopied(p.id);
-              setTimeout(()=>setCopied(''),1300);
+              try{
+                await navigator.clipboard.writeText(link(p));
+                setCopied(p.id);setError('');
+                setTimeout(()=>setCopied(''),1300);
+              }catch{setError('La copie automatique a échoué. Sélectionnez le lien de la fiche pour le copier manuellement.');}
             }}>{copied===p.id?'Copié ✓':'Copier'}</button>
+            </div>
           </div>)}
         </div>
-      </details>
+      </section>
     }
   </section>;
 }
