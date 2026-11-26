@@ -771,7 +771,7 @@ function PlayerActions({token,portal,busy,onExecute,onRefresh,onVote}:{token:str
       </div>
       {searchCooldown>0&&<div className="portalSearchCooldown"><span>{tr(portal,'Nouvelle fouille dans','Next search in')}</span><strong>{playerCountdown(searchCooldown)}</strong></div>}
       <button className="playerPrimary scanLaunchButton playMainCta" disabled={busy||portal.session?.status!=='LIVE'||searchCooldown>0} onClick={()=>setScannerOpen(true)}>
-        {searchCooldown>0?(isEnglish(portal)?`Available in ${playerCountdown(searchCooldown)}`:`Disponible dans ${playerCountdown(searchCooldown)}`):tr(portal,'📷 Scanner un lieu','📷 Scan a location')}
+        {searchCooldown>0?(isEnglish(portal)?`Available in ${playerCountdown(searchCooldown)}`:`Disponible dans ${playerCountdown(searchCooldown)}`):tr(portal,'📷 Scanner un lieu ou une table','📷 Scan a location or table')}
       </button>
       {portal.session?.status!=='LIVE'&&<small className="playerHelp">{tr(portal,'Disponible lorsque la partie est lancée.','Available once the game has started.')}</small>}
     </section>

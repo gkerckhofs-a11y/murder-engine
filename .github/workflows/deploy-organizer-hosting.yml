@@ -53,9 +53,13 @@ jobs:
         if: github.ref == 'refs/heads/deploy/organizer-hosting'
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          PREVIOUS_SHA: ${{ github.event.before }}
         run: |
           test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
-          if ! git diff --quiet HEAD^ HEAD -- functions/src/casino functions/src/index.mjs; then
+          if ! git cat-file -e "$PREVIOUS_SHA^{commit}"; then
+            git fetch --depth=1 origin "$PREVIOUS_SHA"
+          fi
+          if ! git diff --quiet "$PREVIOUS_SHA" HEAD -- functions/src/casino functions/src/index.mjs; then
             firebase deploy --project "$FIREBASE_PROJECT_ID" --only functions:getPublicPlayerCasinoTable,functions:executePublicPlayerCasinoAction,functions:manageSessionCasinoView --non-interactive
           fi
       - name: Deploy interface
@@ -65,3 +69,9 @@ jobs:
         run: |
           test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
           firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting --non-interactive
+      - name: Verify production without modifying the real session
+        if: github.ref == 'refs/heads/deploy/organizer-hosting'
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          CASINO_VERIFY_SESSION_ID: d1a40507-811f-4695-a119-e16ed74eb5cd
+        run: node functions/tools/verify-casino-release.mjs

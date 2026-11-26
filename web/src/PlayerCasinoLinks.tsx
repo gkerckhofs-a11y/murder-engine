@@ -5,7 +5,7 @@ export default function PlayerCasinoLinks({token,sessionId,language}:{token:stri
   const [tables,setTables]=useState<any[]>([]);
   const en=language==='EN';
   useEffect(()=>{
-    let alive=true;
+    let alive=true;setTables([]);
     async function load(){
       try{
         const r=await fetch('/api/player/casino/table?'+new URLSearchParams({token,sessionId,game:'BLACKJACK'}));
