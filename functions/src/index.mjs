@@ -44,6 +44,7 @@ import { getInteractionDashboard, executeInteraction, revealClueToCharacter, tra
 import { getVoteDashboard, openSessionVote, castSessionBallot, closeSessionVote } from './votes.mjs';
 import { configureSessionPlayerAccess, getPlayerPortal, examinePlayerDocument, markPlayerBriefingRead, markPlayerNotificationRead, sendPlayerNotification, executePlayerInteraction, sharePlayerClue, transferPlayerObject, transferPlayerCash, castPlayerVote, getPlayerLocation, executePlayerLocationAction, attemptPlayerClandestineAction, claimPlayerStolenObject } from './player.mjs';
 import {playerCasino,organizerCasino} from './casino/service.mjs';
+import {casinoFailure} from './casino/diagnostics.mjs';
 import { updateScenarioAppearanceFamily } from './scenario-appearance.mjs';
 import {
   listMediaLibrary,
@@ -1351,17 +1352,17 @@ export const getPublicPlayerCasinoTable = securedOnRequest('getPublicPlayerCasin
   if(!requireGet(req,res))return;
   res.set('Cache-Control','no-store');
   try{return res.status(200).json({ok:true,...await playerCasino(String(req.query.token??''),{sessionId:String(req.query.sessionId??''),game:String(req.query.game??''),type:'VIEW'})});}
-  catch(error){logger.error('Casino read failed',error);return res.status(400).json({error:'CASINO_READ_FAILED',message:error.message});}
+  catch(error){const diagnostic=casinoFailure({...req.query,type:'VIEW'},error,error.casinoContext);logger.warn('Casino read refused',diagnostic);return res.status(400).json({error:'CASINO_READ_FAILED',message:diagnostic.errorCode});}
 });
 export const executePublicPlayerCasinoAction = securedOnRequest('executePublicPlayerCasinoAction', {region:'europe-west1',cors:true,maxInstances:15,timeoutSeconds:60}, async(req,res)=>{
   const body=requirePostJson(req,res);if(!body)return;
   res.set('Cache-Control','no-store');
   try{return res.status(200).json({ok:true,...await playerCasino(String(body.token??''),body)});}
-  catch(error){logger.error('Casino action failed',error);return res.status(400).json({error:'CASINO_ACTION_FAILED',message:error.message});}
+  catch(error){const diagnostic=casinoFailure(body,error,error.casinoContext);logger.warn('Casino action refused',diagnostic);return res.status(400).json({error:'CASINO_ACTION_FAILED',message:diagnostic.errorCode});}
 });
 export const manageSessionCasinoView = securedOnRequest('manageSessionCasinoView', {region:'europe-west1',cors:true,maxInstances:10,timeoutSeconds:60}, async(req,res)=>{
   const body=req.method==='GET'?req.query:requirePostJson(req,res);if(!body)return;
   res.set('Cache-Control','no-store');
   try{return res.status(200).json({ok:true,...await organizerCasino(String(body.sessionId??''),body)});}
-  catch(error){logger.error('Casino configuration failed',error);return res.status(400).json({error:'CASINO_CONFIG_FAILED',message:error.message});}
+  catch(error){const diagnostic=casinoFailure(body,error);logger.warn('Casino configuration refused',diagnostic);return res.status(400).json({error:'CASINO_CONFIG_FAILED',message:diagnostic.errorCode});}
 });

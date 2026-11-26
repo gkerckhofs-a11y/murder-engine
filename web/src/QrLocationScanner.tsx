@@ -1,26 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BrowserQRCodeReader } from '@zxing/browser';
 
-function locationFromQr(text:string):string|null {
-  const raw=String(text??'').trim();
-  if(!raw)return null;
-
-  try {
-    const url=new URL(raw,window.location.origin);
-    const match=url.pathname.match(/^\/scan\/([^/]+)\/?$/);
-
-    if(
-      match &&
-      match[1]!=='character'
-    ){
-      return decodeURIComponent(match[1]);
-    }
-  } catch {}
-
-  return /^[A-Za-z0-9_.:-]{1,120}$/.test(raw)
-    ? raw
-    : null;
-}
+import {casinoFromQr,casinoHref,locationFromQr} from './casino-access';
 
 function cameraErrorMessage(error:unknown,language='FR'){
   const en=String(language).toUpperCase()==='EN';
@@ -116,12 +97,18 @@ export default function QrLocationScanner({
               !result
             ) return;
 
+            const casino=casinoFromQr(result.getText(),window.location.origin);
+            if(casino){
+              doneRef.current=true;callbackControls.stop();controlsRef.current=null;
+              window.location.assign(casinoHref(casino.game,casino.sessionId,tokenRef.current));
+              return;
+            }
             const locationExternalId=
-              locationFromQr(result.getText());
+              locationFromQr(result.getText(),window.location.origin);
 
             if(!locationExternalId){
               setStatus(
-                en?'QR detected, but this is not a Murder Engine location QR code.':'QR détecté, mais ce n’est pas un QR de lieu Murder Engine.'
+                en?'QR detected, but this is not a Murder Engine location or casino QR code.':'QR détecté, mais ce n’est pas un QR de lieu ou de casino Murder Engine.'
               );
               return;
             }
@@ -188,7 +175,7 @@ export default function QrLocationScanner({
 
         if(!cancelled)
           setStatus(
-            en?'Fit the location QR code entirely inside the frame.':'Cadre le QR du lieu entièrement dans le viseur.'
+            en?'Fit the location or casino QR code entirely inside the frame.':'Cadre le QR du lieu ou du casino entièrement dans le viseur.'
           );
 
       }catch(e){

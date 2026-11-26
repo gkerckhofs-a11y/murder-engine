@@ -2,15 +2,31 @@ import {useEffect,useRef,useState} from 'react';
 import {QRCodeSVG} from 'qrcode.react';
 import {organizerJson} from './organizer-api';
 import './casino.css';
+import {casinoHref,readCasinoAccess,rememberPlayerAccess,personalToken,initialCasinoReserve} from './casino-access';
 
 const titles:Record<string,string>={BLACKJACK:'Blackjack',HOLDEM:'Texas Hold’em',ROULETTE:'Roulette'};
 const rouletteChoices:Record<string,string>={RED:'Rouge',BLACK:'Noir',EVEN:'Pair',ODD:'Impair',LOW:'1 à 18',HIGH:'19 à 36',DOZEN1:'1 à 12',DOZEN2:'13 à 24',DOZEN3:'25 à 36',COLUMN1:'Colonne 1',COLUMN2:'Colonne 2',COLUMN3:'Colonne 3'};
 const selectionLabel=(s:string)=>rouletteChoices[s]??`Numéro ${s?.split(':')[1]}`;
 const cash=(value:number)=>`${value.toLocaleString('fr-BE')} $`;
 const messages:Record<string,string>={
+  CASINO_CONNECTION_FAILED:'Connexion interrompue. Réessayez lorsque le réseau est disponible. Vos dollars restent enregistrés.',INVALID_PLAYER_TOKEN:'Ouvrez votre lien personnel pour vous identifier.',PLAYER_NOT_CAST:'Aucun personnage n’est encore attribué à ce lien. Contactez le MJ.',SESSION_ARCHIVED:'Cette partie est archivée. Ouvrez le lien de la partie actuelle.',RUNTIME_NOT_INITIALIZED:'La partie n’est pas encore préparée. Contactez le MJ.',CASINO_SESSION_STATE_CHANGED:'La partie a changé de statut. Actualisez la table.',CASINO_PLAYER_ACCESS_CHANGED:'Votre accès a changé. Ouvrez votre lien personnel actuel.',INVALID_CASINO_GAME:'Cette table n’existe pas.',CASINO_SESSION_NOT_FOUND:'Cette partie est introuvable. Vérifiez votre lien avec le MJ.',
   ROULETTE_INVALID_SELECTION:'Choisissez un pari proposé par la table.',CASINO_WRONG_SESSION:'Ce lien joueur appartient à une autre partie. Ouvrez votre lien personnel pour cette session.',CASINO_DISABLED:'Cette table est fermée.',CASINO_STATE_CHANGED:'La table a changé. Vérifiez le nouvel état avant de rejouer.',CASINO_CASH_CHANGED:'Votre solde a changé. Vérifiez le montant disponible.',CASINO_BANK_INSUFFICIENT:'La banque ne peut pas couvrir cette mise. Essayez une mise plus faible ou prévenez le MJ.',CASINO_INSUFFICIENT_CASH:'Vous n’avez pas assez de dollars disponibles.',CASINO_INSUFFICIENT_STACK:'Votre réserve à table est insuffisante.',CASINO_HAND_IN_PROGRESS:'Attendez la fin de la main.',CASINO_WALLET_LIMIT:'Le plafond de votre portefeuille bloque ce retrait. Retirez un montant plus petit, ou libérez de la place par un virement dans votre Sac.',CASINO_ALREADY_AT_TABLE:'Vous êtes déjà à une table. Quittez-la avant d’en rejoindre une autre.',CASINO_TABLE_FULL:'Cette table est complète.',CASINO_NOT_YOUR_TURN:'Ce n’est pas votre tour.',CASINO_BET_RESERVED:'Votre mise est déjà engagée. Attendez le règlement de la main.',POKER_TWO_READY_PLAYERS_REQUIRED:'Deux joueurs au moins doivent être prêts.',CASINO_TABLE_MUST_BE_EMPTY:'Les joueurs doivent quitter cette table avant de modifier ses réglages.',CASINO_SESSION_NOT_LIVE:'Les actions attendent le lancement ou la reprise de la partie.',CASINO_BETS_REQUIRED:'Un joueur au moins doit miser avant la donne.',POKER_RAISE_TOO_SMALL:'Cette relance est trop petite. Respectez la relance minimale, ou engagez tout votre tapis.',POKER_RAISE_NOT_REOPENED:'Ce petit tapis ne vous permet pas de relancer à nouveau. Vous pouvez suivre ou vous coucher.',BLACKJACK_EVEN_BETS_REQUIRED:'Les mises de Blackjack doivent être des montants pairs.',BLACKJACK_SPLIT_UNAVAILABLE:'Cette main ne peut pas être séparée.',BLACKJACK_DOUBLE_UNAVAILABLE:'Cette main ne peut pas être doublée.',INVALID_CASINO_AMOUNT:'Vérifiez le montant saisi.',PLAYER_LINK_NOT_FOUND:'Votre lien joueur n’est plus actif. Demandez votre lien personnel au MJ.'};
 function errorText(error:unknown){const raw=error instanceof Error?error.message:String(error);return messages[raw]??'L’action n’a pas abouti. Actualisez la table et réessayez. Si le problème persiste, prévenez le MJ.';}
-async function api(url:string,body?:unknown){const r=await fetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined);const d=await r.json();if(!r.ok)throw Error(d.message??d.error);return d;}
+async function api(url:string,body?:unknown){
+  let r:Response;
+  try{r=await fetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined);}catch{throw Error('CASINO_CONNECTION_FAILED');}
+  const d=await r.json().catch(()=>null);
+  if(!r.ok||!d)throw Error(d?.message??d?.error??'CASINO_CONNECTION_FAILED');return d;
+}
+const accessErrors=new Set(['CASINO_WRONG_SESSION','PLAYER_LINK_NOT_FOUND','INVALID_PLAYER_TOKEN','PLAYER_NOT_CAST','SESSION_ARCHIVED','CASINO_PLAYER_ACCESS_CHANGED']);
+function RecoverCasinoAccess({game,sessionId}:{game:string;sessionId:string}){
+  const [link,setLink]=useState(''),[error,setError]=useState('');
+  return <form className="casinoAccess" onSubmit={e=>{
+    e.preventDefault();const token=personalToken(link,window.location.origin);
+    if(!token){setError('Collez le lien personnel complet transmis par votre MJ.');return;}
+    window.location.assign(casinoHref(game,sessionId,token));
+  }}><p>Collez votre lien personnel ici pour ouvrir la table dans ce navigateur.</p><label>Mon lien personnel<input type="url" autoComplete="off" value={link} onChange={e=>setLink(e.target.value)} required/></label><button type="submit">Ouvrir ma table</button>{error&&<p role="alert">{error}</p>}</form>;
+}
 function Cards({cards=[]}:{cards:(string|null)[]}){return <div className="casinoCards">{cards.map((c,i)=>{const suit=c?.[0]??'';const n=Number(c?.slice(1));const name=({11:'V',12:'D',13:'R',14:'A'} as Record<number,string>)[n]??String(n);const symbol=({C:'♣',D:'♦',H:'♥',S:'♠'} as Record<string,string>)[suit];return <span className={`casinoCard ${!c?'back':''} ${suit==='H'||suit==='D'?'red':''}`} key={i} aria-label={c?`${name} ${symbol}`:'Carte cachée'}>{c?<><span className="cardCorner">{name}<small>{symbol}</small></span><b>{symbol}</b><span className="cardCorner opposite">{name}<small>{symbol}</small></span></>:'◆'}</span>;})}</div>;}
 const redNumbers=new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 function RouletteMat({selection,onSelect,enabled}:{selection:string;onSelect:(s:string)=>void;enabled:boolean}){
@@ -18,25 +34,53 @@ function RouletteMat({selection,onSelect,enabled}:{selection:string;onSelect:(s:
  return <div className="rouletteMat"><p className="feltInscription">FAITES VOS JEUX</p><div className="rouletteNumbers">{cell('NUMBER:0','0','zero')}{Array.from({length:12},(_,r)=>[3*r+1,3*r+2,3*r+3]).flat().map(n=>cell('NUMBER:'+n,String(n),redNumbers.has(n)?'redNumber':'blackNumber'))}</div><div className="rouletteOutside">{['COLUMN1','COLUMN2','COLUMN3','DOZEN1','DOZEN2','DOZEN3','LOW','EVEN','RED','BLACK','ODD','HIGH'].map(k=>cell(k,rouletteChoices[k],k==='RED'?'redNumber':k==='BLACK'?'blackNumber':''))}</div><p className="rouletteCaption">Touchez une case pour choisir votre pari, puis confirmez le montant dans « Mes actions ».</p></div>;
 }
 export function CasinoTable({token:tokenProp,sessionId,game}:{token?:string|null;sessionId:string;game:string}){
-  const [token]=useState(()=>{try{return tokenProp||localStorage.getItem('murderEnginePlayerToken')||'';}catch{return tokenProp||'';}});
+  const [token,setToken]=useState(()=>tokenProp||readCasinoAccess(sessionId));
+  useEffect(()=>{
+    const sync=()=>setToken(tokenProp||readCasinoAccess(sessionId));
+    sync();window.addEventListener('storage',sync);window.addEventListener('focus',sync);
+    return()=>{window.removeEventListener('storage',sync);window.removeEventListener('focus',sync);};
+  },[tokenProp,sessionId]);
+  return <CasinoPlay key={`${sessionId}:${game}:${token}`} token={token} sessionId={sessionId} game={game}/>;
+}
+function CasinoPlay({token,sessionId,game}:{token:string;sessionId:string;game:string}){
   const [selection,setSelection]=useState('RED');
   const [data,setData]=useState<any>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[amount,setAmount]=useState(20),[joinAmount,setJoinAmount]=useState(100),[clock,setClock]=useState(Date.now());
-  const state=useRef<any>(null),inFlight=useRef(false),alive=useRef(true);
-  function accept(r:any){if(alive.current&&(!state.current||r.revision>=state.current.revision)){r.receivedAt=Date.now();state.current=r;setData(r);}}
+  const state=useRef<any>(null),inFlight=useRef(false),alive=useRef(true),reserveEdited=useRef(false),blocked=useRef(false),errorSource=useRef('');
+  function accept(r:any){
+    if(alive.current&&(!state.current||r.revision>=state.current.revision)){
+      r.receivedAt=Date.now();state.current=r;setData(r);rememberPlayerAccess(r.sessionId,token);
+      if(!reserveEdited.current)setJoinAmount(initialCasinoReserve(r.wallet,game==='HOLDEM'?r.table.bigBlind:r.table.minBet));
+    }
+  }
   async function run(type:string,value?:number){
-    if(inFlight.current||!token||!titles[game])return;inFlight.current=true;setBusy(true);if(type!=='REFRESH')setError('');
-    try{accept(await api('/api/player/casino/action',{token,sessionId,game,type,selection,amount:value,requestId:crypto.randomUUID(),revision:state.current?.revision??-1,tableRevision:state.current?.table.version??0,round:state.current?.table.round??-1}));}
-    catch(e){if(type!=='REFRESH'||!state.current)setError(errorText(e));try{accept(await api(`/api/player/casino/table?token=${encodeURIComponent(token)}&sessionId=${encodeURIComponent(sessionId)}&game=${game}`));}catch{if(type==='REFRESH')setError('Connexion interrompue. Votre place et vos mises restent enregistrées.');}}
-    finally{inFlight.current=false;if(alive.current)setBusy(false);}
+    if(inFlight.current||!token||!titles[game]||(type==='REFRESH'&&blocked.current))return;
+    inFlight.current=true;setBusy(true);const reading=type==='REFRESH'||type==='VIEW';
+    const read=()=>api('/api/player/casino/table?'+new URLSearchParams({token,sessionId,game}));
+    if(!reading){setError('');errorSource.current='';}
+    try{
+      const r=type==='VIEW'?await read():await api('/api/player/casino/action',{token,sessionId,game,type,selection,amount:value,requestId:crypto.randomUUID(),revision:state.current?.revision??-1,tableRevision:state.current?.table.version??0,round:state.current?.table.round??-1});
+      accept(r);blocked.current=false;
+      if(alive.current&&(!reading||errorSource.current==='READ')){setError('');errorSource.current='';}
+    }catch(e){
+      let failure=e;
+      if(type!=='VIEW'){
+        try{accept(await read());}
+        catch(fallback){if(e instanceof Error&&e.message==='CASINO_CONNECTION_FAILED')failure=fallback;}
+      }
+      if(alive.current){
+        blocked.current=accessErrors.has(failure instanceof Error?failure.message:'');
+        if(!reading||errorSource.current!=='ACTION'){setError(errorText(failure));errorSource.current=reading?'READ':'ACTION';}
+      }
+    }finally{inFlight.current=false;if(alive.current)setBusy(false);}
   }
   useEffect(()=>{
-    alive.current=true;if(token&&titles[game]){try{localStorage.setItem('murderEnginePlayerToken',token);}catch{};void run('REFRESH');}
+    alive.current=true;if(token&&titles[game])void run('VIEW');
     const timer=window.setInterval(()=>{if(document.visibilityState==='visible')void run('REFRESH');},2500);
     const clockTimer=window.setInterval(()=>setClock(Date.now()),1000);
     return()=>{alive.current=false;window.clearInterval(timer);window.clearInterval(clockTimer);};
   },[token,sessionId,game]);
   if(!titles[game])return <main className="casinoShell"><h1>Table inconnue</h1><p>Demandez le QR de la table au MJ.</p></main>;
-  if(!token)return <main className="casinoShell"><h1>{titles[game]}</h1><p>Ouvrez d’abord le lien personnel transmis par votre MJ sur ce téléphone, puis scannez à nouveau le QR de la table.</p><p>Le QR de table ne remplace pas votre accès joueur.</p></main>;
+  if(!token)return <main className="casinoShell"><h1>{titles[game]}</h1><p>Ouvrez d’abord le lien personnel transmis par votre MJ sur ce téléphone, puis scannez à nouveau le QR de la table.</p><p>Vous pouvez aussi accéder au salon de jeux depuis votre fiche.</p><RecoverCasinoAccess game={game} sessionId={sessionId}/></main>;
   const t=data?.table,me=t?.seats.find((p:any)=>p.id===data.characterExternalId),isMe=t?.actor===me?.id&&!!me;
   const active=t?.phase==='PLAYING',complete=t?.phase==='COMPLETE',allowed=data?.status==='LIVE';
   const actor=t?.seats.find((p:any)=>p.id===t.actor);
@@ -47,14 +91,17 @@ export function CasinoTable({token:tokenProp,sessionId,game}:{token?:string|null
   return <main className="casinoShell">
     <header className="casinoHeader"><div><small>LE GRAND CASINO · SALON PRIVÉ</small><h1>{titles[game]}</h1></div><a href={`/?player=${encodeURIComponent(token)}`}>Ma murder</a></header>
     <div className="casinoBalances"><span>Dans mon Sac <strong>{data?cash(data.wallet):'…'}</strong></span><span>À cette table <strong>{cash(me?.stack??0)}</strong></span>{game!=='HOLDEM'&&t&&<span>Banque <strong>{cash(t.bank)}</strong></span>}</div>
+    {data&&<p className="casinoIdentity">Vous jouez <strong>{data.characterName||data.characterExternalId}</strong> · {data.sessionName||'Votre partie'}</p>}
     {error&&<p className="casinoError" role="alert">{error}</p>}
-    {!data&&<button onClick={()=>void run('REFRESH')} disabled={busy}>{busy?'Connexion à la table…':'Réessayer'}</button>}
+    {blocked.current&&<RecoverCasinoAccess game={game} sessionId={sessionId}/>}
+    {error&&data&&<button disabled={busy} onClick={()=>void run('VIEW')}>Actualiser la table</button>}
+    {!data&&<button onClick={()=>void run('VIEW')} disabled={busy}>{busy?'Connexion à la table…':'Réessayer'}</button>}
     {data?.status==='PAUSED'&&<p role="status">La partie est en pause. Les nouvelles actions attendent sa reprise.</p>}
     {data&& !['LIVE','PAUSED'].includes(data.status)&&<p>La partie n’est pas en cours. Vous pouvez récupérer les dollars disponibles à table.</p>}
-    {t&&!t.enabled&&<p>Le MJ n’a pas ouvert cette table pour cette session.</p>}
+    {t&&!t.enabled&&<p>Cette table est fermée. Le MJ peut la rouvrir.</p>}
     {data?.otherTable&&<p>Vous êtes déjà à la table {titles[data.otherTable]}. <a href={`/?player=${encodeURIComponent(token)}&casino=${data.otherTable}&casinoSession=${sessionId}`}>La retrouver</a></p>}
     {t&&<section className="casinoEntry" aria-label="Budget avant de jouer"><small>AVANT DE PRENDRE PLACE</small><h2>{game==='HOLDEM'?'Blindes de départ':'Mise de départ minimale'} : {game==='HOLDEM'?`${cash(t.smallBlind)} / ${cash(t.bigBlind)}`:cash(t.minBet)}</h2><p>Minimum à apporter : <strong>{cash(entry)}</strong>. Réserve conseillée : <strong>{cash(recommended)}</strong> pour disposer de plusieurs mises. Cette réserve est un conseil, pas une obligation.</p>{game!=='HOLDEM'&&<p>Plafond {game==='ROULETTE'?'par joueur et par tour':'par mise'} : {cash(t.maxBet)}.{game==='BLACKJACK'?' Prévoyez une mise supplémentaire pour doubler ou séparer une paire.':''}</p>}{data.wallet<entry&&!me&&<p className="casinoBudgetWarning">Il vous manque {cash(entry-data.wallet)} dans votre Sac pour rejoindre cette table.</p>}</section>}
-    {t?.enabled&&!me&&!data.otherTable&&<form className="casinoJoin" onSubmit={e=>{e.preventDefault();void run('JOIN',Number(joinAmount));}}><h2>Prendre place</h2><p>Les dollars déposés ici deviennent indisponibles dans votre Sac. Vous les récupérez en quittant la table, entre deux mains.</p><label>Montant apporté à table<input type="number" min={game!=='HOLDEM'?t.minBet:t.bigBlind} max={data.wallet} step="1" value={joinAmount} onChange={e=>setJoinAmount(Number(e.target.value))}/></label><button disabled={busy||active||!allowed||data.wallet<joinAmount||!Number.isInteger(joinAmount)||joinAmount<entry}>Rejoindre avec {cash(joinAmount)}</button></form>}
+    {t?.enabled&&!me&&!data.otherTable&&<form className="casinoJoin" onSubmit={e=>{e.preventDefault();void run('JOIN',Number(joinAmount));}}><h2>Prendre place</h2><p>Seuls les dollars de votre portefeuille peuvent être déposés : les mallettes ne sont pas converties en jetons. La réserve est retirée du Sac puis rendue en quittant la table, entre deux mains.</p><label>Montant apporté à table<input type="number" min={game!=='HOLDEM'?t.minBet:t.bigBlind} max={data.wallet} step="1" value={joinAmount} onChange={e=>{reserveEdited.current=true;setJoinAmount(Number(e.target.value));}}/></label><button disabled={busy||active||!allowed||data.wallet<joinAmount||!Number.isInteger(joinAmount)||joinAmount<entry}>Rejoindre avec {cash(joinAmount)}</button></form>}
     {t&&<>
       <section className="casinoFelt" aria-label="Table de jeu"><div className="casinoRound">Donne {t.round} {active?`• ${t.street||'En cours'}`:complete?'• Terminée':'• Préparation'}</div>
         {game==='ROULETTE'?<><h2>Roulette • un seul zéro</h2><div className="rouletteResult" role="status">{t.number!=null?`Numéro sorti : ${t.number}`:'Faites vos jeux'}</div><p>Les joueurs misent, puis l’un d’eux lance la bille. Le résultat règle immédiatement toutes les mises.</p><RouletteMat selection={selection} onSelect={setSelection} enabled={!!me&&allowed&&t.enabled&&t.phase==='BETTING'&&!busy}/></>:game==='BLACKJACK'?<><div className="feltInscription">BLACKJACK PAYS 3 TO 2</div><h2>Le croupier</h2><Cards cards={t.dealer}/><p className="feltRule">Le croupier reste sur 17</p></>:<><div className="feltInscription">TEXAS HOLD’EM · NO LIMIT</div><h2>Cartes communes</h2><Cards cards={t.board.length?t.board:[null,null,null,null,null]}/><p>Pot engagé : {cash(t.seats.reduce((n:number,p:any)=>n+p.committed,0))}</p></>}

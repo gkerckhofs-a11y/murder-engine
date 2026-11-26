@@ -28,6 +28,16 @@ async function fixture(){
   }return {sessionId,players};
 }
 const key=()=>randomUUID();
+test('casino real SQL: rejected commands are recorded once without changing balances',async()=>{
+ const {sessionId,players:[a]}=await fixture();
+ await organizerCasino(sessionId,{type:'CONFIGURE',game:'ROULETTE',revision:-1,config:{enabled:true,bank:10000}});
+ const requestId=key(),command={sessionId,game:'ROULETTE',type:'JOIN',amount:101,revision:0,requestId};
+ for(let i=0;i<2;i++)await assert.rejects(()=>playerCasino(a.token,command),/CASINO_INSUFFICIENT_CASH/);
+ const {sessionActionLogs:logs}=await read('query Logs($s:UUID!){sessionActionLogs(where:{gameSessionId:{eq:$s},actionType:{eq:"CASINO_REJECTED"}}){id note characterExternalId}}',{s:sessionId});
+ assert.equal(logs.length,1);assert.equal(logs[0].characterExternalId,'A');assert.ok(!logs[0].note.includes(a.token));
+ assert.equal(JSON.parse(logs[0].note).amount,101);
+ const state=await playerCasino(a.token,{sessionId,game:'ROULETTE'});assert.equal(state.wallet,100);assert.equal(state.table.seats.length,0);
+});
 test('casino real SQL: money reservations, concurrent actions and replay, access, abort and cash-out',async()=>{
   const {sessionId:s,players:[a,b]}=await fixture();
   await organizerCasino(s,{type:'CONFIGURE',game:'BLACKJACK',revision:-1,config:{enabled:true,bank:1000}});

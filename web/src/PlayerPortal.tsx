@@ -1,3 +1,5 @@
+import PlayerCasinoLinks from './PlayerCasinoLinks';
+import {rememberPlayerAccess} from './casino-access';
 import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import QrLocationScanner from './QrLocationScanner';
@@ -83,7 +85,6 @@ function objectVisualGlyph(code?:string|null){
 }
 
 export default function PlayerPortal({token}:{token:string}){
-  useEffect(()=>{if(token)localStorage.setItem('murderEnginePlayerToken',token);},[token]);
   const [portal,setPortal]=useState<Portal|null>(null); const [error,setError]=useState(''); const [loading,setLoading]=useState(true); const [tab,setTab]=useState<Tab>(()=>new URLSearchParams(window.location.search).get('tab')==='play'?'actions':'fiche'); const [busy,setBusy]=useState(false); const [flash,setFlash]=useState('');
   const [introOpen,setIntroOpen]=useState(false);
   const [resultPopup,setResultPopup]=useState<{success:boolean;title:string;body:string}|null>(null);
@@ -92,8 +93,9 @@ export default function PlayerPortal({token}:{token:string}){
     try{
       const r=await fetchJson<{ok:boolean;portal:Portal}>(`/api/player/portal?token=${encodeURIComponent(token)}${track?'':'&refresh=1'}`);
       setPortal(r.portal);
+      rememberPlayerAccess(r.portal.session.id,token);
       const language=String(r.portal?.session?.language??'FR').trim().toUpperCase()==='EN'?'EN':'FR';
-      localStorage.setItem('murderEnginePlayerLanguage',language);
+      try{localStorage.setItem('murderEnginePlayerLanguage',language);}catch{}
     }catch(e){
       setError(e instanceof Error?e.message:String(e));
     }finally{
@@ -184,6 +186,7 @@ export default function PlayerPortal({token}:{token:string}){
     <div className="playerStatusBar"><div><small>{tr(portal,'Vous jouez','You are playing')}</small><strong>{c.name}</strong></div><div className="paPill"><small>{isEnglish(portal)?'AP':'PA'}</small><strong>{pa?.currentValue??'—'}{pa?.maxValue!=null?`/${pa.maxValue}`:''}</strong></div></div>
     {portal.states?.length>0&&<section className="playerStates">{portal.states.map((st:any)=><span key={st.stateExternalId}><b>{st.name}</b>{st.description?` · ${st.description}`:''}</span>)}</section>}
     {flash&&<p className="playerFlash">{flash}</p>}{error&&<p className="playerError">{error}</p>}
+    {tab==='fiche'&&<PlayerCasinoLinks token={token} sessionId={s.id} language={s.language}/>}
     {tab==='fiche'&&<PlayerSheet count={reading.count} portal={portal} busy={busy} onRead={()=>void act(()=>postJson('/api/player/briefing/read',{token}))}/>}
     <div hidden={tab!=='carnet'}><PlayerNotebook key={`${token}:${s.id}`} portal={portal} token={token} active={tab==='carnet'} count={reading.count} onOpenClues={openClues}/></div>
     {tab==='actions'&&<PlayerActions token={token} portal={portal} busy={busy} onRefresh={()=>load(false)} onExecute={async(interactionExternalId,targetExternalId,requestOnly,options)=>{

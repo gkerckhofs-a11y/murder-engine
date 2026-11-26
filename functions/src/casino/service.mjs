@@ -1,3 +1,4 @@
+import {casinoCommand,casinoFailure,casinoBalances,rejectionLogId} from './diagnostics.mjs';
 import {randomUUID} from 'node:crypto';
 import {authorizePlayerAccess,readPlayerData,writePlayerData} from '../player.mjs';
 import {SESSION_LOCK} from '../vote-storage.mjs';
@@ -5,7 +6,7 @@ import {canonicalSessionId} from '../session-access.mjs';
 import {table,GAMES,integer,join,leave,act,tick,abort,view} from './engine.mjs';
 
 export const CASINO_QUERY=`query CasinoSession($sessionId: UUID!) {
-  gameSession(id:$sessionId) { id status pausedAt }
+  gameSession(id:$sessionId) { id name status pausedAt }
   sessionCasino(key:{gameSessionId:$sessionId}) {revision stateJson}
   sessionResources(where:{gameSessionId:{eq:$sessionId},resourceExternalId:{eq:"RES_CASH"}},limit:2000) {characterExternalId currentValue maxValue}
 }`;
@@ -17,7 +18,7 @@ const parse=row=>{const state=row?JSON.parse(row.stateJson):{tables:{},pausedAt:
 const fail=message=>{throw Error(message);};
 function publicResult(data,state,actor,game){
   const wallet=data.sessionResources.find(r=>r.characterExternalId===actor);
-  return {revision:data.sessionCasino?.revision??-1,sessionId:data.gameSession.id,characterExternalId:actor,serverNow:Date.now(),status:data.gameSession.status,wallet:wallet?.currentValue??0,walletMax:wallet?.maxValue??null,table:view(state.tables[game],actor),otherTable:GAMES.find(g=>g!==game&&state.tables[g].seats.some(p=>p.id===actor))??null};
+  return {revision:data.sessionCasino?.revision??-1,sessionId:data.gameSession.id,sessionName:data.gameSession.name,availableTables:GAMES.filter(g=>state.tables[g].enabled||state.tables[g].seats.some(p=>p.id===actor)).map(g=>({game:g,enabled:state.tables[g].enabled})),characterName:data.characterName,characterExternalId:actor,serverNow:Date.now(),status:data.gameSession.status,wallet:wallet?.currentValue??0,walletMax:wallet?.maxValue??null,table:view(state.tables[game],actor),otherTable:GAMES.find(g=>g!==game&&state.tables[g].seats.some(p=>p.id===actor))??null};
 }
 async function load(sessionId,reader){const data=await reader(CASINO_QUERY,{sessionId});if(!data.gameSession)fail('CASINO_SESSION_NOT_FOUND');data.gameSession.id=canonicalSessionId(data.gameSession.id);return {...data,sessionResources:data.sessionResources??[]};}
 function stateClock(state,status,now){
@@ -26,7 +27,7 @@ function stateClock(state,status,now){
   if(status==='LIVE')for(const t of Object.values(state.tables))tick(t,now);
   else if(['FINISHED','ARCHIVED'].includes(status))for(const t of Object.values(state.tables))if(t.phase==='PLAYING'||t.seats.some(p=>p.hands?.some(h=>h.bet)))abort(t);
 }
-export function writePlan(data,state,{sessionId,requestId,actor,participantId=null,allowedStatuses,walletChanges=[],action,now}){
+export function writePlan(data,state,{sessionId,requestId,actor,participantId=null,allowedStatuses,walletChanges=[],action,now,audit=null}){
   const revision=data.sessionCasino?.revision??-1;
   const vars={sessionId,requestId,actor,expectedRevision:revision,stateJson:JSON.stringify(state),updatedAt:new Date(now).toISOString()};
   const decl=['$sessionId:UUID!','$requestId:String!','$actor:String!','$expectedRevision:Int!','$stateJson:String!','$updatedAt:Timestamp!'];
@@ -52,14 +53,37 @@ export function writePlan(data,state,{sessionId,requestId,actor,participantId=nu
   }
   body+=revision>=0?`casino:sessionCasino_update(key:{gameSessionId:$sessionId},data:{revision:${revision+1},stateJson:$stateJson,updatedAt:$updatedAt})\n`:`casino:sessionCasino_insert(data:{gameSessionId:$sessionId,revision:0,stateJson:$stateJson,updatedAt:$updatedAt})\n`;
   body+=`command:sessionCasinoCommand_insert(data:{gameSessionId:$sessionId,requestId:$requestId,actor:$actor,createdAt:$updatedAt})\n`;
-  vars.log={gameSessionId:sessionId,characterExternalId:participantId?actor:null,actionType:'CASINO',refExternalId:action,beforeValue:String(revision),afterValue:String(revision+1),deltaValue:walletChanges.find(c=>c.id===actor)?.delta??0,note:JSON.stringify({actor,action,walletChanges}),createdAt:vars.updatedAt};decl.push('$log:SessionActionLog_Data!');body+='log:sessionActionLog_insert(data:$log)';
+  vars.log={gameSessionId:sessionId,characterExternalId:participantId?actor:null,actionType:'CASINO',refExternalId:action,beforeValue:String(revision),afterValue:String(revision+1),deltaValue:walletChanges.find(c=>c.id===actor)?.delta??0,note:JSON.stringify({actor,action,walletChanges,...(audit?{audit}: {})}),createdAt:vars.updatedAt};decl.push('$log:SessionActionLog_Data!');body+='log:sessionActionLog_insert(data:$log)';
   return {operation:`mutation CasinoCommit(${decl.join(',')}) @transaction {${body}}`,variables:vars,revision:revision+1};
 }
-export async function playerCasino(token,input,{reader=readPlayerData,executor=writePlayerData,now=Date.now(),attempt=0}={}){
-  const participant=await authorizePlayerAccess(token,reader);
+export async function playerCasino(token,input,deps={}){
+  const {reader=readPlayerData,executor=writePlayerData,now=Date.now()}=deps;
+  let participant;
+  try{
+    participant=await authorizePlayerAccess(token,reader);
+    return await executePlayerCasino(participant,input,{...deps,reader,executor,now});
+  }catch(error){
+    const context=participant?{sessionId:canonicalSessionId(participant.gameSession.id),characterExternalId:participant.characterExternalId}:{};
+    error.casinoContext=context;
+    const diagnostic=casinoFailure(input,error,context);
+    // Polling and invalid links must not flood the session journal. A refusal is
+    // written only for an authenticated player action; repeated requests dedupe.
+    if(participant&&diagnostic.requestId&&!['VIEW','REFRESH'].includes(diagnostic.type)){
+      try{await executor(`mutation CasinoRejection($data:SessionActionLog_Data!){sessionActionLog_insert(data:$data)}`,{data:{
+        id:rejectionLogId(context.sessionId,participant.id,diagnostic.requestId),gameSessionId:context.sessionId,
+        characterExternalId:participant.characterExternalId,actionType:'CASINO_REJECTED',
+        refExternalId:`${diagnostic.game??'UNKNOWN'}:${diagnostic.type??'UNKNOWN'}`,note:JSON.stringify(diagnostic),createdAt:new Date(now).toISOString()
+      }});}catch{/* The audit must never replace the original failure or change money. */}
+    }
+    throw error;
+  }
+}
+async function executePlayerCasino(participant,input,{reader,executor,now,attempt=0}){
   const sessionId=canonicalSessionId(participant.gameSession.id);if(canonicalSessionId(input.sessionId)!==sessionId)fail('CASINO_WRONG_SESSION');
   const game=gameKey(input.game),actor=participant.characterExternalId;
   const data=await load(sessionId,reader),state=parse(data.sessionCasino),t=state.tables[game];
+  data.characterName=participant.characterDisplayName||participant.displayName;
+  const beforeBalances=casinoBalances(state);
   const type=String(input.type??'VIEW');
   if(type==='VIEW')return publicResult(data,state,actor,game);
   if(!/^[a-zA-Z0-9_-]{16,80}$/.test(input.requestId??''))fail('CASINO_REQUEST_ID_REQUIRED');
@@ -88,10 +112,10 @@ export async function playerCasino(token,input,{reader=readPlayerData,executor=w
   }
   if(!changes.length&&JSON.stringify(state)===serialized)return publicResult(data,state,actor,game);
   if(type!=='REFRESH')t.version++;
-  const plan=writePlan(data,state,{sessionId,requestId:input.requestId,actor,participantId:participant.id,allowedStatuses:type==='REFRESH'||type==='LEAVE'||type==='WITHDRAW'?['LIVE','PAUSED','FINISHED']:['LIVE'],walletChanges:changes,action:`${game}:${type}`,now});
+  const plan=writePlan(data,state,{sessionId,requestId:input.requestId,actor,participantId:participant.id,allowedStatuses:type==='REFRESH'||type==='LEAVE'||type==='WITHDRAW'?['LIVE','PAUSED','FINISHED']:['LIVE'],walletChanges:changes,action:`${game}:${type}`,now,audit:{command:casinoCommand(input),before:beforeBalances,after:casinoBalances(state)}});
   try{await executor(plan.operation,plan.variables);}catch(error){
     const details=String(error.message)+' '+JSON.stringify(error.details??'');
-    if(attempt<2&&/CASINO_STATE_CHANGED|CASINO_CASH_CHANGED|ALREADY_EXISTS|duplicate key/.test(details))return playerCasino(token,input,{reader,executor,now,attempt:attempt+1});
+    if(attempt<2&&/CASINO_STATE_CHANGED|CASINO_CASH_CHANGED|ALREADY_EXISTS|duplicate key/.test(details))return executePlayerCasino(participant,input,{reader,executor,now,attempt:attempt+1});
     if(/CASINO_STATE_CHANGED|CASINO_CASH_CHANGED|ALREADY_EXISTS|duplicate key/.test(details))fail('CASINO_STATE_CHANGED');
     throw error;
   }data.sessionCasino={revision:plan.revision};return publicResult(data,state,actor,game);
@@ -102,7 +126,7 @@ export async function organizerCasino(sessionId,input={}, {reader=readPlayerData
   if(!input.type)return {sessionId,status:data.gameSession.status,revision:data.sessionCasino?.revision??-1,tables:GAMES.map(g=>({...view(state.tables[g],null),bankInitial:state.tables[g].bankInitial})),wallets:data.sessionResources};
   const game=gameKey(input.game),t=state.tables[game];
   if(input.revision!==(data.sessionCasino?.revision??-1))fail('CASINO_STATE_CHANGED');
-  const changes=[];
+  const changes=[],beforeBalances=casinoBalances(state);
   if(input.type==='CONFIGURE'){
     if(t.seats.length)fail('CASINO_TABLE_MUST_BE_EMPTY');const replacement=table(game,input.config);
     if(game!=='HOLDEM'&&replacement.bankInitial===t.bankInitial)replacement.bank=t.bank;
@@ -111,7 +135,7 @@ export async function organizerCasino(sessionId,input={}, {reader=readPlayerData
     abort(t);for(const p of [...t.seats])changes.push({id:p.id,delta:leave(t,p.id)});t.enabled=false;
   }else if(input.type==='ABORT')abort(t);else fail('INVALID_CASINO_ACTION');
   if(input.type!=='CONFIGURE')t.version++;
-  const plan=writePlan(data,state,{sessionId,requestId:randomUUID(),actor:'ORGANIZER',allowedStatuses:['DRAFT','CASTING','READY','LIVE','PAUSED','FINISHED'],walletChanges:changes,action:`${game}:${input.type}`,now});
+  const plan=writePlan(data,state,{sessionId,requestId:randomUUID(),actor:'ORGANIZER',allowedStatuses:['DRAFT','CASTING','READY','LIVE','PAUSED','FINISHED'],walletChanges:changes,action:`${game}:${input.type}`,now,audit:{command:casinoCommand(input),before:beforeBalances,after:casinoBalances(state)}});
   await executor(plan.operation,plan.variables);return {ok:true,revision:plan.revision};
 }
 export const __casino={COMMAND_QUERY,parse};

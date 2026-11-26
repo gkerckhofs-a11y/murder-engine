@@ -1,7 +1,7 @@
-name: Deploy organizer hosting
+name: Verify and deploy player access
 on:
   push:
-    branches: [deploy/organizer-hosting]
+    branches: [deploy/organizer-hosting, fix/casino-player-access]
 permissions:
   contents: read
 concurrency:
@@ -10,21 +10,35 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Install and build interface
-        run: npm ci --prefix web && npm run build
+      - name: Install dependencies and verify code
+        run: |
+          npm ci --prefix functions
+          npm ci --prefix web
+          npm test
+          node --experimental-strip-types --test web/test/boot.test.mjs web/test/player-navigation.test.ts web/test/casino-access.test.ts
+          npm run build
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.34.0
+      - name: Verify casino transactions with local SQL Connect
+        run: node functions/integration/run.mjs casino
       - name: Install browser for UI checks
         working-directory: web
         run: npx playwright install --with-deps chromium
       - name: Verify organizer messages and sheet links
         run: npm --prefix web run test:organizer
+      - name: Verify mobile casino access and games
+        working-directory: web
+        run: node test/browser-casino.cjs
       - name: Keep synthetic UI screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -32,11 +46,20 @@ jobs:
           name: organizer-communication-screenshots
           path: web/test-results/
       - uses: google-github-actions/auth@v2
+        if: github.ref == 'refs/heads/deploy/organizer-hosting'
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MURDER_ENGINE }}
-      - name: Install Firebase CLI
-        run: npm install --global firebase-tools@15.34.0
-      - name: Deploy hosting only
+      - name: Deploy compatible casino functions when changed
+        if: github.ref == 'refs/heads/deploy/organizer-hosting'
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          test "$FIREBASE_PROJECT_ID" = "murder-engine-ludificateur"
+          if ! git diff --quiet HEAD^ HEAD -- functions/src/casino functions/src/index.mjs; then
+            firebase deploy --project "$FIREBASE_PROJECT_ID" --only functions:getPublicPlayerCasinoTable,functions:executePublicPlayerCasinoAction,functions:manageSessionCasinoView --non-interactive
+          fi
+      - name: Deploy interface
+        if: github.ref == 'refs/heads/deploy/organizer-hosting'
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
         run: |
