@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {initializeApp} from 'firebase-admin/app';
 import {getDataConnect} from 'firebase-admin/data-connect';
+import {balanceSignature} from './balance-signature.mjs';
 const projectId='murder-engine-ludificateur',origin=`https://${projectId}.web.app`;
 assert.equal(process.env.FIREBASE_PROJECT_ID,projectId);
 assert.ok(!process.env.DATA_CONNECT_EMULATOR_HOST);
@@ -25,9 +26,10 @@ try{
    assert.ok(Array.isArray(d.availableTables),`Casino access summary missing for ${game}`);
  }
  const after=await snapshot();
- assert.ok(JSON.stringify(before.sessionCasino)===JSON.stringify(after.sessionCasino),'Casino state changed during reads');
- const balances=d=>JSON.stringify(d.sessionResources.sort((a,b)=>(a.characterExternalId+a.resourceExternalId).localeCompare(b.characterExternalId+b.resourceExternalId)));
- assert.ok(balances(before)===balances(after),'Player balances changed during reads');
+ assert.ok(before.sessionCasino.revision===after.sessionCasino.revision&&before.sessionCasino.stateJson===after.sessionCasino.stateJson,'Casino state changed during reads');
+ assert.ok(balanceSignature(before.sessionResources)===balanceSignature(after.sessionResources),'Player balances changed during reads');
+ const cash=after.sessionResources.filter(r=>r.resourceExternalId==='RES_CASH').reduce((sum,r)=>sum+r.currentValue,0);
+ console.log('Stable resources:',after.sessionResources.length,'; total cash:',cash,'; casino revision:',after.sessionCasino.revision);
  const expected=await readFile(new URL('../../web/dist/index.html',import.meta.url),'utf8');
  const html=await (await fetch(origin+'/?release-check='+Date.now(),{headers:{'Cache-Control':'no-cache'}})).text();
  for(const asset of expected.match(/\/assets\/[^"\s]+\.(js|css)/g)??[])assert.ok(html.includes(asset),'Published interface does not match this build');
