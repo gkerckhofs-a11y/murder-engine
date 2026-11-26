@@ -43,6 +43,19 @@ if(report.overview){
   if(detail)report.sessions.push(detail);
  }
  const auth=await new GoogleAuth({scopes:['https://www.googleapis.com/auth/cloud-platform']}).getClient();
+ report.endpointChecks=await part('player-read-only-checks',async()=>{
+  const id='d1a40507-811f-4695-a119-e16ed74eb5cd';
+  const p=await read(`query AuditPlayerAccess($id:UUID!){sessionParticipants(where:{gameSessionId:{eq:$id},characterExternalId:{eq:"P04"}},limit:2){characterExternalId playerAccessToken playerAccessEnabled active}}`,{id});
+  const participant=p.sessionParticipants?.[0];if(!participant)throw Error('TARGET_NOT_FOUND');
+  const checks=[];
+  for(const game of ['BLACKJACK','HOLDEM','ROULETTE']){
+   const url=new URL('https://murder-engine-ludificateur.web.app/api/player/casino/table');
+   url.search=new URLSearchParams({token:participant.playerAccessToken,sessionId:id,game}).toString();
+   const response=await fetch(url,{signal:AbortSignal.timeout(45000)});const data=await response.json();
+   checks.push({game,httpStatus:response.status,ok:data.ok,characterExternalId:data.characterExternalId,sessionId:data.sessionId,status:data.status,wallet:data.wallet,walletMax:data.walletMax,otherTable:data.otherTable,enabled:data.table?.enabled,seated:!!data.table?.seats?.some(s=>s.id==='P04'),error:data.error,message:data.message});
+  }
+  return checks;
+ });
  report.deployedFunctions=await part('function-metadata',async()=>{
   const r=await auth.request({url:`https://cloudfunctions.googleapis.com/v2/projects/${project}/locations/europe-west1/functions`,params:{pageSize:1000}});
   return (r.data.functions??[]).map(f=>({name:f.name,state:f.state,updateTime:f.updateTime,revision:f.serviceConfig?.revision}));
